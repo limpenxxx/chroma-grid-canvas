@@ -512,7 +512,7 @@ export function StageBuilder() {
 
     ctx.restore();
     animRef.current = requestAnimationFrame(drawCanvas);
-  }, [nodes, selectionType, selectedId, showGrid, stageFixtures, mappingFixtures, fixtureStore, isVideoPlaying]);
+  }, [nodes, selectionType, selectedId, showGrid, stageFixtures, mappingFixtures, fixtureStore, isVideoPlaying, bgSource]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
