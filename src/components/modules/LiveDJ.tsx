@@ -1711,15 +1711,18 @@ export function LiveDJ() {
     }
     setWidgets(prev => {
       const updated = prev.map(w => w.id === id ? { ...w, ...updates } : w);
-      // Master/follow: if an xy-pad's colorValue (pan/tilt) changed, propagate to other xy-pads sharing fixtures
-      if (updates.colorValue) {
+      // Master/follow: if an xy-pad's pan/tilt or MH program changed, propagate to other xy-pads sharing fixtures
+      if (updates.colorValue || updates.mhProgram) {
         const source = updated.find(w => w.id === id);
         if (source?.type === 'xy-pad' && source.linkedFixtureIds.length > 0) {
           return updated.map(w => {
             if (w.id === id || w.type !== 'xy-pad') return w;
             const shared = w.linkedFixtureIds.some(fid => source.linkedFixtureIds.includes(fid));
             if (shared) {
-              return { ...w, colorValue: updates.colorValue };
+              const follow: Partial<DJWidget> = {};
+              if (updates.colorValue) follow.colorValue = updates.colorValue;
+              if (updates.mhProgram) follow.mhProgram = updates.mhProgram;
+              return { ...w, ...follow };
             }
             return w;
           });
