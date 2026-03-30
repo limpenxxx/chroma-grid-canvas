@@ -96,7 +96,8 @@ const ORIENTATION_LABELS: Record<SegmentOrientation, string> = {
 type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null;
 type SelectionType = 'node' | 'fixture' | 'mapping-fixture' | null;
 
-type BackgroundSource = 'video' | 'visualizer' | 'texture';
+type BackgroundSource = 'video' | 'visualizer' | 'texture' | 'none';
+type TestPattern = 'blobs' | 'scanlines' | 'test-picture' | 'rgb-scanline' | 'color-bars' | 'gradient-sweep';
 
 export function StageBuilder() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -123,6 +124,7 @@ export function StageBuilder() {
 
   // Background source state
   const [bgSource, setBgSource] = useState<BackgroundSource>('texture');
+  const [testPattern, setTestPattern] = useState<TestPattern>('blobs');
   const [vizPreset, setVizPreset] = useState<VisualizerPreset>('plasma-wave');
   const [vizAudioInput, setVizAudioInput] = useState<AudioInputSource>('microphone');
   const [vizSensitivity, setVizSensitivity] = useState(1.0);
@@ -212,7 +214,7 @@ export function StageBuilder() {
   const stopVisualizer = () => {
     vizEngineRef.current.stop();
     setVizRunning(false);
-    if (bgSource === 'visualizer') setBgSource('texture');
+    if (bgSource === 'visualizer') setBgSource('none');
   };
 
   const drawCanvas = useCallback(() => {
@@ -246,29 +248,114 @@ export function StageBuilder() {
 
     // Background source rendering
     const video = videoRef.current;
+    const time = Date.now() / 1000;
     if (bgSource === 'video' && video && isVideoPlaying && video.readyState >= 2) {
       ctx.drawImage(video, 0, 0, w, h);
     } else if (bgSource === 'visualizer' && vizCanvasRef.current) {
-      // Render visualizer to offscreen canvas, then draw to main
       const vizCanvas = vizCanvasRef.current;
       const vizCtx = vizCanvas.getContext('2d');
       if (vizCtx) {
         vizEngineRef.current.render(vizCtx, vizCanvas.width, vizCanvas.height);
         ctx.drawImage(vizCanvas, 0, 0, w, h);
       }
-    } else {
-      // Animated background texture (fallback)
-      const time = Date.now() / 2000;
-      for (let i = 0; i < 6; i++) {
-        const gx = (Math.sin(time + i * 1.5) * 0.5 + 0.5) * w;
-        const gy = (Math.cos(time * 0.7 + i * 2) * 0.5 + 0.5) * h;
-        const gradient = ctx.createRadialGradient(gx, gy, 0, gx, gy, 140);
-        gradient.addColorStop(0, `hsla(${(time * 30 + i * 55) % 360}, 80%, 50%, 0.12)`);
-        gradient.addColorStop(1, 'transparent');
-        ctx.fillStyle = gradient;
+    } else if (bgSource === 'texture') {
+      // Test patterns
+      if (testPattern === 'blobs') {
+        for (let i = 0; i < 6; i++) {
+          const gx = (Math.sin(time / 2 + i * 1.5) * 0.5 + 0.5) * w;
+          const gy = (Math.cos(time * 0.35 + i * 2) * 0.5 + 0.5) * h;
+          const gradient = ctx.createRadialGradient(gx, gy, 0, gx, gy, 140);
+          gradient.addColorStop(0, `hsla(${(time * 15 + i * 55) % 360}, 80%, 50%, 0.12)`);
+          gradient.addColorStop(1, 'transparent');
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, w, h);
+        }
+      } else if (testPattern === 'scanlines') {
+        // Static scanlines
+        for (let y2 = 0; y2 < h; y2 += 4) {
+          ctx.fillStyle = y2 % 8 === 0 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.3)';
+          ctx.fillRect(0, y2, w, 2);
+        }
+        // Bright moving line
+        const scanY = ((time * 40) % h);
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(0, scanY, w, 3);
+      } else if (testPattern === 'test-picture') {
+        // Color bars (top 70%)
+        const barColors = ['#ffffff', '#ffff00', '#00ffff', '#00ff00', '#ff00ff', '#ff0000', '#0000ff', '#000000'];
+        const barW = w / barColors.length;
+        barColors.forEach((c, i) => {
+          ctx.fillStyle = c;
+          ctx.fillRect(i * barW, 0, barW + 1, h * 0.7);
+        });
+        // Gradient ramp (bottom 30%)
+        for (let x2 = 0; x2 < w; x2++) {
+          const v = Math.round((x2 / w) * 255);
+          ctx.fillStyle = `rgb(${v},${v},${v})`;
+          ctx.fillRect(x2, h * 0.7, 1, h * 0.15);
+        }
+        // Red/green/blue strips
+        const stripH = h * 0.15 / 3;
+        const stripY = h * 0.85;
+        for (let x2 = 0; x2 < w; x2++) {
+          const v = Math.round((x2 / w) * 255);
+          ctx.fillStyle = `rgb(${v},0,0)`;
+          ctx.fillRect(x2, stripY, 1, stripH);
+          ctx.fillStyle = `rgb(0,${v},0)`;
+          ctx.fillRect(x2, stripY + stripH, 1, stripH);
+          ctx.fillStyle = `rgb(0,0,${v})`;
+          ctx.fillRect(x2, stripY + stripH * 2, 1, stripH);
+        }
+        // Center circle
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2, Math.min(w, h) * 0.3, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(w / 2 - 20, h / 2); ctx.lineTo(w / 2 + 20, h / 2);
+        ctx.moveTo(w / 2, h / 2 - 20); ctx.lineTo(w / 2, h / 2 + 20);
+        ctx.stroke();
+      } else if (testPattern === 'rgb-scanline') {
+        // Moving RGB scanline
+        const speed = time * 60;
+        for (let y2 = 0; y2 < h; y2 += 2) {
+          const offset = (y2 + speed) % h;
+          const hue = (offset / h) * 360;
+          const alpha = Math.abs(Math.sin((offset / h) * Math.PI)) * 0.5 + 0.1;
+          ctx.fillStyle = `hsla(${hue}, 100%, 50%, ${alpha})`;
+          ctx.fillRect(0, y2, w, 2);
+        }
+        // Bright scan beam
+        const beamY = ((speed * 0.8) % (h + 40)) - 20;
+        const beamGrad = ctx.createLinearGradient(0, beamY - 20, 0, beamY + 20);
+        beamGrad.addColorStop(0, 'transparent');
+        beamGrad.addColorStop(0.5, `hsla(${(time * 90) % 360}, 100%, 70%, 0.5)`);
+        beamGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = beamGrad;
+        ctx.fillRect(0, beamY - 20, w, 40);
+      } else if (testPattern === 'color-bars') {
+        // Static SMPTE-style color bars
+        const bars = ['#c0c0c0', '#c0c000', '#00c0c0', '#00c000', '#c000c0', '#c00000', '#0000c0'];
+        const bw = w / bars.length;
+        bars.forEach((c, i) => {
+          ctx.fillStyle = c;
+          ctx.fillRect(i * bw, 0, bw + 1, h);
+        });
+      } else if (testPattern === 'gradient-sweep') {
+        // Moving diagonal gradient
+        const angle = time * 0.3;
+        const cx = w / 2 + Math.cos(angle) * w * 0.4;
+        const cy = h / 2 + Math.sin(angle) * h * 0.4;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.7);
+        grad.addColorStop(0, `hsla(${(time * 40) % 360}, 90%, 55%, 0.5)`);
+        grad.addColorStop(0.5, `hsla(${(time * 40 + 120) % 360}, 80%, 45%, 0.3)`);
+        grad.addColorStop(1, `hsla(${(time * 40 + 240) % 360}, 70%, 35%, 0.15)`);
+        ctx.fillStyle = grad;
         ctx.fillRect(0, 0, w, h);
       }
     }
+    // bgSource === 'none' → just black background
 
     // Sample background image data for color-picking
     let bgImageData: ImageData | null = null;
@@ -891,10 +978,29 @@ export function StageBuilder() {
 
         {/* Background Source Selector */}
         <div className="flex items-center gap-1 border-l border-border/30 pl-2 ml-1">
-          <Button variant={bgSource === 'texture' ? 'secondary' : 'outline'} size="sm"
-            onClick={() => setBgSource('texture')} className="h-7 text-[9px] gap-1 px-2">
-            <Grid3X3 size={10} /> Texture
+          <Button variant={bgSource === 'none' ? 'secondary' : 'outline'} size="sm"
+            onClick={() => setBgSource('none')} className="h-7 text-[9px] gap-1 px-2">
+            Off
           </Button>
+          <select
+            value={bgSource === 'texture' ? testPattern : ''}
+            onChange={e => {
+              setTestPattern(e.target.value as TestPattern);
+              setBgSource('texture');
+            }}
+            className={`h-7 text-[9px] rounded px-2 border ${
+              bgSource === 'texture'
+                ? 'bg-secondary text-secondary-foreground border-border/50'
+                : 'bg-muted/30 text-foreground border-border/30'
+            }`}
+          >
+            <option value="blobs">🟣 Blobs</option>
+            <option value="scanlines">▤ Scanlines</option>
+            <option value="test-picture">📺 Test Picture</option>
+            <option value="rgb-scanline">🌈 RGB Scanline</option>
+            <option value="color-bars">🎨 Color Bars</option>
+            <option value="gradient-sweep">🔄 Gradient Sweep</option>
+          </select>
           <Button variant={bgSource === 'video' ? 'secondary' : 'outline'} size="sm"
             onClick={() => setBgSource('video')} className="h-7 text-[9px] gap-1 px-2"
             disabled={!isVideoPlaying}>
