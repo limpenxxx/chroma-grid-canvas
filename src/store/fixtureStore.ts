@@ -26,11 +26,22 @@ export interface FixtureMode {
   channels: FixtureChannel[];
 }
 
+export type ColorSystem = 'rgb' | 'rgbw' | 'rgbww' | 'rgbwc' | 'color-wheel';
+
+export interface ColorWheelSlot {
+  id: string;
+  name: string;
+  color: string; // hex color
+  dmxValue: number; // DMX value that selects this color (0-255)
+}
+
 export interface FixtureDefinition {
   id: string;
   manufacturer: string;
   model: string;
   type: 'moving-head' | 'par' | 'strip' | 'wash' | 'spot' | 'beam' | 'strobe' | 'laser' | 'effect' | 'dimmer' | 'other';
+  colorSystem: ColorSystem;
+  colorWheelSlots?: ColorWheelSlot[]; // only used when colorSystem === 'color-wheel'
   modes: FixtureMode[];
   createdAt: number;
 }
