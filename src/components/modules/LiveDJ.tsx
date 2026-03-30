@@ -84,6 +84,7 @@ interface AudioConfig {
   squelch: number;
   gain: number;
   udpPort: number;
+  wledIp: string;
 }
 
 interface BPMState {
