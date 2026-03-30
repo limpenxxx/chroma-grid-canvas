@@ -177,6 +177,35 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
       ],
     }],
   },
+  {
+    id: 'generic-color-wheel-spot',
+    manufacturer: 'Generic',
+    model: 'Color Wheel Spot',
+    type: 'spot',
+    colorSystem: 'color-wheel' as ColorSystem,
+    colorWheelSlots: [
+      { id: 'cw1', name: 'Open/White', color: '#ffffff', dmxValue: 0 },
+      { id: 'cw2', name: 'Red', color: '#ff0000', dmxValue: 15 },
+      { id: 'cw3', name: 'Blue', color: '#0044ff', dmxValue: 30 },
+      { id: 'cw4', name: 'Green', color: '#00cc00', dmxValue: 45 },
+      { id: 'cw5', name: 'Yellow', color: '#ffee00', dmxValue: 60 },
+      { id: 'cw6', name: 'Orange', color: '#ff6600', dmxValue: 75 },
+      { id: 'cw7', name: 'Purple', color: '#8800ff', dmxValue: 90 },
+      { id: 'cw8', name: 'Magenta', color: '#ff00aa', dmxValue: 105 },
+    ],
+    createdAt: 0,
+    modes: [{
+      id: 'm1', name: '6 Channel', channelCount: 6,
+      channels: [
+        { id: 'c1', number: 1, name: 'Dimmer', function: 'dimmer', defaultValue: 0, min: 0, max: 255 },
+        { id: 'c2', number: 2, name: 'Color Wheel', function: 'color-wheel', defaultValue: 0, min: 0, max: 255 },
+        { id: 'c3', number: 3, name: 'Gobo', function: 'gobo', defaultValue: 0, min: 0, max: 255 },
+        { id: 'c4', number: 4, name: 'Strobe', function: 'strobe', defaultValue: 0, min: 0, max: 255 },
+        { id: 'c5', number: 5, name: 'Pan', function: 'pan', defaultValue: 128, min: 0, max: 255 },
+        { id: 'c6', number: 6, name: 'Tilt', function: 'tilt', defaultValue: 128, min: 0, max: 255 },
+      ],
+    }],
+  },
 ];
 
 interface FixtureStore {
