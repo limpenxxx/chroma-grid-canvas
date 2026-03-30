@@ -2131,6 +2131,8 @@ export function LiveDJ() {
                   )}
                 </div>
               )}
+
+              {!selectedWidgetData && (
                 <div className="flex-1 flex items-center justify-center text-[10px] text-muted-foreground/40 p-4 text-center">
                   Select a widget to edit its properties
                 </div>
