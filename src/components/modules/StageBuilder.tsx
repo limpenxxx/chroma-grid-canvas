@@ -1159,8 +1159,24 @@ export function StageBuilder() {
                         </div>
                       </div>
                       <div>
-                        <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Rotation: {selectedNode.rotation}°</label>
-                        <Slider value={[selectedNode.rotation]} onValueChange={([v]) => updateNode(selectedNode.id, { rotation: v })} min={0} max={359} step={1} />
+                        <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Rotation</label>
+                        <div className="flex items-center gap-1.5">
+                          <Input type="number" min={0} max={359} value={selectedNode.rotation}
+                            onChange={e => updateNode(selectedNode.id, { rotation: ((Number(e.target.value) % 360) + 360) % 360 })}
+                            className="h-7 text-xs bg-muted/30 border-border/30 font-mono w-16" />
+                          <span className="text-[9px] text-muted-foreground">°</span>
+                          {[0, 45, 90, 135, 180, 225, 270, 315].map(deg => (
+                            <button key={deg} onClick={() => updateNode(selectedNode.id, { rotation: deg })}
+                              className={`h-6 min-w-[28px] px-1 rounded text-[8px] font-mono border transition-all ${
+                                selectedNode.rotation === deg
+                                  ? 'border-primary bg-primary/20 text-primary'
+                                  : 'border-border/30 bg-muted/20 text-muted-foreground hover:bg-muted/40'
+                              }`}>
+                              {deg}
+                            </button>
+                          ))}
+                        </div>
+                        <Slider value={[selectedNode.rotation]} onValueChange={([v]) => updateNode(selectedNode.id, { rotation: v })} min={0} max={359} step={1} className="mt-1.5" />
                       </div>
                     </div>
 
