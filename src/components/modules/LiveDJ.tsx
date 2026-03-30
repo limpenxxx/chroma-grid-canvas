@@ -1167,10 +1167,25 @@ export function LiveDJ() {
               </button>
             ))}
           </div>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setIsFullscreen(true)}>
+            <Maximize2 size={14} />
+          </Button>
         </div>
       </div>
+      )}
 
-      {/* ── Save Dialog ── */}
+      {/* Fullscreen minimal header */}
+      {isFullscreen && (
+        <div className="flex items-center justify-between px-3 py-2 border-b border-border/30 bg-background">
+          <div className="flex items-center gap-2">
+            <Speaker size={14} className="text-stokio-pink" />
+            <span className="text-xs font-semibold tracking-wider text-muted-foreground">LIVE DJ</span>
+          </div>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setIsFullscreen(false)}>
+            <Minimize2 size={14} />
+          </Button>
+        </div>
+      )}
       <AnimatePresence>
         {showSaveDialog && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
