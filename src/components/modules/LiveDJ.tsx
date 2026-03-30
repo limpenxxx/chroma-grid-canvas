@@ -1284,7 +1284,18 @@ export function LiveDJ() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-1">
+                  {selectedWidgetData.bgImage && (
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">Image Overlay Opacity</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Slider value={[selectedWidgetData.bgOpacity ?? 70]}
+                          onValueChange={([v]) => updateWidget(selectedWidgetData.id, { bgOpacity: v })}
+                          max={100} className="flex-1" />
+                        <span className="text-[8px] font-mono text-muted-foreground/60 w-8 text-right">{selectedWidgetData.bgOpacity ?? 70}%</span>
+                      </div>
+                    </div>
+                  )}
+
                     <div>
                       <label className="text-[7px] uppercase text-muted-foreground">X</label>
                       <Input type="number" value={Math.round(selectedWidgetData.x)}
