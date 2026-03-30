@@ -366,29 +366,31 @@ export function StageBuilder() {
         ctx.strokeRect(-hw - 2, -hh - 2, node.width + 4, node.height + 4);
         ctx.shadowBlur = 0;
         const handleSize = 10;
+        // Edge-only handles (no corners)
         const handles = [
-          { x: -hw, y: -hh }, { x: 0, y: -hh }, { x: hw, y: -hh },
-          { x: -hw, y: 0 }, { x: hw, y: 0 },
-          { x: -hw, y: hh }, { x: 0, y: hh }, { x: hw, y: hh },
+          { x: 0, y: -hh },   // n
+          { x: 0, y: hh },    // s
+          { x: -hw, y: 0 },   // w
+          { x: hw, y: 0 },    // e
         ];
         handles.forEach(pos => {
           ctx.fillStyle = '#00ff66';
           ctx.fillRect(pos.x - handleSize / 2, pos.y - handleSize / 2, handleSize, handleSize);
         });
-        // Center move handle
+        // Center move anchor
         ctx.beginPath();
-        ctx.arc(0, 0, 8, 0, Math.PI * 2);
+        ctx.arc(0, 0, 10, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(0,255,102,0.3)';
         ctx.fill();
         ctx.strokeStyle = '#00ff66';
         ctx.lineWidth = 1.5;
         ctx.stroke();
-        // Cross icon in center
+        // Cross icon
         ctx.strokeStyle = '#00ff66';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(-4, 0); ctx.lineTo(4, 0);
-        ctx.moveTo(0, -4); ctx.lineTo(0, 4);
+        ctx.moveTo(-5, 0); ctx.lineTo(5, 0);
+        ctx.moveTo(0, -5); ctx.lineTo(0, 5);
         ctx.stroke();
       }
 
