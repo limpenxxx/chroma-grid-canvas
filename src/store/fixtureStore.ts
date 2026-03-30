@@ -26,11 +26,22 @@ export interface FixtureMode {
   channels: FixtureChannel[];
 }
 
+export type ColorSystem = 'rgb' | 'rgbw' | 'rgbww' | 'rgbwc' | 'color-wheel';
+
+export interface ColorWheelSlot {
+  id: string;
+  name: string;
+  color: string; // hex color
+  dmxValue: number; // DMX value that selects this color (0-255)
+}
+
 export interface FixtureDefinition {
   id: string;
   manufacturer: string;
   model: string;
   type: 'moving-head' | 'par' | 'strip' | 'wash' | 'spot' | 'beam' | 'strobe' | 'laser' | 'effect' | 'dimmer' | 'other';
+  colorSystem: ColorSystem;
+  colorWheelSlots?: ColorWheelSlot[]; // only used when colorSystem === 'color-wheel'
   modes: FixtureMode[];
   createdAt: number;
 }
@@ -69,6 +80,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     manufacturer: 'Generic',
     model: 'RGB PAR',
     type: 'par',
+    colorSystem: 'rgb',
     createdAt: 0,
     modes: [{
       id: 'm1', name: '3 Channel', channelCount: 3,
@@ -95,6 +107,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     manufacturer: 'Generic',
     model: 'RGBW PAR',
     type: 'par',
+    colorSystem: 'rgbw',
     createdAt: 0,
     modes: [{
       id: 'm1', name: '4 Channel', channelCount: 4,
@@ -111,6 +124,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     manufacturer: 'Generic',
     model: 'Moving Head Spot',
     type: 'moving-head',
+    colorSystem: 'rgbw',
     createdAt: 0,
     modes: [{
       id: 'm1', name: '16 Channel', channelCount: 16,
@@ -139,6 +153,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     manufacturer: 'Generic',
     model: 'Dimmer',
     type: 'dimmer',
+    colorSystem: 'rgb',
     createdAt: 0,
     modes: [{
       id: 'm1', name: '1 Channel', channelCount: 1,
@@ -152,12 +167,42 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     manufacturer: 'Generic',
     model: 'Strobe',
     type: 'strobe',
+    colorSystem: 'rgb',
     createdAt: 0,
     modes: [{
       id: 'm1', name: '2 Channel', channelCount: 2,
       channels: [
         { id: 'c1', number: 1, name: 'Dimmer', function: 'dimmer', defaultValue: 0, min: 0, max: 255 },
         { id: 'c2', number: 2, name: 'Strobe Speed', function: 'strobe', defaultValue: 0, min: 0, max: 255 },
+      ],
+    }],
+  },
+  {
+    id: 'generic-color-wheel-spot',
+    manufacturer: 'Generic',
+    model: 'Color Wheel Spot',
+    type: 'spot',
+    colorSystem: 'color-wheel' as ColorSystem,
+    colorWheelSlots: [
+      { id: 'cw1', name: 'Open/White', color: '#ffffff', dmxValue: 0 },
+      { id: 'cw2', name: 'Red', color: '#ff0000', dmxValue: 15 },
+      { id: 'cw3', name: 'Blue', color: '#0044ff', dmxValue: 30 },
+      { id: 'cw4', name: 'Green', color: '#00cc00', dmxValue: 45 },
+      { id: 'cw5', name: 'Yellow', color: '#ffee00', dmxValue: 60 },
+      { id: 'cw6', name: 'Orange', color: '#ff6600', dmxValue: 75 },
+      { id: 'cw7', name: 'Purple', color: '#8800ff', dmxValue: 90 },
+      { id: 'cw8', name: 'Magenta', color: '#ff00aa', dmxValue: 105 },
+    ],
+    createdAt: 0,
+    modes: [{
+      id: 'm1', name: '6 Channel', channelCount: 6,
+      channels: [
+        { id: 'c1', number: 1, name: 'Dimmer', function: 'dimmer', defaultValue: 0, min: 0, max: 255 },
+        { id: 'c2', number: 2, name: 'Color Wheel', function: 'color-wheel', defaultValue: 0, min: 0, max: 255 },
+        { id: 'c3', number: 3, name: 'Gobo', function: 'gobo', defaultValue: 0, min: 0, max: 255 },
+        { id: 'c4', number: 4, name: 'Strobe', function: 'strobe', defaultValue: 0, min: 0, max: 255 },
+        { id: 'c5', number: 5, name: 'Pan', function: 'pan', defaultValue: 128, min: 0, max: 255 },
+        { id: 'c6', number: 6, name: 'Tilt', function: 'tilt', defaultValue: 128, min: 0, max: 255 },
       ],
     }],
   },
@@ -198,6 +243,11 @@ export const useFixtureStore = create<FixtureStore>((set, get) => ({
       id: 'inst-4', definitionId: 'generic-rgbw-par', name: 'PAR-2',
       universe: 1, dmxAddress: 40, modeId: 'm1',
       onStage: false, stageX: 450, stageY: 300, stageWidth: 30, stageHeight: 30,
+    },
+    {
+      id: 'inst-5', definitionId: 'generic-color-wheel-spot', name: 'SPOT-1',
+      universe: 1, dmxAddress: 44, modeId: 'm1',
+      onStage: false, stageX: 350, stageY: 200, stageWidth: 36, stageHeight: 36,
     },
   ],
   addDefinition: (def) => set(s => ({ definitions: [...s.definitions, def] })),

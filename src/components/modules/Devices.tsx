@@ -7,14 +7,33 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   useFixtureStore, type FixtureDefinition, type FixtureInstance, type FixtureMode,
-  type FixtureChannel, type ChannelFunction, CHANNEL_FUNCTION_LABELS,
-  getChannelColor, getFixtureTypeIcon,
+  type FixtureChannel, type ChannelFunction, type ColorSystem, type ColorWheelSlot,
+  CHANNEL_FUNCTION_LABELS, getChannelColor, getFixtureTypeIcon,
 } from '@/store/fixtureStore';
 
 type Tab = 'instances' | 'library' | 'editor';
 
 const FIXTURE_TYPES: FixtureDefinition['type'][] = [
   'moving-head', 'par', 'strip', 'wash', 'spot', 'beam', 'strobe', 'laser', 'effect', 'dimmer', 'other',
+];
+
+const COLOR_SYSTEMS: { value: ColorSystem; label: string }[] = [
+  { value: 'rgb', label: 'RGB' },
+  { value: 'rgbw', label: 'RGBW' },
+  { value: 'rgbww', label: 'RGBWW (Warm+Cool White)' },
+  { value: 'rgbwc', label: 'RGBWC (White+Color)' },
+  { value: 'color-wheel', label: 'Fixed Color Wheel' },
+];
+
+const DEFAULT_COLOR_WHEEL_SLOTS: ColorWheelSlot[] = [
+  { id: 'cw1', name: 'Open/White', color: '#ffffff', dmxValue: 0 },
+  { id: 'cw2', name: 'Red', color: '#ff0000', dmxValue: 18 },
+  { id: 'cw3', name: 'Blue', color: '#0000ff', dmxValue: 36 },
+  { id: 'cw4', name: 'Green', color: '#00ff00', dmxValue: 54 },
+  { id: 'cw5', name: 'Yellow', color: '#ffff00', dmxValue: 72 },
+  { id: 'cw6', name: 'Orange', color: '#ff8800', dmxValue: 90 },
+  { id: 'cw7', name: 'Purple', color: '#8800ff', dmxValue: 108 },
+  { id: 'cw8', name: 'Magenta', color: '#ff00ff', dmxValue: 126 },
 ];
 
 const ALL_FUNCTIONS: ChannelFunction[] = Object.keys(CHANNEL_FUNCTION_LABELS) as ChannelFunction[];
@@ -88,6 +107,7 @@ export function Devices() {
       manufacturer: '',
       model: '',
       type: 'par',
+      colorSystem: 'rgb',
       createdAt: Date.now(),
       modes: [{
         id: `mode-${Date.now()}`,
@@ -520,9 +540,84 @@ export function Devices() {
                 {FIXTURE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
+            <div>
+              <label className="text-[8px] uppercase text-muted-foreground">Color System</label>
+              <select value={editingDef.colorSystem}
+                onChange={e => {
+                  const cs = e.target.value as ColorSystem;
+                  setEditingDef({
+                    ...editingDef,
+                    colorSystem: cs,
+                    colorWheelSlots: cs === 'color-wheel' ? (editingDef.colorWheelSlots || [...DEFAULT_COLOR_WHEEL_SLOTS]) : undefined,
+                  });
+                }}
+                className="w-full h-7 rounded bg-muted/30 border border-border/30 text-xs px-2 text-foreground">
+                {COLOR_SYSTEMS.map(cs => <option key={cs.value} value={cs.value}>{cs.label}</option>)}
+              </select>
+            </div>
           </div>
 
-          {/* Modes */}
+          {/* Color Wheel Slots Editor */}
+          {editingDef.colorSystem === 'color-wheel' && (
+            <div className="glass-panel p-3 space-y-2 border-l-2 border-l-[hsl(var(--stokio-pink))]">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Fixed Color Wheel Slots</span>
+                <Button variant="ghost" size="sm" className="h-5 text-[9px] px-2" onClick={() => {
+                  const slots = editingDef.colorWheelSlots || [];
+                  setEditingDef({
+                    ...editingDef,
+                    colorWheelSlots: [...slots, {
+                      id: `cw-${Date.now()}`, name: `Color ${slots.length + 1}`,
+                      color: '#ffffff', dmxValue: slots.length > 0 ? Math.min(255, slots[slots.length - 1].dmxValue + 18) : 0,
+                    }],
+                  });
+                }}>
+                  <Plus size={10} /> Slot
+                </Button>
+              </div>
+              <div className="space-y-1">
+                <div className="grid grid-cols-[24px_1fr_70px_50px_20px] gap-1 text-[7px] uppercase text-muted-foreground/60 px-1">
+                  <span></span><span>Name</span><span>Color</span><span>DMX</span><span></span>
+                </div>
+                {(editingDef.colorWheelSlots || []).map(slot => (
+                  <div key={slot.id} className="grid grid-cols-[24px_1fr_70px_50px_20px] gap-1 items-center">
+                    <div className="w-5 h-5 rounded-full border border-border/30 mx-auto" style={{ backgroundColor: slot.color, boxShadow: `0 0 6px ${slot.color}40` }} />
+                    <Input value={slot.name}
+                      onChange={e => setEditingDef({
+                        ...editingDef,
+                        colorWheelSlots: editingDef.colorWheelSlots?.map(s => s.id === slot.id ? { ...s, name: e.target.value } : s),
+                      })}
+                      className="h-6 text-[10px] bg-muted/20 border-border/20 px-1" />
+                    <Input type="color" value={slot.color}
+                      onChange={e => setEditingDef({
+                        ...editingDef,
+                        colorWheelSlots: editingDef.colorWheelSlots?.map(s => s.id === slot.id ? { ...s, color: e.target.value } : s),
+                      })}
+                      className="h-6 p-0 bg-transparent border-border/20 cursor-pointer" />
+                    <Input type="number" min={0} max={255} value={slot.dmxValue}
+                      onChange={e => setEditingDef({
+                        ...editingDef,
+                        colorWheelSlots: editingDef.colorWheelSlots?.map(s => s.id === slot.id ? { ...s, dmxValue: Number(e.target.value) } : s),
+                      })}
+                      className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono px-1" />
+                    <button onClick={() => setEditingDef({
+                      ...editingDef,
+                      colorWheelSlots: editingDef.colorWheelSlots?.filter(s => s.id !== slot.id),
+                    })} className="text-muted-foreground hover:text-destructive flex items-center justify-center">
+                      <X size={10} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {/* Preview strip */}
+              <div className="flex gap-0.5 mt-2">
+                {(editingDef.colorWheelSlots || []).map(slot => (
+                  <div key={slot.id} className="flex-1 h-4 rounded-sm" style={{ backgroundColor: slot.color }} title={`${slot.name} (DMX: ${slot.dmxValue})`} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {editingDef.modes.map((mode, mIdx) => (
             <div key={mode.id} className="glass-panel p-3 space-y-2 border-l-2" style={{ borderLeftColor: mIdx === 0 ? '#00e5ff' : '#ff2d78' }}>
               <div className="flex items-center justify-between">
