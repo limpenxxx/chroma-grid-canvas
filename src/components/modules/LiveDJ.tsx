@@ -2735,6 +2735,28 @@ export function LiveDJ() {
                       </div>
                     </div>
                   )}
+
+                  {/* DMX Reset Widget Config */}
+                  {selectedWidgetData.type === 'dmx-reset' && (
+                    <div className="space-y-2 border-t border-border/20 pt-2">
+                      <label className="text-[8px] uppercase tracking-widest text-destructive font-semibold flex items-center gap-1">
+                        <Square size={10} /> DMX Reset
+                      </label>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Universe</label>
+                        <Input
+                          type="number"
+                          min={1} max={64}
+                          value={selectedWidgetData.resetUniverse ?? 1}
+                          onChange={e => updateWidget(selectedWidgetData.id, { resetUniverse: Math.max(1, Number(e.target.value)) })}
+                          className="h-6 text-[10px] bg-muted/20 border-border/20 mt-1"
+                        />
+                      </div>
+                      <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                        💡 Sends DMX value 0 to all 512 channels on the selected universe. Use as an emergency blackout.
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
