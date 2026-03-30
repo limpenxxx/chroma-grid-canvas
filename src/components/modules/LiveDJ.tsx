@@ -312,10 +312,12 @@ function ControlWidget({
     <div className={`absolute select-none group transition-shadow ${isSelected ? 'ring-1 ring-primary/60 z-30' : 'z-10'} ${interacting ? 'z-50' : ''}`}
       style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height }}>
 
-      {/* Top drag handle */}
-      <div className="absolute -top-1 left-2 right-2 h-5 z-40 cursor-grab active:cursor-grabbing flex items-center justify-center rounded-t"
+      {/* Top drag handle — larger, more visible */}
+      <div className="absolute -top-3 left-0 right-0 h-6 z-40 cursor-grab active:cursor-grabbing flex items-center justify-center"
         onMouseDown={e => startInteraction(e, 'move')}>
-        <GripVertical size={10} className="text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
+        <div className="bg-muted/40 group-hover:bg-muted/70 rounded-t px-3 py-0.5 transition-colors">
+          <GripVertical size={12} className="text-muted-foreground/40 group-hover:text-muted-foreground/80 transition-colors" />
+        </div>
       </div>
 
       <ResizeHandle corner="resize-br" cursor="cursor-se-resize" />
