@@ -396,6 +396,7 @@ function ControlWidget({
               style={{ width: Math.min(widget.width, widget.height) - 40, height: Math.min(widget.width, widget.height) - 40,
                 background: `conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)` }}
               onClick={(e) => {
+                onSelect();
                 const rect = e.currentTarget.getBoundingClientRect();
                 const cx = e.clientX - rect.left - rect.width / 2, cy = e.clientY - rect.top - rect.height / 2;
                 const hue = ((Math.atan2(cy, cx) * 180 / Math.PI) + 360) % 360;
