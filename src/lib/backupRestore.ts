@@ -95,14 +95,34 @@ export function parseMappingPreset(json: string): MappingPreset | string {
 
 // ── File helpers ──
 
-export function downloadJson(content: string, filename: string) {
+export async function downloadJson(content: string, filename: string) {
   const blob = new Blob([content], { type: 'application/json' });
+
+  // Try modern File System Access API first (works in sandboxed contexts)
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return; // user cancelled
+    }
+  }
+
+  // Fallback: open blob in new tab so user can save manually
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 export function openJsonFile(): Promise<string> {
