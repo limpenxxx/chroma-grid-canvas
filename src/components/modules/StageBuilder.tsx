@@ -76,7 +76,9 @@ export function StageBuilder() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [nodes, setNodes] = useState<WLEDNode[]>(MOCK_NODES);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [selectedFixture, setSelectedFixture] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  const [draggingFixture, setDraggingFixture] = useState<string | null>(null);
   const [resizing, setResizing] = useState<{ nodeId: string; handle: ResizeHandle; startX: number; startY: number; startNode: WLEDNode } | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -84,6 +86,8 @@ export function StageBuilder() {
   const [showProperties, setShowProperties] = useState(true);
   const animRef = useRef<number>(0);
   const canvasDims = useRef({ w: 0, h: 0 });
+  const fixtureStore = useFixtureStore();
+  const stageFixtures = fixtureStore.instances.filter(i => i.onStage);
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
