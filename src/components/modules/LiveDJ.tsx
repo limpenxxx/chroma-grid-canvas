@@ -1913,9 +1913,14 @@ export function LiveDJ() {
                 <div className="p-3 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[9px] uppercase tracking-widest text-primary font-semibold">Properties</span>
-                    <Button variant="ghost" size="sm" className="h-5 text-[8px] text-destructive" onClick={() => removeWidget(selectedWidgetData.id)}>
-                      <Trash2 size={10} />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="sm" className="h-5 text-[8px]" onClick={() => duplicateWidget(selectedWidgetData.id)} title="Duplicate widget">
+                        <Copy size={10} />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-5 text-[8px] text-destructive" onClick={() => removeWidget(selectedWidgetData.id)}>
+                        <Trash2 size={10} />
+                      </Button>
+                    </div>
                   </div>
 
                   <div>
