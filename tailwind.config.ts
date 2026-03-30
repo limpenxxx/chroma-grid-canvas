@@ -85,11 +85,16 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.6" },
         },
+        "strobe-flash": {
+          "0%, 100%": { opacity: "0" },
+          "50%": { opacity: "0.8" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        "strobe-flash": "strobe-flash 0.15s ease-in-out infinite",
       },
     },
   },
