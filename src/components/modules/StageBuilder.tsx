@@ -561,7 +561,7 @@ export function StageBuilder() {
   }, [isVideoPlaying, activeItem]);
 
   const getResizeHandle = (mx: number, my: number, node: WLEDNode): ResizeHandle => {
-    const tol = 8;
+    const tol = 14;
     const onLeft = Math.abs(mx - node.x) < tol;
     const onRight = Math.abs(mx - (node.x + node.width)) < tol;
     const onTop = Math.abs(my - node.y) < tol;
