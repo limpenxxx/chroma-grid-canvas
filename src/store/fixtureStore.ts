@@ -354,6 +354,27 @@ export const useFixtureStore = create<FixtureStore>()(
   )
 );
 
+// Sync: broadcast fixture changes
+useFixtureStore.subscribe((state) => {
+  if (!isSyncingFromRemote()) {
+    broadcastState('fixtures', {
+      definitions: state.definitions,
+      instances: state.instances,
+    });
+  }
+});
+
+// Sync: receive remote fixture updates
+onSyncState((incoming) => {
+  const fx = incoming.fixtures as Record<string, unknown> | undefined;
+  if (fx) {
+    useFixtureStore.setState({
+      ...(fx.definitions !== undefined && { definitions: fx.definitions as FixtureDefinition[] }),
+      ...(fx.instances !== undefined && { instances: fx.instances as FixtureInstance[] }),
+    });
+  }
+});
+
 // Helper: get channel function color for UI
 export function getChannelColor(fn: ChannelFunction): string {
   const colors: Partial<Record<ChannelFunction, string>> = {
