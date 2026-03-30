@@ -1715,17 +1715,32 @@ export function LiveDJ() {
       if (updates.colorValue || updates.mhProgram) {
         const source = updated.find(w => w.id === id);
         if (source?.type === 'xy-pad' && source.linkedFixtureIds.length > 0) {
-          return updated.map(w => {
+          const followers: { wid: string; delayMs: number; follow: Partial<DJWidget> }[] = [];
+          const result = updated.map(w => {
             if (w.id === id || w.type !== 'xy-pad') return w;
             const shared = w.linkedFixtureIds.some(fid => source.linkedFixtureIds.includes(fid));
-            if (shared) {
-              const follow: Partial<DJWidget> = {};
-              if (updates.colorValue) follow.colorValue = updates.colorValue;
-              if (updates.mhProgram) follow.mhProgram = updates.mhProgram;
-              return { ...w, ...follow };
+            if (!shared) return w;
+            const follow: Partial<DJWidget> = {};
+            if (updates.colorValue) follow.colorValue = updates.colorValue;
+            if (updates.mhProgram) follow.mhProgram = updates.mhProgram;
+            // Check delay from follower's own fixture configs
+            const maxDelay = Math.max(0, ...(w.mhProgram?.fixtureConfigs || []).map(c => c.delayMs || 0));
+            if (maxDelay > 0 && updates.colorValue) {
+              // Schedule delayed position update
+              followers.push({ wid: w.id, delayMs: maxDelay, follow });
+              return w; // don't update immediately
             }
-            return w;
+            return { ...w, ...follow };
           });
+          // Schedule delayed followers outside setState
+          if (followers.length > 0) {
+            followers.forEach(({ wid, delayMs, follow }) => {
+              setTimeout(() => {
+                setWidgets(p => p.map(w2 => w2.id === wid ? { ...w2, ...follow } : w2));
+              }, delayMs);
+            });
+          }
+          return result;
         }
       }
       return updated;
