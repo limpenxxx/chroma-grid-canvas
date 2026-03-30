@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ImagePlus } from 'lucide-react';
+import stokioLogo from '@/assets/stokio-logo-color.png';
 import { useAppStore } from '@/store/appStore';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { BottomBar } from '@/components/layout/BottomBar';
