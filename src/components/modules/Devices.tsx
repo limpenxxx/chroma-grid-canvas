@@ -689,6 +689,9 @@ export function Devices() {
           </Button>
         </div>
       )}
+
+      {/* WLED TAB */}
+      {tab === 'wled' && <WledPanel />}
     </motion.div>
   );
 }
