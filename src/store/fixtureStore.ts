@@ -92,6 +92,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     manufacturer: 'Generic',
     model: 'RGB PAR',
     type: 'par',
+    category: 'dmx',
     colorSystem: 'rgb',
     createdAt: 0,
     modes: [{
@@ -119,6 +120,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     manufacturer: 'Generic',
     model: 'RGBW PAR',
     type: 'par',
+    category: 'dmx',
     colorSystem: 'rgbw',
     createdAt: 0,
     modes: [{
@@ -136,6 +138,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     manufacturer: 'Generic',
     model: 'Moving Head Spot',
     type: 'moving-head',
+    category: 'dmx',
     colorSystem: 'rgbw',
     createdAt: 0,
     modes: [{
@@ -165,6 +168,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     manufacturer: 'Generic',
     model: 'Dimmer',
     type: 'dimmer',
+    category: 'dmx',
     colorSystem: 'rgb',
     createdAt: 0,
     modes: [{
@@ -179,6 +183,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     manufacturer: 'Generic',
     model: 'Strobe',
     type: 'strobe',
+    category: 'dmx',
     colorSystem: 'rgb',
     createdAt: 0,
     modes: [{
@@ -194,6 +199,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     manufacturer: 'Generic',
     model: 'Color Wheel Spot',
     type: 'spot',
+    category: 'dmx',
     colorSystem: 'color-wheel' as ColorSystem,
     colorWheelSlots: [
       { id: 'cw1', name: 'Open/White', color: '#ffffff', dmxValue: 0 },
@@ -216,6 +222,49 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
         { id: 'c5', number: 5, name: 'Pan', function: 'pan', defaultValue: 128, min: 0, max: 255 },
         { id: 'c6', number: 6, name: 'Tilt', function: 'tilt', defaultValue: 128, min: 0, max: 255 },
       ],
+    }],
+  },
+  // ── WLED Built-in fixtures ──
+  {
+    id: 'wled-strip-60',
+    manufacturer: 'WLED',
+    model: '60 LED Strip',
+    type: 'wled',
+    category: 'wled',
+    colorSystem: 'rgb',
+    wledConfig: { ip: '', ledCount: 60, segments: 1, presets: [] },
+    createdAt: 0,
+    modes: [{
+      id: 'wled-m1', name: 'WLED RGB', channelCount: 0,
+      channels: [],
+    }],
+  },
+  {
+    id: 'wled-strip-144',
+    manufacturer: 'WLED',
+    model: '144 LED Strip',
+    type: 'wled',
+    category: 'wled',
+    colorSystem: 'rgb',
+    wledConfig: { ip: '', ledCount: 144, segments: 1, presets: [] },
+    createdAt: 0,
+    modes: [{
+      id: 'wled-m1', name: 'WLED RGB', channelCount: 0,
+      channels: [],
+    }],
+  },
+  {
+    id: 'wled-matrix-16x16',
+    manufacturer: 'WLED',
+    model: '16×16 Matrix',
+    type: 'wled',
+    category: 'wled',
+    colorSystem: 'rgb',
+    wledConfig: { ip: '', ledCount: 256, segments: 1, presets: [] },
+    createdAt: 0,
+    modes: [{
+      id: 'wled-m1', name: 'WLED RGB', channelCount: 0,
+      channels: [],
     }],
   },
 ];
