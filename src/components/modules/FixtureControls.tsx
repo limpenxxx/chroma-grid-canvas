@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Home, Crosshair } from 'lucide-react';
+import { Home, Crosshair, Wifi, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { Input } from '@/components/ui/input';
 import {
   useFixtureStore, type FixtureDefinition, type FixtureInstance,
   type ColorSystem, type ColorWheelSlot, getFixtureTypeIcon,
@@ -245,13 +246,131 @@ function colorSystemLabel(cs: ColorSystem): string {
   return map[cs];
 }
 
+// ── WLED Fixture Panel ──
+function WledFixturePanel({ instance, definition }: {
+  instance: FixtureInstance;
+  definition: FixtureDefinition;
+}) {
+  const store = useFixtureStore();
+  const wled = definition.wledConfig;
+  const [ip, setIp] = useState(wled?.ip || '');
+  const [presets, setPresets] = useState(wled?.presets || []);
+  const [activePreset, setActivePreset] = useState<number | null>(null);
+  const [color, setColor] = useState({ r: 255, g: 0, b: 0 });
+  const [brightness, setBrightness] = useState(128);
+
+  const fetchPresets = async () => {
+    if (!ip) return;
+    // Mock — in production: fetch(`http://${ip}/json/presets`)
+    const mock = [
+      { id: 1, name: 'Rainbow' }, { id: 2, name: 'Fire' }, { id: 3, name: 'Ocean' },
+      { id: 4, name: 'Forest' }, { id: 5, name: 'Twinkle' }, { id: 6, name: 'Meteor' },
+      { id: 7, name: 'Breathe' }, { id: 8, name: 'Scanner' }, { id: 9, name: 'Chase' },
+      { id: 10, name: 'Fireworks' }, { id: 11, name: 'Strobe' }, { id: 12, name: 'Party' },
+    ];
+    setPresets(mock);
+    store.updateDefinition(definition.id, { wledConfig: { ...wled!, ip, presets: mock } });
+  };
+
+  const saveIp = () => {
+    store.updateDefinition(definition.id, { wledConfig: { ...wled!, ip } });
+  };
+
+  return (
+    <div className="flex flex-wrap gap-6 items-start">
+      {/* Connection */}
+      <div className="space-y-3 min-w-[200px]">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground block">WLED DEVICE</label>
+        <div className="flex gap-1.5">
+          <Input value={ip} onChange={e => setIp(e.target.value)} onBlur={saveIp}
+            placeholder="192.168.1.x"
+            className="h-7 text-[10px] bg-muted/20 border-border/20 font-mono flex-1" />
+          <Button variant="outline" size="sm" className="h-7 text-[9px] gap-1" onClick={fetchPresets}>
+            <RefreshCw size={10} /> Fetch
+          </Button>
+        </div>
+        <div className="text-[8px] text-muted-foreground/50">
+          LEDs: {wled?.ledCount || '?'} · Segments: {wled?.segments || 1}
+        </div>
+
+        {/* Brightness */}
+        <div className="space-y-1">
+          <label className="text-[9px] text-muted-foreground">Brightness</label>
+          <div className="flex items-center gap-2">
+            <Slider value={[brightness]} onValueChange={([v]) => setBrightness(v)} max={255} className="flex-1" />
+            <span className="text-[9px] font-mono text-muted-foreground w-6">{brightness}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Color */}
+      <div className="space-y-3">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground block text-center">COLOR</label>
+        <div className="relative w-[180px] h-[180px]">
+          <div className="absolute inset-0 rounded-full control-glossy"
+            style={{ background: `conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)`, padding: 6 }}>
+            <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full border-2 border-border/30"
+                style={{ background: `rgb(${color.r}, ${color.g}, ${color.b})`, boxShadow: `0 0 20px rgb(${color.r}, ${color.g}, ${color.b})` }} />
+            </div>
+          </div>
+        </div>
+        {['r', 'g', 'b'].map(ch => (
+          <div key={ch} className="flex items-center gap-2">
+            <span className="text-[9px] text-muted-foreground w-4 uppercase font-semibold">{ch}</span>
+            <Slider value={[color[ch as keyof typeof color]]}
+              onValueChange={([v]) => setColor(prev => ({ ...prev, [ch]: v }))} max={255} className="flex-1" />
+            <span className="text-[9px] font-mono text-muted-foreground w-6">{color[ch as keyof typeof color]}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Presets from device */}
+      <div className="space-y-3 min-w-[200px]">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground block">DEVICE PRESETS</label>
+        {presets.length === 0 ? (
+          <div className="text-[9px] text-muted-foreground/40 text-center py-4">
+            Enter WLED IP and click Fetch to load presets
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-1.5">
+            {presets.map(p => (
+              <button key={p.id} onClick={() => setActivePreset(p.id)}
+                className={`px-2 py-1.5 rounded text-[9px] font-medium border transition-all ${
+                  activePreset === p.id
+                    ? 'bg-[#ff6600]/20 border-[#ff6600]/40 text-[#ff6600] shadow-[0_0_8px_rgba(255,102,0,0.3)]'
+                    : 'border-border/20 text-muted-foreground hover:border-[#ff6600]/30 hover:bg-[#ff6600]/5'
+                }`}>
+                {p.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ──
+type FixtureTab = 'dmx' | 'wled';
+
 export function FixtureControls() {
   const store = useFixtureStore();
   const [states, setStates] = useState<Record<string, FixtureState>>({});
   const [selectedId, setSelectedId] = useState<string>(store.instances[0]?.id || '');
+  const [fixtureTab, setFixtureTab] = useState<FixtureTab>('dmx');
 
-  const selected = store.instances.find(i => i.id === selectedId);
+  const dmxInstances = store.instances.filter(i => {
+    const def = store.definitions.find(d => d.id === i.definitionId);
+    return def?.category === 'dmx';
+  });
+  const wledInstances = store.instances.filter(i => {
+    const def = store.definitions.find(d => d.id === i.definitionId);
+    return def?.category === 'wled';
+  });
+
+  const currentInstances = fixtureTab === 'dmx' ? dmxInstances : wledInstances;
+  const selected = currentInstances.find(i => i.id === selectedId) || currentInstances[0];
   const selectedDef = selected ? store.definitions.find(d => d.id === selected.definitionId) : undefined;
   const selectedMode = selected && selectedDef ? selectedDef.modes.find(m => m.id === selected.modeId) : undefined;
 
@@ -265,36 +384,54 @@ export function FixtureControls() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
-      <div className="p-3 border-b border-border/30">
-        <h2 className="text-sm font-semibold tracking-wider">FIXTURE CONTROLS</h2>
+      <div className="p-3 border-b border-border/30 flex items-center gap-4">
+        <h2 className="text-sm font-semibold tracking-wider">FIXTURES</h2>
+        <div className="flex gap-1">
+          <button onClick={() => setFixtureTab('dmx')}
+            className={`px-3 py-1 rounded text-[10px] font-semibold uppercase tracking-wider transition-all ${
+              fixtureTab === 'dmx' ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
+            }`}>DMX</button>
+          <button onClick={() => setFixtureTab('wled')}
+            className={`px-3 py-1 rounded text-[10px] font-semibold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+              fixtureTab === 'wled' ? 'bg-[#ff6600]/10 text-[#ff6600] border border-[#ff6600]/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
+            }`}>
+            <Wifi size={10} /> WLED
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Fixture List */}
         <div className="w-44 border-r border-border/30 p-2 space-y-1 overflow-y-auto">
-          {store.instances.length === 0 && (
-            <div className="text-[10px] text-muted-foreground text-center py-4">No fixtures patched.<br />Go to Devices to add fixtures.</div>
+          {currentInstances.length === 0 && (
+            <div className="text-[10px] text-muted-foreground text-center py-4">
+              No {fixtureTab === 'wled' ? 'WLED' : 'DMX'} fixtures patched.<br />Go to Devices to add fixtures.
+            </div>
           )}
-          {store.instances.map(inst => {
+          {currentInstances.map(inst => {
             const def = store.definitions.find(d => d.id === inst.definitionId);
             if (!def) return null;
             const s = getState(inst.id);
-            const previewColor = def.colorSystem === 'color-wheel'
-              ? (def.colorWheelSlots?.find(sl => sl.id === s.colorWheelSlotId)?.color || '#888')
-              : `rgb(${s.color.r},${s.color.g},${s.color.b})`;
+            const previewColor = def.category === 'wled'
+              ? '#ff6600'
+              : def.colorSystem === 'color-wheel'
+                ? (def.colorWheelSlots?.find(sl => sl.id === s.colorWheelSlotId)?.color || '#888')
+                : `rgb(${s.color.r},${s.color.g},${s.color.b})`;
             return (
               <button
                 key={inst.id}
                 onClick={() => setSelectedId(inst.id)}
                 className={`w-full flex items-center gap-2 p-2 rounded text-xs transition-all ${
-                  selectedId === inst.id ? 'bg-primary/10 border border-primary/30 text-primary' : 'hover:bg-muted/50 text-muted-foreground'
+                  selected?.id === inst.id ? 'bg-primary/10 border border-primary/30 text-primary' : 'hover:bg-muted/50 text-muted-foreground'
                 }`}
               >
                 <span className="text-sm">{getFixtureTypeIcon(def.type)}</span>
                 <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: previewColor, boxShadow: `0 0 6px ${previewColor}` }} />
                 <div className="flex-1 text-left min-w-0">
                   <div className="truncate text-[10px] font-semibold">{inst.name}</div>
-                  <div className="text-[8px] text-muted-foreground/60">{def.colorSystem.toUpperCase()}</div>
+                  <div className="text-[8px] text-muted-foreground/60">
+                    {def.category === 'wled' ? `WLED · ${def.wledConfig?.ledCount || '?'} LEDs` : def.colorSystem.toUpperCase()}
+                  </div>
                 </div>
               </button>
             );
@@ -305,6 +442,8 @@ export function FixtureControls() {
         <div className="flex-1 p-6 overflow-y-auto">
           {!selected || !selectedDef ? (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Select a fixture</div>
+          ) : selectedDef.category === 'wled' ? (
+            <WledFixturePanel instance={selected} definition={selectedDef} />
           ) : (
             <div className="flex flex-wrap gap-8 items-start">
               {/* Color Controls */}

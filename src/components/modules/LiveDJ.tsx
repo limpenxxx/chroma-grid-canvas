@@ -32,12 +32,15 @@ type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'f
 // ── Preset Scene Entry ──
 interface PresetSceneEntry {
   targetId: string; // fixture instance ID or group ID
-  targetType: 'fixture' | 'group';
+  targetType: 'fixture' | 'group' | 'wled';
   dimmer: number; // 0-255
   color?: { r: number; g: number; b: number };
   strobe?: number; // 0-255
   pan?: number;
   tilt?: number;
+  // WLED-specific
+  wledPresetId?: number; // trigger a saved preset from the WLED device
+  wledPresetName?: string;
 }
 
 // ── MH Movement Programs ──
@@ -1618,6 +1621,26 @@ export function LiveDJ() {
                     // Preset recall: apply stored scene values to all other widgets
                     if (w.type === 'preset' && w.presetEntries && w.presetEntries.length > 0) {
                       w.presetEntries.forEach(entry => {
+                        // WLED preset: trigger device preset via API
+                        if (entry.targetType === 'wled') {
+                          const wledInst = fixturesWithDefs.find(f => f.inst.id === entry.targetId);
+                          const wledIp = wledInst?.def.wledConfig?.ip;
+                          if (wledIp && entry.wledPresetId !== undefined) {
+                            // In production: fetch(`http://${wledIp}/json/state`, { method: 'POST', body: JSON.stringify({ ps: entry.wledPresetId }) });
+                          }
+                          // Also apply color if set
+                          if (wledIp && entry.color) {
+                            // In production: fetch(`http://${wledIp}/json/state`, { method: 'POST', body: JSON.stringify({ seg: [{ col: [[entry.color.r, entry.color.g, entry.color.b]] }] }) });
+                          }
+                          // Apply to WLED preset widgets linked to this fixture
+                          widgets.forEach(ow => {
+                            if (ow.type === 'wled-preset' && ow.linkedFixtureIds.includes(entry.targetId) && entry.wledPresetId !== undefined) {
+                              updateWidget(ow.id, { wledPresetId: entry.wledPresetId });
+                            }
+                          });
+                          return;
+                        }
+
                         // Find matching widgets linked to this fixture/group and apply values
                         const targetFixtureIds = entry.targetType === 'group'
                           ? (groups.find(g => g.id === entry.targetId)?.fixtureIds || [])
@@ -1973,6 +1996,33 @@ export function LiveDJ() {
                               </div>
                             </div>
                           )}
+                          {/* WLED Fixtures */}
+                          {fixturesWithDefs.filter(f => f.def.category === 'wled').length > 0 && (
+                            <div>
+                              <span className="text-[7px] text-muted-foreground/60">WLED Fixtures:</span>
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {fixturesWithDefs.filter(f => f.def.category === 'wled').map(({ inst, def }) => {
+                                  const inScene = selectedWidgetData.presetEntries?.some(e => e.targetId === inst.id && e.targetType === 'wled');
+                                  return (
+                                    <button key={inst.id}
+                                      onClick={() => {
+                                        const entries = selectedWidgetData.presetEntries || [];
+                                        if (inScene) {
+                                          updateWidget(selectedWidgetData.id, { presetEntries: entries.filter(e => !(e.targetId === inst.id && e.targetType === 'wled')) });
+                                        } else {
+                                          updateWidget(selectedWidgetData.id, { presetEntries: [...entries, { targetId: inst.id, targetType: 'wled', dimmer: 255 }] });
+                                        }
+                                      }}
+                                      className={`text-[8px] px-1.5 py-0.5 rounded border transition-all flex items-center gap-1 ${
+                                        inScene ? 'bg-[#ff6600]/10 border-[#ff6600]/30 text-[#ff6600]' : 'border-border/20 text-muted-foreground hover:border-border/40'
+                                      }`}>
+                                      💡 {inst.name}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -1982,12 +2032,16 @@ export function LiveDJ() {
                           <label className="text-[7px] uppercase text-muted-foreground">Scene Values</label>
                           {(selectedWidgetData.presetEntries || []).map((entry, idx) => {
                             const isFixture = entry.targetType === 'fixture';
+                            const isWled = entry.targetType === 'wled';
+                            const wledDef = isWled ? fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.def : null;
                             const name = isFixture
                               ? fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.inst.name || entry.targetId
-                              : groups.find(g => g.id === entry.targetId)?.name || entry.targetId;
+                              : isWled
+                                ? fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.inst.name || entry.targetId
+                                : groups.find(g => g.id === entry.targetId)?.name || entry.targetId;
                             const icon = isFixture
                               ? getFixtureTypeIcon(fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.def.type || 'other')
-                              : '👥';
+                              : isWled ? '💡' : '👥';
                             const updateEntry = (updates: Partial<PresetSceneEntry>) => {
                               const entries = [...(selectedWidgetData.presetEntries || [])];
                               entries[idx] = { ...entries[idx], ...updates };
@@ -2048,6 +2102,26 @@ export function LiveDJ() {
                                       className="h-5 text-[9px] bg-muted/20 border-border/20 font-mono px-1 flex-1" />
                                   </div>
                                 </div>
+                                {/* WLED Preset selector */}
+                                {isWled && wledDef?.wledConfig && (
+                                  <div className="space-y-1 border-t border-border/10 pt-1.5 mt-1">
+                                    <label className="text-[7px] text-[#ff6600] font-semibold uppercase">WLED Preset</label>
+                                    <select
+                                      value={entry.wledPresetId ?? ''}
+                                      onChange={e => updateEntry({ wledPresetId: e.target.value ? Number(e.target.value) : undefined, wledPresetName: wledDef.wledConfig?.presets.find(p => p.id === Number(e.target.value))?.name })}
+                                      className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[9px] px-1 text-foreground">
+                                      <option value="">Color only (no preset)</option>
+                                      {(wledDef.wledConfig.presets || []).map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                      ))}
+                                    </select>
+                                    {(wledDef.wledConfig.presets || []).length === 0 && (
+                                      <div className="text-[7px] text-muted-foreground/40">
+                                        No presets loaded. Fetch them in Fixtures → WLED tab first.
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}

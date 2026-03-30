@@ -107,6 +107,7 @@ export function Devices() {
       manufacturer: '',
       model: '',
       type: 'par',
+      category: 'dmx',
       colorSystem: 'rgb',
       createdAt: Date.now(),
       modes: [{

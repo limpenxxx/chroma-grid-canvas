@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker, Grid3X3, Download, Upload
+  Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker, Grid3X3, Download, Upload, LogOut
 } from 'lucide-react';
 import { useAppStore, type ModuleId } from '@/store/appStore';
 import stokioLogo from '@/assets/stokio-logo-color.png';
@@ -14,21 +14,22 @@ const navItems: { id: ModuleId; icon: typeof Layout; label: string }[] = [
   { id: 'stage', icon: Grid3X3, label: 'Pixel Mapping' },
   { id: 'media', icon: Film, label: 'Media Server' },
   { id: 'text', icon: Type, label: 'Text Overlays' },
-  { id: 'fixtures', icon: Sliders, label: 'Fixture Controls' },
+  { id: 'fixtures', icon: Sliders, label: 'Fixtures' },
   { id: 'nodes', icon: GitBranch, label: 'Node Logic' },
   { id: 'devices', icon: Cpu, label: 'Devices' },
   { id: 'livedj', icon: Speaker, label: 'LIVE DJ' },
 ];
 
 export function AppSidebar() {
-  const { activeModule, setActiveModule } = useAppStore();
+  const { activeModule, setActiveModule, isModuleAllowed, userRole, logout } = useAppStore();
+  const filteredNav = navItems.filter(item => isModuleAllowed(item.id));
 
   return (
     <div className="w-[100px] h-full flex flex-col items-center py-4 border-r border-border/50 bg-[hsl(0_0%_3%)]">
 
       {/* Nav Items */}
       <nav className="flex-1 flex flex-col gap-1 w-full px-2">
-        {navItems.map((item) => {
+        {filteredNav.map((item) => {
           const isActive = activeModule === item.id;
           return (
             <Tooltip key={item.id}>
@@ -101,6 +102,17 @@ export function AppSidebar() {
           <TooltipContent side="right">Import project backup</TooltipContent>
         </Tooltip>
       </div>
+
+      {/* Logout */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="sm" className="w-[80px] h-8 text-[8px] gap-1 text-muted-foreground hover:text-foreground mb-1"
+            onClick={() => logout()}>
+            <LogOut size={12} /> {userRole === 'admin' ? 'Admin' : 'User'}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right">Switch role / Logout</TooltipContent>
+      </Tooltip>
 
       {/* Credit & Version */}
       <div className="flex flex-col items-center gap-1 mt-2">
