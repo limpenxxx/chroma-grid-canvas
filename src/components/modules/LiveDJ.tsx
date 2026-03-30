@@ -5,7 +5,7 @@ import {
   Zap, ChevronDown, ChevronRight, Monitor, Hand, Layers,
   Speaker, X, Save, Mic, Activity,
   ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users,
-  Bookmark, Settings2
+  Bookmark, Settings2, CircleDot
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
