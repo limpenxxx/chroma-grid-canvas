@@ -478,9 +478,13 @@ function ControlWidget({
 
       {/* FIXED COLOR PICKER */}
       {widget.type === 'fixed-color' && (() => {
-        // Gather color wheel slots from linked fixtures
+        // Gather color wheel slots from linked fixtures, OR from all available fixtures if none linked
         const slots: { color: string; dmxValue: number; name: string }[] = [];
-        widget.linkedFixtureIds.forEach(fid => {
+        const sourceFixtures = widget.linkedFixtureIds.length > 0
+          ? widget.linkedFixtureIds
+          : fixtureData.filter(f => f.def.colorWheelSlots && f.def.colorWheelSlots.length > 0).map(f => f.inst.id);
+        
+        sourceFixtures.forEach(fid => {
           const fd = fixtureData.find(f => f.inst.id === fid);
           if (fd?.def.colorWheelSlots) {
             fd.def.colorWheelSlots.forEach(s => {
