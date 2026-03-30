@@ -1146,6 +1146,12 @@ export function StageBuilder() {
                         );
                       })}
                     </div>
+
+                    {/* Remove Node */}
+                    <Button variant="outline" size="sm" className="w-full h-7 text-[10px] gap-1 text-destructive hover:text-destructive border-destructive/30"
+                      onClick={deleteSelected}>
+                      <Trash2 size={12} /> Remove WLED Node
+                    </Button>
                   </>
                 )}
 
