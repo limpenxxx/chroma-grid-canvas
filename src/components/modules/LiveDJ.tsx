@@ -475,6 +475,72 @@ function ControlWidget({
           )}
         </div>
       )}
+
+      {/* FIXED COLOR PICKER */}
+      {widget.type === 'fixed-color' && (() => {
+        // Gather color wheel slots from linked fixtures
+        const slots: { color: string; dmxValue: number; name: string }[] = [];
+        widget.linkedFixtureIds.forEach(fid => {
+          const fd = fixtureData.find(f => f.inst.id === fid);
+          if (fd?.def.colorWheelSlots) {
+            fd.def.colorWheelSlots.forEach(s => {
+              if (!slots.find(x => x.dmxValue === s.dmxValue && x.color === s.color)) {
+                slots.push({ color: s.color, dmxValue: s.dmxValue, name: s.name });
+              }
+            });
+          }
+        });
+
+        // If RGB sync enabled, find synced color widget and auto-select closest slot
+        const syncWidget = widget.rgbSyncEnabled && widget.syncColorWidgetId
+          ? allWidgets.find(w => w.id === widget.syncColorWidgetId)
+          : null;
+        const syncedSlot = syncWidget?.colorValue && slots.length > 0
+          ? findClosestSlot(syncWidget.colorValue, slots)
+          : null;
+        const activeSlotValue = syncedSlot ? syncedSlot.dmxValue : widget.fixedColorSlotValue;
+
+        const slotSize = slots.length > 0 
+          ? Math.max(16, Math.min(32, (Math.min(widget.width, widget.height) - 40) / Math.ceil(Math.sqrt(slots.length))))
+          : 0;
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-2 gap-1 overflow-hidden" style={bgStyle}>
+            <span className="text-muted-foreground font-semibold truncate" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.1)) }}>{widget.label}</span>
+            {widget.rgbSyncEnabled && (
+              <div className="text-[6px] px-1.5 py-0.5 rounded bg-stokio-cyan/10 text-stokio-cyan border border-stokio-cyan/20 font-semibold">
+                RGB SYNC
+              </div>
+            )}
+            <div className="flex-1 flex flex-wrap items-center justify-center gap-1 overflow-y-auto p-1">
+              {slots.map(slot => {
+                const isActive = activeSlotValue === slot.dmxValue;
+                return (
+                  <button key={`${slot.dmxValue}-${slot.color}`}
+                    onClick={() => onUpdate({ fixedColorSlotValue: slot.dmxValue })}
+                    className={`rounded-full border-2 transition-all flex-shrink-0 ${isActive ? 'scale-110' : 'hover:scale-105'}`}
+                    style={{
+                      width: slotSize, height: slotSize,
+                      backgroundColor: slot.color,
+                      borderColor: isActive ? '#fff' : 'transparent',
+                      boxShadow: isActive ? `0 0 12px ${slot.color}, 0 0 4px #fff` : `inset 0 -2px 4px rgba(0,0,0,0.3)`,
+                    }}
+                    title={`${slot.name} (DMX ${slot.dmxValue})`}
+                  />
+                );
+              })}
+              {slots.length === 0 && (
+                <span className="text-[8px] text-muted-foreground/40 text-center">Link fixtures with fixed color wheels</span>
+              )}
+            </div>
+            {activeSlotValue !== undefined && slots.length > 0 && (
+              <span className="text-[8px] text-muted-foreground font-mono" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
+                {slots.find(s => s.dmxValue === activeSlotValue)?.name || '—'} · DMX {activeSlotValue}
+              </span>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
