@@ -1704,6 +1704,18 @@ export function LiveDJ() {
                 }
               }}
             >
+              {/* Tab background image */}
+              {activePage?.bgImage && (
+                <div className="absolute inset-0 pointer-events-none z-[0]"
+                  style={{
+                    backgroundImage: `url(${activePage.bgImage})`,
+                    backgroundSize: (activePage.bgFit || 'fill') === 'fill' ? 'cover' : 'contain',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat',
+                    opacity: (activePage.bgOpacity ?? 30) / 100,
+                  }} />
+              )}
+
               <div className="absolute inset-0" data-surface="true"
                 style={{ backgroundImage: 'radial-gradient(circle, hsl(var(--border) / 0.15) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
 
