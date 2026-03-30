@@ -29,7 +29,7 @@ export function AppSidebar() {
 
       {/* Nav Items */}
       <nav className="flex-1 flex flex-col gap-1 w-full px-2">
-        {navItems.map((item) => {
+        {filteredNav.map((item) => {
           const isActive = activeModule === item.id;
           return (
             <Tooltip key={item.id}>
