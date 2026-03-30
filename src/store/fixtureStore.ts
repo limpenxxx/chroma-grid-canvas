@@ -244,6 +244,11 @@ export const useFixtureStore = create<FixtureStore>((set, get) => ({
       universe: 1, dmxAddress: 40, modeId: 'm1',
       onStage: false, stageX: 450, stageY: 300, stageWidth: 30, stageHeight: 30,
     },
+    {
+      id: 'inst-5', definitionId: 'generic-color-wheel-spot', name: 'SPOT-1',
+      universe: 1, dmxAddress: 44, modeId: 'm1',
+      onStage: false, stageX: 350, stageY: 200, stageWidth: 36, stageHeight: 36,
+    },
   ],
   addDefinition: (def) => set(s => ({ definitions: [...s.definitions, def] })),
   removeDefinition: (id) => set(s => ({ definitions: s.definitions.filter(d => d.id !== id) })),
