@@ -85,6 +85,9 @@ interface AudioConfig {
   gain: number;
   udpPort: number;
   wledIp: string;
+  sensitivity: number;   // 0-255, beat detection threshold
+  freqLow: number;       // Hz, low cutoff for frequency filter
+  freqHigh: number;      // Hz, high cutoff for frequency filter
 }
 
 interface BPMState {
