@@ -309,7 +309,7 @@ function ControlWidget({
 
     const prog = widget.mhProgram;
     const sizeScale = (prog.size || 50) / 100;
-    const speedMs = Math.max(200, 6000 - (prog.speed || 50) * 50); // period in ms
+    const speedMs = Math.max(800, 1000 + (255 - (prog.speed || 128)) * 100); // period in ms: 255=fast(1s), 0=slow(~26s)
     const startTime = performance.now();
 
     const computePos = (t: number): { x: number; y: number } => {
