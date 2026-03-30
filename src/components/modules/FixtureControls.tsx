@@ -477,7 +477,9 @@ export function FixtureControls() {
 
         {/* Controls */}
         <div className="flex-1 p-6 overflow-y-auto">
-          {!selected || !selectedDef ? (
+          {selectedWledFixture ? (
+            <WledFixtureLivePanel fixture={selectedWledFixture} state={getState(selectedWledFixture.id)} updateState={(u) => updateState(selectedWledFixture.id, u)} />
+          ) : !selected || !selectedDef ? (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Select a fixture</div>
           ) : selectedDef.category === 'wled' ? (
             <WledFixturePanel instance={selected} definition={selectedDef} />

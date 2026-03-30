@@ -444,7 +444,7 @@ export function WledPanel() {
                 {selectedDeviceForFixture?.state?.seg && (
                   <div>
                     <label className="text-[8px] uppercase text-muted-foreground">Segment</label>
-                    <select value={newFixSegment} onChange={e => {
+                <select value={String(newFixSegment)} onChange={e => {
                       const segIdx = Number(e.target.value);
                       setNewFixSegment(segIdx);
                       const seg = selectedDeviceForFixture.state?.seg?.[segIdx];
@@ -455,7 +455,7 @@ export function WledPanel() {
                     }}
                       className="w-full h-7 rounded bg-muted/30 border border-border/30 text-xs px-2 text-foreground">
                       {selectedDeviceForFixture.state.seg.map((seg, i) => (
-                        <option key={i} value={i}>
+                        <option key={i} value={String(i)}>
                           Seg {i}: LED {seg.start}–{seg.stop} ({seg.len} px)
                         </option>
                       ))}
