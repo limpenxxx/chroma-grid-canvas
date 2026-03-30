@@ -839,6 +839,26 @@ function ControlWidget({
                   />
                   <span className="font-mono text-muted-foreground/60 text-right" style={{ fontSize: valFs, minWidth: valFs * 2.5 }}>{widget.mhProgram?.speed ?? 128}</span>
                 </div>
+
+                {/* Size slider on widget */}
+                <div className="flex items-center gap-1.5 px-1">
+                  <span className="text-muted-foreground/60 uppercase shrink-0 font-semibold" style={{ fontSize: lblFs }}>SIZ</span>
+                  <input
+                    type="range"
+                    min={1} max={100}
+                    value={widget.mhProgram?.size ?? 50}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => {
+                      e.stopPropagation();
+                      onSelect();
+                      const base = widget.mhProgram || { pattern: 'circle', speed: 128, size: 50, bpmSync: false, running: false, fixtureConfigs: [] };
+                      onUpdate({ mhProgram: { ...base, size: Number(e.target.value) } });
+                    }}
+                    className="flex-1 accent-primary cursor-pointer"
+                    style={{ minWidth: 0, height: sliderH }}
+                  />
+                  <span className="font-mono text-muted-foreground/60 text-right" style={{ fontSize: valFs, minWidth: valFs * 2.5 }}>{widget.mhProgram?.size ?? 50}</span>
+                </div>
               </div>
             );
           })()}
