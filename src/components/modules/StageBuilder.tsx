@@ -978,10 +978,29 @@ export function StageBuilder() {
 
         {/* Background Source Selector */}
         <div className="flex items-center gap-1 border-l border-border/30 pl-2 ml-1">
-          <Button variant={bgSource === 'texture' ? 'secondary' : 'outline'} size="sm"
-            onClick={() => setBgSource('texture')} className="h-7 text-[9px] gap-1 px-2">
-            <Grid3X3 size={10} /> Texture
+          <Button variant={bgSource === 'none' ? 'secondary' : 'outline'} size="sm"
+            onClick={() => setBgSource('none')} className="h-7 text-[9px] gap-1 px-2">
+            Off
           </Button>
+          <select
+            value={bgSource === 'texture' ? testPattern : ''}
+            onChange={e => {
+              setTestPattern(e.target.value as TestPattern);
+              setBgSource('texture');
+            }}
+            className={`h-7 text-[9px] rounded px-2 border ${
+              bgSource === 'texture'
+                ? 'bg-secondary text-secondary-foreground border-border/50'
+                : 'bg-muted/30 text-foreground border-border/30'
+            }`}
+          >
+            <option value="blobs">🟣 Blobs</option>
+            <option value="scanlines">▤ Scanlines</option>
+            <option value="test-picture">📺 Test Picture</option>
+            <option value="rgb-scanline">🌈 RGB Scanline</option>
+            <option value="color-bars">🎨 Color Bars</option>
+            <option value="gradient-sweep">🔄 Gradient Sweep</option>
+          </select>
           <Button variant={bgSource === 'video' ? 'secondary' : 'outline'} size="sm"
             onClick={() => setBgSource('video')} className="h-7 text-[9px] gap-1 px-2"
             disabled={!isVideoPlaying}>
