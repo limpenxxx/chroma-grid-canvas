@@ -124,6 +124,12 @@ interface DJWidget {
   // Preset scene entries (preset only)
   presetEntries?: PresetSceneEntry[];
   presetShowSubmenu?: boolean;
+  // Color sync: link this widget to another widget's color output
+  syncColorWidgetId?: string | null;
+  // Fixed color: selected slot DMX value
+  fixedColorSlotValue?: number;
+  // RGB sync mode for fixed-color widget
+  rgbSyncEnabled?: boolean;
 }
 
 interface ScriptStep {
