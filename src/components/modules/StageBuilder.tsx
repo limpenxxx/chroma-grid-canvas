@@ -4,7 +4,8 @@ import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown, Fi
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import { useFixtureStore, getFixtureTypeIcon, getChannelColor } from '@/store/fixtureStore';
+import { useFixtureStore, getFixtureTypeIcon, getChannelColor, getFixtureIconEmoji } from '@/store/fixtureStore';
+import { useWledStore } from '@/store/wledStore';
 import { useMediaStore, getEmbedUrl } from '@/store/mediaStore';
 import { AudioVisualizerEngine, PRESET_LABELS, INPUT_LABELS, type VisualizerPreset, type AudioInputSource } from '@/lib/audioVisualizer';
 import { exportMappingPreset, parseMappingPreset, downloadJson, openJsonFile } from '@/lib/backupRestore';
@@ -116,6 +117,7 @@ export function StageBuilder() {
   const animRef = useRef<number>(0);
   const canvasDims = useRef({ w: 0, h: 0 });
   const fixtureStore = useFixtureStore();
+  const wledStore = useWledStore();
   const mediaStore = useMediaStore();
   const stageFixtures = fixtureStore.instances.filter(i => i.onStage);
 
@@ -987,9 +989,27 @@ export function StageBuilder() {
                           className="h-7 text-xs bg-muted/30 border-border/30" />
                       </div>
                       <div>
-                        <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">IP Address</label>
-                        <Input value={selectedNode.ip} onChange={e => updateNode(selectedNode.id, { ip: e.target.value })}
-                          className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
+                        <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">WLED Fixture</label>
+                        <select
+                          value={selectedNode.ip}
+                          onChange={e => {
+                            const fix = wledStore.fixtures.find(f => f.deviceIp === e.target.value);
+                            if (fix) {
+                              updateNode(selectedNode.id, { ip: fix.deviceIp, name: fix.name });
+                            }
+                          }}
+                          className="w-full h-7 rounded bg-muted/30 border border-border/30 text-xs px-2 text-foreground"
+                        >
+                          <option value="">Select WLED fixture...</option>
+                          {wledStore.fixtures.map(fix => {
+                            const device = wledStore.devices.find(d => d.id === fix.deviceId);
+                            return (
+                              <option key={fix.id} value={fix.deviceIp}>
+                                {getFixtureIconEmoji(fix.icon)} {fix.name} — {fix.deviceIp} (Seg {fix.segmentId}, LED {fix.ledStart}–{fix.ledEnd})
+                              </option>
+                            );
+                          })}
+                        </select>
                       </div>
                     </div>
 
