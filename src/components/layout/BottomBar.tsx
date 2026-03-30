@@ -1,13 +1,17 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
-import { Ban, Music } from 'lucide-react';
+import { Ban, Mic, MicOff } from 'lucide-react';
 
 export function BottomBar() {
   const { masterDimmer, setMasterDimmer, blackout, toggleBlackout } = useAppStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const dataArrayRef = useRef<Uint8Array | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [audioActive, setAudioActive] = useState(false);
 
   const drawWaveform = useCallback(() => {
     const canvas = canvasRef.current;
@@ -15,31 +19,72 @@ export function BottomBar() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const w = canvas.width;
-    const h = canvas.height;
+    const w = canvas.width / 2;
+    const h = canvas.height / 2;
     ctx.clearRect(0, 0, w, h);
 
-    // Simulated waveform
-    const time = Date.now() / 1000;
-    ctx.beginPath();
-    ctx.strokeStyle = 'hsl(155, 100%, 50%)';
-    ctx.lineWidth = 1.5;
-    ctx.shadowColor = 'hsl(155, 100%, 50%)';
-    ctx.shadowBlur = 6;
+    const analyser = analyserRef.current;
+    const dataArray = dataArrayRef.current;
 
-    for (let x = 0; x < w; x++) {
-      const freq1 = Math.sin((x / w) * 8 + time * 3) * (h / 4);
-      const freq2 = Math.sin((x / w) * 14 + time * 5) * (h / 8);
-      const freq3 = Math.sin((x / w) * 22 + time * 2) * (h / 12);
-      const y = h / 2 + freq1 + freq2 + freq3;
-      if (x === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+    if (analyser && dataArray) {
+      analyser.getByteTimeDomainData(dataArray);
+      ctx.beginPath();
+      ctx.strokeStyle = 'hsl(155, 100%, 50%)';
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = 'hsl(155, 100%, 50%)';
+      ctx.shadowBlur = 6;
+
+      const sliceWidth = w / dataArray.length;
+      let x = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = (v * h) / 2;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+        x += sliceWidth;
+      }
+      ctx.lineTo(w, h / 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else {
+      // Flat line when no audio
+      ctx.beginPath();
+      ctx.strokeStyle = 'hsl(155, 100%, 50%)';
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.3;
+      ctx.moveTo(0, h / 2);
+      ctx.lineTo(w, h / 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
-    ctx.stroke();
-    ctx.shadowBlur = 0;
 
     animRef.current = requestAnimationFrame(drawWaveform);
   }, []);
+
+  const toggleAudio = useCallback(async () => {
+    if (audioActive) {
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      streamRef.current = null;
+      analyserRef.current = null;
+      dataArrayRef.current = null;
+      setAudioActive(false);
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+      dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+      setAudioActive(true);
+    } catch {
+      console.warn('Microphone access denied');
+    }
+  }, [audioActive]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -50,7 +95,10 @@ export function BottomBar() {
       if (ctx) ctx.scale(2, 2);
     }
     drawWaveform();
-    return () => cancelAnimationFrame(animRef.current);
+    return () => {
+      cancelAnimationFrame(animRef.current);
+      streamRef.current?.getTracks().forEach(t => t.stop());
+    };
   }, [drawWaveform]);
 
   return (
