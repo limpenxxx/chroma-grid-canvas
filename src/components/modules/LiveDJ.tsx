@@ -340,66 +340,91 @@ function ControlWidget({
   })() : false;
 
   // MH pattern animation — animate the joystick dot when a pattern is running
+  // patternPos = main dot position (no delay), perFixturePos = per-fixture delayed positions
   const [patternPos, setPatternPos] = useState<{ x: number; y: number } | null>(null);
+  const [perFixturePos, setPerFixturePos] = useState<Record<string, { x: number; y: number }>>({});
   const patternAnimRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (widget.type !== 'xy-pad' || !widget.mhProgram?.running) {
       setPatternPos(null);
+      setPerFixturePos({});
       if (patternAnimRef.current) cancelAnimationFrame(patternAnimRef.current);
       return;
     }
 
     const prog = widget.mhProgram;
     const sizeScale = (prog.size || 50) / 100;
-    // BPM sync: one full cycle per beat; otherwise use speed slider
     const speedMs = prog.bpmSync && bpm > 0
       ? (60000 / bpm)
       : Math.max(800, 1000 + (255 - (prog.speed || 128)) * 100);
     const startTime = performance.now();
+    const configs = prog.fixtureConfigs || [];
 
-    const computePos = (t: number): { x: number; y: number } => {
-      const phase = ((t - startTime) / speedMs) * Math.PI * 2;
+    const computePos = (t: number, delayMs: number = 0, mirrorPan = false, mirrorTilt = false, reversePan = false, reverseTilt = false): { x: number; y: number } => {
+      const phase = (((t - startTime - delayMs) / speedMs) * Math.PI * 2);
       const cx = 128, cy = 128;
       const range = 110 * sizeScale;
+      let pos: { x: number; y: number };
       switch (prog.pattern) {
-        case 'circle': return { x: cx + Math.cos(phase) * range, y: cy + Math.sin(phase) * range };
-        case 'figure8': return { x: cx + Math.sin(phase) * range, y: cy + Math.sin(phase * 2) * range * 0.6 };
+        case 'circle': pos = { x: cx + Math.cos(phase) * range, y: cy + Math.sin(phase) * range }; break;
+        case 'figure8': pos = { x: cx + Math.sin(phase) * range, y: cy + Math.sin(phase * 2) * range * 0.6 }; break;
         case 'zigzag': {
-          const p = ((phase / (Math.PI * 2)) % 1);
+          const p = ((phase / (Math.PI * 2)) % 1 + 1) % 1;
           const seg = p * 4;
           const xPos = seg < 1 ? seg : seg < 2 ? 1 : seg < 3 ? 3 - seg : 0;
           const yPos = seg < 1 ? 0 : seg < 2 ? seg - 1 : seg < 3 ? 1 : 4 - seg;
-          return { x: cx + (xPos - 0.5) * range * 2, y: cy + (yPos - 0.5) * range * 2 };
+          pos = { x: cx + (xPos - 0.5) * range * 2, y: cy + (yPos - 0.5) * range * 2 }; break;
         }
-        case 'sweep-h': return { x: cx + Math.sin(phase) * range, y: cy };
-        case 'sweep-v': return { x: cx, y: cy + Math.sin(phase) * range };
-        case 'random': return { x: cx + (Math.sin(phase * 3.7) * 0.6 + Math.sin(phase * 1.3) * 0.4) * range, y: cy + (Math.cos(phase * 2.9) * 0.6 + Math.cos(phase * 1.7) * 0.4) * range };
+        case 'sweep-h': pos = { x: cx + Math.sin(phase) * range, y: cy }; break;
+        case 'sweep-v': pos = { x: cx, y: cy + Math.sin(phase) * range }; break;
+        case 'random': pos = { x: cx + (Math.sin(phase * 3.7) * 0.6 + Math.sin(phase * 1.3) * 0.4) * range, y: cy + (Math.cos(phase * 2.9) * 0.6 + Math.cos(phase * 1.7) * 0.4) * range }; break;
         case 'square': {
           const p = ((phase / (Math.PI * 2)) % 1 + 1) % 1;
           const corners: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
           const idx = Math.min(Math.floor(p * 4), 3);
-          return { x: cx + corners[idx][0] * range * 0.7, y: cy + corners[idx][1] * range * 0.7 };
+          pos = { x: cx + corners[idx][0] * range * 0.7, y: cy + corners[idx][1] * range * 0.7 }; break;
         }
         case 'triangle': {
           const p = ((phase / (Math.PI * 2)) % 1 + 1) % 1;
           const pts: [number, number][] = [[0, -1], [0.87, 0.5], [-0.87, 0.5]];
           const idx = Math.min(Math.floor(p * 3), 2);
-          return { x: cx + pts[idx][0] * range, y: cy + pts[idx][1] * range };
+          pos = { x: cx + pts[idx][0] * range, y: cy + pts[idx][1] * range }; break;
         }
-        case 'bounce': return { x: cx, y: cy + Math.abs(Math.sin(phase)) * range - range * 0.5 };
-        default: return { x: cx, y: cy };
+        case 'bounce': pos = { x: cx, y: cy + Math.abs(Math.sin(phase)) * range - range * 0.5 }; break;
+        default: pos = { x: cx, y: cy };
       }
+      // Apply mirror/reverse transforms
+      if (mirrorPan) pos.x = 256 - pos.x;
+      if (mirrorTilt) pos.y = 256 - pos.y;
+      if (reversePan) pos.x = cx - (pos.x - cx);
+      if (reverseTilt) pos.y = cy - (pos.y - cy);
+      return pos;
     };
 
     const animate = (t: number) => {
-      const pos = computePos(t);
-      setPatternPos({ x: Math.max(0, Math.min(255, pos.x)), y: Math.max(0, Math.min(255, pos.y)) });
+      // Main dot (no delay, no transforms)
+      const mainPos = computePos(t);
+      setPatternPos({ x: Math.max(0, Math.min(255, mainPos.x)), y: Math.max(0, Math.min(255, mainPos.y)) });
+
+      // Per-fixture positions with individual delay + mirror/reverse
+      if (widget.linkedFixtureIds.length > 0 && configs.length > 0) {
+        const fxPositions: Record<string, { x: number; y: number }> = {};
+        widget.linkedFixtureIds.forEach(fid => {
+          const cfg = configs.find(c => c.fixtureId === fid);
+          if (cfg && (cfg.delayMs > 0 || cfg.mirrorPan || cfg.mirrorTilt || cfg.reversePan || cfg.reverseTilt)) {
+            const p = computePos(t, cfg.delayMs, cfg.mirrorPan, cfg.mirrorTilt, cfg.reversePan, cfg.reverseTilt);
+            fxPositions[fid] = { x: Math.max(0, Math.min(255, p.x)), y: Math.max(0, Math.min(255, p.y)) };
+          }
+        });
+        setPerFixturePos(fxPositions);
+      }
+
       patternAnimRef.current = requestAnimationFrame(animate);
     };
     patternAnimRef.current = requestAnimationFrame(animate);
     return () => { if (patternAnimRef.current) cancelAnimationFrame(patternAnimRef.current); };
-  }, [widget.type, widget.mhProgram?.running, widget.mhProgram?.pattern, widget.mhProgram?.speed, widget.mhProgram?.size, widget.mhProgram?.bpmSync, bpm]);
+  }, [widget.type, widget.mhProgram?.running, widget.mhProgram?.pattern, widget.mhProgram?.speed, widget.mhProgram?.size, widget.mhProgram?.bpmSync, widget.mhProgram?.fixtureConfigs, widget.linkedFixtureIds, bpm]);
 
   // Color program animation
   const colorProgAnimRef = useRef<number | null>(null);
