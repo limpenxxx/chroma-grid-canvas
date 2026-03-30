@@ -5,7 +5,7 @@ import {
   Zap, ChevronDown, ChevronRight, Monitor, Hand, Layers,
   Speaker, X, Save, Mic, Activity, Sparkles, Wifi,
   ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users,
-  Bookmark, Settings2, CircleDot, Maximize2, Minimize2, Film
+  Bookmark, Settings2, CircleDot, Maximize2, Minimize2, Film, Copy, Grid3X3
 } from 'lucide-react';
 import { AudioVisualizerEngine, PRESET_LABELS, type VisualizerPreset } from '@/lib/audioVisualizer';
 import { Button } from '@/components/ui/button';
@@ -178,6 +178,9 @@ interface LayoutPage {
   id: string;
   name: string;
   widgets: DJWidget[];
+  bgImage?: string | null;
+  bgOpacity?: number; // 0-100
+  bgFit?: 'fill' | 'fit'; // fill = cover, fit = contain
 }
 
 // ── Saved Layout ──
@@ -1170,8 +1173,10 @@ export function LiveDJ() {
   ]);
 
   const [selectedWidget, setSelectedWidget] = useState<string | null>(null);
+  const [snapToGrid, setSnapToGrid] = useState(false);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
+  const tabBgInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   // ── Saved Layouts ──
@@ -1234,6 +1239,13 @@ export function LiveDJ() {
   };
 
   const updateWidget = (id: string, updates: Partial<DJWidget>) => {
+    if (snapToGrid) {
+      const gridSize = 20;
+      if (updates.x !== undefined) updates.x = Math.round(updates.x / gridSize) * gridSize;
+      if (updates.y !== undefined) updates.y = Math.round(updates.y / gridSize) * gridSize;
+      if (updates.width !== undefined) updates.width = Math.round(updates.width / gridSize) * gridSize;
+      if (updates.height !== undefined) updates.height = Math.round(updates.height / gridSize) * gridSize;
+    }
     setWidgets(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
   };
 
@@ -1268,6 +1280,20 @@ export function LiveDJ() {
     if (selectedWidget === id) setSelectedWidget(null);
   };
 
+  const duplicateWidget = (id: string) => {
+    const source = widgets.find(w => w.id === id);
+    if (!source) return;
+    const clone: DJWidget = {
+      ...source,
+      id: `w-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      x: source.x + 20,
+      y: source.y + 20,
+      label: `${source.label} (copy)`,
+    };
+    setWidgets(prev => [...prev, clone]);
+    setSelectedWidget(clone.id);
+  };
+
   const handleWidgetBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedWidget) return;
@@ -1277,7 +1303,21 @@ export function LiveDJ() {
     e.target.value = '';
   };
 
-  // ── Page management ──
+  const handleTabBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPages(prev => prev.map(p => p.id === activePageId ? { ...p, bgImage: reader.result as string } : p));
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const updatePageBg = (updates: Partial<LayoutPage>) => {
+    setPages(prev => prev.map(p => p.id === activePageId ? { ...p, ...updates } : p));
+  };
+
   const addPage = () => {
     const newPage: LayoutPage = {
       id: `page-${Date.now()}`,
@@ -1296,6 +1336,24 @@ export function LiveDJ() {
     if (pages.length <= 1) return;
     setPages(prev => prev.filter(p => p.id !== pageId));
     if (activePageId === pageId) setActivePageId(pages.find(p => p.id !== pageId)!.id);
+  };
+
+  const duplicatePage = (pageId: string) => {
+    const source = pages.find(p => p.id === pageId);
+    if (!source) return;
+    const newId = `page-${Date.now()}`;
+    const clonedWidgets = source.widgets.map(w => ({
+      ...w,
+      id: `w-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    }));
+    const newPage: LayoutPage = {
+      ...source,
+      id: newId,
+      name: `${source.name} (copy)`,
+      widgets: clonedWidgets,
+    };
+    setPages(prev => [...prev, newPage]);
+    setActivePageId(newId);
   };
 
   // ── Group management ──
@@ -1581,10 +1639,17 @@ export function LiveDJ() {
                     {page.name}
                   </button>
                 )}
-                {pages.length > 1 && activePageId === page.id && (
-                  <button onClick={() => deletePage(page.id)} className="ml-0.5 text-muted-foreground/40 hover:text-destructive">
-                    <X size={10} />
-                  </button>
+                {activePageId === page.id && (
+                  <>
+                    <button onClick={() => duplicatePage(page.id)} className="ml-0.5 text-muted-foreground/40 hover:text-primary" title="Duplicate tab">
+                      <Copy size={10} />
+                    </button>
+                    {pages.length > 1 && (
+                      <button onClick={() => deletePage(page.id)} className="ml-0.5 text-muted-foreground/40 hover:text-destructive">
+                        <X size={10} />
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             ))}
@@ -1592,6 +1657,42 @@ export function LiveDJ() {
               className="px-2 py-1 text-[10px] text-muted-foreground hover:text-primary border border-dashed border-border/20 hover:border-primary/30 rounded transition-all">
               <Plus size={10} />
             </button>
+
+            <div className="ml-auto flex items-center gap-2">
+              {/* Tab Background */}
+              <input ref={tabBgInputRef} type="file" accept="image/*" className="hidden" onChange={handleTabBgUpload} />
+              <Button variant="outline" size="sm" className="h-6 text-[8px] gap-1"
+                onClick={() => tabBgInputRef.current?.click()}>
+                <ImagePlus size={9} /> BG
+              </Button>
+              {activePage?.bgImage && (
+                <>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[7px] text-muted-foreground">Opacity</span>
+                    <input type="range" min={0} max={100} value={activePage.bgOpacity ?? 30}
+                      onChange={e => updatePageBg({ bgOpacity: Number(e.target.value) })}
+                      className="w-16 h-3 accent-primary" />
+                    <span className="text-[7px] font-mono text-muted-foreground w-6">{activePage.bgOpacity ?? 30}%</span>
+                  </div>
+                  <select value={activePage.bgFit || 'fill'}
+                    onChange={e => updatePageBg({ bgFit: e.target.value as 'fill' | 'fit' })}
+                    className="h-6 text-[8px] bg-muted/30 border border-border/30 rounded px-1 text-foreground">
+                    <option value="fill">Fill</option>
+                    <option value="fit">Fit</option>
+                  </select>
+                  <Button variant="ghost" size="sm" className="h-6 text-[8px] text-destructive p-1"
+                    onClick={() => updatePageBg({ bgImage: null })}>
+                    <X size={9} />
+                  </Button>
+                </>
+              )}
+
+              {/* Snap to Grid */}
+              <Button variant={snapToGrid ? 'secondary' : 'outline'} size="sm" className="h-6 text-[8px] gap-1"
+                onClick={() => setSnapToGrid(!snapToGrid)}>
+                <Grid3X3 size={9} /> Snap {snapToGrid ? 'ON' : 'OFF'}
+              </Button>
+            </div>
           </div>
 
           <div className="flex-1 flex overflow-hidden">
@@ -1603,6 +1704,18 @@ export function LiveDJ() {
                 }
               }}
             >
+              {/* Tab background image */}
+              {activePage?.bgImage && (
+                <div className="absolute inset-0 pointer-events-none z-[0]"
+                  style={{
+                    backgroundImage: `url(${activePage.bgImage})`,
+                    backgroundSize: (activePage.bgFit || 'fill') === 'fill' ? 'cover' : 'contain',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat',
+                    opacity: (activePage.bgOpacity ?? 30) / 100,
+                  }} />
+              )}
+
               <div className="absolute inset-0" data-surface="true"
                 style={{ backgroundImage: 'radial-gradient(circle, hsl(var(--border) / 0.15) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
 
@@ -1800,9 +1913,14 @@ export function LiveDJ() {
                 <div className="p-3 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[9px] uppercase tracking-widest text-primary font-semibold">Properties</span>
-                    <Button variant="ghost" size="sm" className="h-5 text-[8px] text-destructive" onClick={() => removeWidget(selectedWidgetData.id)}>
-                      <Trash2 size={10} />
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="sm" className="h-5 text-[8px]" onClick={() => duplicateWidget(selectedWidgetData.id)} title="Duplicate widget">
+                        <Copy size={10} />
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-5 text-[8px] text-destructive" onClick={() => removeWidget(selectedWidgetData.id)}>
+                        <Trash2 size={10} />
+                      </Button>
+                    </div>
                   </div>
 
                   <div>
