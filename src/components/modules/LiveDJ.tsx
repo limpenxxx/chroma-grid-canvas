@@ -240,7 +240,7 @@ function ModeBadge({ mode }: { mode: ControlMode }) {
 type DragMode = 'none' | 'move' | 'resize-br' | 'resize-bl' | 'resize-tr' | 'resize-tl';
 
 function ControlWidget({
-  widget, isSelected, onSelect, onUpdate, onPress, onRelease,
+  widget, isSelected, onSelect, onUpdate, onPress, onRelease, allWidgets, fixtureData,
 }: {
   widget: DJWidget;
   isSelected: boolean;
@@ -248,6 +248,8 @@ function ControlWidget({
   onUpdate: (updates: Partial<DJWidget>) => void;
   onPress: () => void;
   onRelease: () => void;
+  allWidgets: DJWidget[];
+  fixtureData: { inst: FixtureInstance; def: FixtureDefinition }[];
 }) {
   const dragRef = useRef<{
     mode: DragMode;
