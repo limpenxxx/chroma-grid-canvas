@@ -344,9 +344,23 @@ export function StageBuilder() {
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
+    // Check fixtures first (they're drawn on top)
+    for (let i = stageFixtures.length - 1; i >= 0; i--) {
+      const f = stageFixtures[i];
+      const cx = f.stageX + f.stageWidth / 2;
+      const cy = f.stageY + f.stageHeight / 2;
+      const dist = Math.sqrt((mx - cx) ** 2 + (my - cy) ** 2);
+      if (dist <= f.stageWidth / 2 + 4) {
+        setSelectedFixture(f.id);
+        setSelectedNode(null);
+        setDraggingFixture(f.id);
+        setDragOffset({ x: mx - f.stageX, y: my - f.stageY });
+        return;
+      }
+    }
+
     for (let i = nodes.length - 1; i >= 0; i--) {
       const n = nodes[i];
-      // Check resize handles first if selected
       if (selectedNode === n.id) {
         const handle = getResizeHandle(mx, my, n);
         if (handle) {
@@ -356,12 +370,14 @@ export function StageBuilder() {
       }
       if (mx >= n.x && mx <= n.x + n.width && my >= n.y && my <= n.y + n.height) {
         setSelectedNode(n.id);
+        setSelectedFixture(null);
         setDragging(n.id);
         setDragOffset({ x: mx - n.x, y: my - n.y });
         return;
       }
     }
     setSelectedNode(null);
+    setSelectedFixture(null);
   };
 
   const handleCanvasMouseMove = (e: React.MouseEvent) => {
