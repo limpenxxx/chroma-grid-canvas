@@ -9,7 +9,8 @@ import {
   type ColorSystem, type ColorWheelSlot, getFixtureTypeIcon, getFixtureIconEmoji,
 } from '@/store/fixtureStore';
 import { useWledStore, type WledFixture } from '@/store/wledStore';
-import { setWledColor, setWledBrightness, setWledPower } from '@/lib/wledApi';
+import { setWledBrightness, setWledPower, setWledState } from '@/lib/wledApi';
+import { fetchWledPresets, isWledDeviceTarget, wledDeviceToFixture } from '@/lib/wledUtils';
 
 // ── Live channel values per instance ──
 interface FixtureState {
@@ -263,15 +264,13 @@ function WledFixturePanel({ instance, definition }: {
 
   const fetchPresets = async () => {
     if (!ip) return;
-    // Mock — in production: fetch(`http://${ip}/json/presets`)
-    const mock = [
-      { id: 1, name: 'Rainbow' }, { id: 2, name: 'Fire' }, { id: 3, name: 'Ocean' },
-      { id: 4, name: 'Forest' }, { id: 5, name: 'Twinkle' }, { id: 6, name: 'Meteor' },
-      { id: 7, name: 'Breathe' }, { id: 8, name: 'Scanner' }, { id: 9, name: 'Chase' },
-      { id: 10, name: 'Fireworks' }, { id: 11, name: 'Strobe' }, { id: 12, name: 'Party' },
-    ];
-    setPresets(mock);
-    store.updateDefinition(definition.id, { wledConfig: { ...wled!, ip, presets: mock } });
+    try {
+      const presetsFromDevice = await fetchWledPresets(ip);
+      setPresets(presetsFromDevice);
+      store.updateDefinition(definition.id, { wledConfig: { ...wled!, ip, presets: presetsFromDevice } });
+    } catch {
+      setPresets([]);
+    }
   };
 
   const saveIp = () => {
@@ -362,12 +361,23 @@ function WledFixtureLivePanel({ fixture, state, updateState }: {
   const wledStore = useWledStore();
   const dev = wledStore.devices.find(d => d.id === fixture.deviceId);
   const [brightness, setBrightness] = useState(state.dimmer * 2.55 | 0);
+  const deviceTarget = isWledDeviceTarget(fixture);
 
   const handleColorChange = async (c: { r: number; g: number; b: number }) => {
     updateState({ color: { ...state.color, ...c } });
     if (dev?.online) {
       try {
-        await setWledColor(dev.ip, c.r, c.g, c.b);
+        await setWledState(dev.ip, deviceTarget
+          ? {
+              on: true,
+              seg: (dev.state?.seg?.length
+                ? dev.state.seg.map(seg => ({ id: seg.id, on: true, col: [[c.r, c.g, c.b]] }))
+                : [{ id: 0, on: true, col: [[c.r, c.g, c.b]] }]),
+            }
+          : {
+              on: true,
+              seg: [{ id: fixture.segmentId, on: true, col: [[c.r, c.g, c.b]] }],
+            });
       } catch { /* offline */ }
     }
   };
@@ -377,7 +387,11 @@ function WledFixtureLivePanel({ fixture, state, updateState }: {
     updateState({ dimmer: Math.round(bri / 2.55) });
     if (dev?.online) {
       try {
-        await setWledBrightness(dev.ip, bri);
+        if (deviceTarget) {
+          await setWledBrightness(dev.ip, bri);
+        } else {
+          await setWledState(dev.ip, { on: bri > 0, seg: [{ id: fixture.segmentId, on: bri > 0, bri }] });
+        }
       } catch { /* offline */ }
     }
   };
@@ -426,7 +440,7 @@ function WledFixtureLivePanel({ fixture, state, updateState }: {
         <div className="space-y-1.5 text-[9px]">
           <div className="flex justify-between"><span className="text-muted-foreground">Device:</span> <span>{fixture.deviceName}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">IP:</span> <span className="font-mono">{fixture.deviceIp}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Segment:</span> <span>{fixture.segmentId}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Target:</span> <span>{deviceTarget ? 'All segments' : `Seg ${fixture.segmentId}`}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">LEDs:</span> <span>{fixture.ledStart}–{fixture.ledEnd} ({fixture.ledEnd - fixture.ledStart + 1}px)</span></div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Status:</span>
@@ -453,17 +467,25 @@ export function FixtureControls() {
     return def?.category === 'dmx';
   });
   // Legacy fixtureStore WLED instances + real wledStore fixtures
-  const wledStoreFixtures = wledStore.fixtures;
+  const wledStoreFixtures = [...wledStore.devices.map(wledDeviceToFixture), ...wledStore.fixtures];
   const legacyWledInstances = store.instances.filter(i => {
     const def = store.definitions.find(d => d.id === i.definitionId);
     return def?.category === 'wled';
+  });
+
+  useState(() => {
+    if (fixtureTab === 'wled' && !selectedId && (wledStoreFixtures[0] || legacyWledInstances[0])) {
+      setSelectedId(wledStoreFixtures[0]?.id || legacyWledInstances[0]?.id || '');
+    }
   });
 
   const currentInstances = fixtureTab === 'dmx' ? dmxInstances : legacyWledInstances;
   const selected = fixtureTab === 'wled' 
     ? (wledStoreFixtures.find(f => f.id === selectedId) ? null : currentInstances.find(i => i.id === selectedId) || currentInstances[0])
     : (currentInstances.find(i => i.id === selectedId) || currentInstances[0]);
-  const selectedWledFixture = fixtureTab === 'wled' ? wledStoreFixtures.find(f => f.id === selectedId) : undefined;
+  const selectedWledFixture = fixtureTab === 'wled'
+    ? (wledStoreFixtures.find(f => f.id === selectedId) || (!selected && wledStoreFixtures[0]) || undefined)
+    : undefined;
   const selectedDef = selected ? store.definitions.find(d => d.id === selected.definitionId) : undefined;
   const selectedMode = selected && selectedDef ? selectedDef.modes.find(m => m.id === selected.modeId) : undefined;
 
@@ -549,7 +571,7 @@ export function FixtureControls() {
                 <div className="flex-1 text-left min-w-0">
                   <div className="truncate text-[10px] font-semibold">{fix.name}</div>
                   <div className="text-[8px] text-muted-foreground/60">
-                    {fix.deviceName} · Seg {fix.segmentId}
+                    {isWledDeviceTarget(fix) ? `${fix.deviceName} · All LEDs` : `${fix.deviceName} · Seg ${fix.segmentId}`}
                   </div>
                   <div className={`text-[7px] ${dev?.online ? 'text-green-500' : 'text-red-500'}`}>
                     {dev?.online ? '● Online' : '○ Offline'}
