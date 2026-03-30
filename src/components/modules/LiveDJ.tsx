@@ -145,10 +145,12 @@ interface DJWidget {
   wledPresetName?: string;
   wledIp?: string;
   wledPresets?: { id: number; name: string }[];
-  // DMX Reset widget
   resetUniverse?: number;
   // Color program (color-wheel)
   colorProgram?: ColorProgram;
+  // Fader-specific
+  bgColor?: string;              // separate background color for fader widget
+  faderColorSyncWidgetId?: string | null; // sync fader color with a color-wheel widget
 }
 
 type ColorProgramMode = 'static' | 'switch' | 'fade';
