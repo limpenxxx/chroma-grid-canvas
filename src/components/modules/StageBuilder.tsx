@@ -4,6 +4,7 @@ import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
+import { useFixtureStore, getFixtureTypeIcon, getChannelColor } from '@/store/fixtureStore';
 
 type SegmentOrientation = 'horizontal' | 'vertical' | 'zigzag-h' | 'zigzag-v';
 
@@ -75,7 +76,9 @@ export function StageBuilder() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [nodes, setNodes] = useState<WLEDNode[]>(MOCK_NODES);
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [selectedFixture, setSelectedFixture] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  const [draggingFixture, setDraggingFixture] = useState<string | null>(null);
   const [resizing, setResizing] = useState<{ nodeId: string; handle: ResizeHandle; startX: number; startY: number; startNode: WLEDNode } | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -83,6 +86,8 @@ export function StageBuilder() {
   const [showProperties, setShowProperties] = useState(true);
   const animRef = useRef<number>(0);
   const canvasDims = useRef({ w: 0, h: 0 });
+  const fixtureStore = useFixtureStore();
+  const stageFixtures = fixtureStore.instances.filter(i => i.onStage);
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -228,6 +233,55 @@ export function StageBuilder() {
       ctx.restore();
     });
 
+    // Draw fixture instances on stage
+    stageFixtures.forEach((inst) => {
+      const def = fixtureStore.definitions.find(d => d.id === inst.definitionId);
+      if (!def) return;
+      const isSelected = selectedFixture === inst.id;
+      const x = inst.stageX;
+      const y = inst.stageY;
+      const w2 = inst.stageWidth;
+      const h2 = inst.stageHeight;
+
+      ctx.save();
+      // Fixture body
+      ctx.fillStyle = isSelected ? 'rgba(255,45,120,0.25)' : 'rgba(255,255,255,0.08)';
+      ctx.strokeStyle = isSelected ? '#ff2d78' : 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = isSelected ? 2 : 1;
+      ctx.beginPath();
+      ctx.arc(x + w2 / 2, y + h2 / 2, w2 / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Glow
+      if (isSelected) {
+        ctx.shadowColor = '#ff2d78';
+        ctx.shadowBlur = 12;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      // Type icon
+      ctx.fillStyle = isSelected ? '#ff2d78' : 'rgba(255,255,255,0.7)';
+      ctx.font = `${Math.max(10, w2 * 0.45)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(getFixtureTypeIcon(def.type), x + w2 / 2, y + h2 / 2);
+
+      // Label
+      ctx.fillStyle = isSelected ? '#ff2d78' : 'rgba(255,255,255,0.5)';
+      ctx.font = '8px Inter, sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.fillText(inst.name, x + w2 / 2, y + h2 + 3);
+
+      // DMX address
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.font = '7px monospace';
+      ctx.fillText(`U${inst.universe}.${inst.dmxAddress}`, x + w2 / 2, y + h2 + 12);
+
+      ctx.restore();
+    });
+
     // Coord readout
     if (selectedNode) {
       const sel = nodes.find(n => n.id === selectedNode);
@@ -246,7 +300,7 @@ export function StageBuilder() {
 
     ctx.restore();
     animRef.current = requestAnimationFrame(drawCanvas);
-  }, [nodes, selectedNode, showGrid]);
+  }, [nodes, selectedNode, selectedFixture, showGrid, stageFixtures, fixtureStore.definitions]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -290,9 +344,23 @@ export function StageBuilder() {
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
+    // Check fixtures first (they're drawn on top)
+    for (let i = stageFixtures.length - 1; i >= 0; i--) {
+      const f = stageFixtures[i];
+      const cx = f.stageX + f.stageWidth / 2;
+      const cy = f.stageY + f.stageHeight / 2;
+      const dist = Math.sqrt((mx - cx) ** 2 + (my - cy) ** 2);
+      if (dist <= f.stageWidth / 2 + 4) {
+        setSelectedFixture(f.id);
+        setSelectedNode(null);
+        setDraggingFixture(f.id);
+        setDragOffset({ x: mx - f.stageX, y: my - f.stageY });
+        return;
+      }
+    }
+
     for (let i = nodes.length - 1; i >= 0; i--) {
       const n = nodes[i];
-      // Check resize handles first if selected
       if (selectedNode === n.id) {
         const handle = getResizeHandle(mx, my, n);
         if (handle) {
@@ -302,12 +370,14 @@ export function StageBuilder() {
       }
       if (mx >= n.x && mx <= n.x + n.width && my >= n.y && my <= n.y + n.height) {
         setSelectedNode(n.id);
+        setSelectedFixture(null);
         setDragging(n.id);
         setDragOffset({ x: mx - n.x, y: my - n.y });
         return;
       }
     }
     setSelectedNode(null);
+    setSelectedFixture(null);
   };
 
   const handleCanvasMouseMove = (e: React.MouseEvent) => {
@@ -337,6 +407,14 @@ export function StageBuilder() {
       return;
     }
 
+    if (draggingFixture) {
+      fixtureStore.updateInstance(draggingFixture, {
+        stageX: Math.max(0, mx - dragOffset.x),
+        stageY: Math.max(0, my - dragOffset.y),
+      });
+      return;
+    }
+
     if (dragging) {
       setNodes(prev => prev.map(n =>
         n.id === dragging
@@ -348,6 +426,7 @@ export function StageBuilder() {
 
   const handleCanvasMouseUp = () => {
     setDragging(null);
+    setDraggingFixture(null);
     setResizing(null);
   };
 
