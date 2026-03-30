@@ -17,7 +17,7 @@ import {
 } from '@/store/fixtureStore';
 import stokioLogo from '@/assets/stokio-logo-color.png';
 import { useMediaStore } from '@/store/mediaStore';
-import { useWledStore, type WledFixture } from '@/store/wledStore';
+import { useWledStore, type WledDevice, type WledFixture } from '@/store/wledStore';
 import { setWledPreset, setWledState } from '@/lib/wledApi';
 
 // ── Types ──
@@ -1568,6 +1568,24 @@ function wledFixtureToVirtual(fix: WledFixture): { inst: FixtureInstance; def: F
   };
 }
 
+function wledDeviceToFixture(dev: WledDevice): WledFixture {
+  const ledCount = Math.max(1, dev.info?.leds.count ?? dev.state?.seg?.[0]?.stop ?? 1);
+  return {
+    id: `_wled_device_${dev.id}`,
+    deviceId: dev.id,
+    name: `${dev.name} · All LEDs`,
+    segmentId: 0,
+    ledStart: 0,
+    ledEnd: ledCount - 1,
+    deviceIp: dev.ip,
+    deviceName: dev.name,
+  };
+}
+
+function wledDeviceToVirtual(dev: WledDevice): { inst: FixtureInstance; def: FixtureDefinition } {
+  return wledFixtureToVirtual(wledDeviceToFixture(dev));
+}
+
 // ── Main LIVE DJ Component ──
 
 export function LiveDJ() {
@@ -2088,9 +2106,9 @@ export function LiveDJ() {
     inst,
     def: store.definitions.find(d => d.id === inst.definitionId)!,
   })).filter(f => f.def);
-  // Merge real WLED device-list fixtures into the fixture picker
-  const wledVirtualFixtures = wledStore.fixtures.map(wledFixtureToVirtual);
-  const allFixturesWithDefs = [...fixturesWithDefs, ...wledVirtualFixtures];
+  const wledDeviceVirtualFixtures = wledStore.devices.map(wledDeviceToVirtual);
+  const wledSegmentVirtualFixtures = wledStore.fixtures.map(wledFixtureToVirtual);
+  const allFixturesWithDefs = [...fixturesWithDefs, ...wledDeviceVirtualFixtures, ...wledSegmentVirtualFixtures];
 
   const selectedWidgetData = widgets.find(w => w.id === selectedWidget);
 
@@ -2105,7 +2123,11 @@ export function LiveDJ() {
   // ── Real WLED output: send state to physical devices when widgets change ──
   useEffect(() => {
     const nextSent: Record<string, string> = {};
-    const wledFixMap = new Map(wledStore.fixtures.map(f => [f.id, f]));
+    const wledOutputFixtures = [
+      ...wledStore.devices.map(wledDeviceToFixture),
+      ...wledStore.fixtures,
+    ];
+    const wledFixMap = new Map(wledOutputFixtures.map(f => [f.id, f]));
 
     widgets.forEach(w => {
       const linkedWled = w.linkedFixtureIds.map(id => wledFixMap.get(id)).filter((f): f is WledFixture => !!f);
@@ -2149,7 +2171,7 @@ export function LiveDJ() {
     });
 
     lastWledSentRef.current = nextSent;
-  }, [widgets, wledStore.fixtures]);
+  }, [widgets, wledStore.devices, wledStore.fixtures]);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
