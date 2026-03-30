@@ -11,7 +11,9 @@ export type VisualizerPreset =
   | 'particle-nebula'
   | 'tunnel-flight'
   | 'kaleidoscope'
-  | 'ocean-pulse';
+  | 'ocean-pulse'
+  | 'emoji-rain'
+  | 'emoji-vortex';
 
 export type AudioInputSource = 'microphone' | 'system-audio' | 'audio-interface';
 
@@ -24,6 +26,8 @@ export const PRESET_LABELS: Record<VisualizerPreset, string> = {
   'tunnel-flight': '🕳️ Tunnel Flight',
   'kaleidoscope': '🔮 Kaleidoscope',
   'ocean-pulse': '🌀 Ocean Pulse',
+  'emoji-rain': '🎉 Emoji Rain',
+  'emoji-vortex': '😎 Emoji Vortex',
 };
 
 export const INPUT_LABELS: Record<AudioInputSource, string> = {
@@ -44,6 +48,8 @@ export class AudioVisualizerEngine {
   private _sensitivity = 1.0;
   private _colorShift = 0;
   private particles: { x: number; y: number; vx: number; vy: number; life: number; hue: number }[] = [];
+  private emojis: { x: number; y: number; vx: number; vy: number; life: number; emoji: string; size: number; rot: number; rotV: number }[] = [];
+  private static EMOJI_POOL = ['🔥','💥','⚡','🎵','🎶','✨','💫','🌟','❤️','💜','💙','🧡','💚','🎸','🥁','🎤','🎹','🎷','🎺','🪩','👾','🤖','😎','🤯','🥳','🪐','🌈','🦄','👽','💀','🎃','🍕','🌶️','💎','🫧'];
 
   get isRunning() { return this._isRunning; }
   get preset() { return this._preset; }
@@ -166,6 +172,8 @@ export class AudioVisualizerEngine {
       case 'tunnel-flight': this.renderTunnel(ctx, w, h, energy, bass, treble, t); break;
       case 'kaleidoscope': this.renderKaleidoscope(ctx, w, h, energy, bass, treble, t); break;
       case 'ocean-pulse': this.renderOcean(ctx, w, h, energy, bass, treble, t); break;
+      case 'emoji-rain': this.renderEmojiRain(ctx, w, h, energy, bass, treble, t); break;
+      case 'emoji-vortex': this.renderEmojiVortex(ctx, w, h, energy, bass, treble, t); break;
     }
   }
 
@@ -381,8 +389,105 @@ export class AudioVisualizerEngine {
     }
   }
 
+  private renderEmojiRain(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, treble: number, t: number) {
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.fillRect(0, 0, w, h);
+    const pool = AudioVisualizerEngine.EMOJI_POOL;
+    // Spawn emojis on beats
+    if (bass > 0.3 && this.emojis.length < 150) {
+      const count = Math.floor(bass * 6) + 1;
+      for (let i = 0; i < count; i++) {
+        this.emojis.push({
+          x: Math.random() * w,
+          y: -30,
+          vx: (Math.random() - 0.5) * 2,
+          vy: 1 + Math.random() * 3 + energy * 4,
+          life: 1,
+          emoji: pool[Math.floor(Math.random() * pool.length)],
+          size: 20 + Math.random() * 30 + bass * 20,
+          rot: Math.random() * Math.PI * 2,
+          rotV: (Math.random() - 0.5) * 0.15,
+        });
+      }
+    }
+    this.emojis = this.emojis.filter(e => e.life > 0);
+    this.emojis.forEach(e => {
+      e.x += e.vx;
+      e.y += e.vy;
+      e.rot += e.rotV;
+      e.life -= 0.006;
+      if (e.y > h + 50) e.life = 0;
+      ctx.save();
+      ctx.translate(e.x, e.y);
+      ctx.rotate(e.rot);
+      ctx.globalAlpha = Math.min(1, e.life * 2);
+      ctx.font = `${Math.floor(e.size)}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(e.emoji, 0, 0);
+      ctx.restore();
+    });
+    // Background glow pulses
+    const grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w * 0.5);
+    grad.addColorStop(0, `hsla(${(t * 50 + this._colorShift) % 360}, 70%, 20%, ${bass * 0.3})`);
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  private renderEmojiVortex(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, treble: number, t: number) {
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    ctx.fillRect(0, 0, w, h);
+    const cx = w / 2, cy = h / 2;
+    const pool = AudioVisualizerEngine.EMOJI_POOL;
+    // Spawn from center
+    if (energy > 0.15 && this.emojis.length < 180) {
+      const count = Math.floor(energy * 4) + 1;
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1 + bass * 5;
+        this.emojis.push({
+          x: cx + (Math.random() - 0.5) * 30,
+          y: cy + (Math.random() - 0.5) * 30,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 1,
+          emoji: pool[Math.floor(Math.random() * pool.length)],
+          size: 16 + Math.random() * 24 + bass * 15,
+          rot: 0,
+          rotV: (Math.random() - 0.5) * 0.2,
+        });
+      }
+    }
+    this.emojis = this.emojis.filter(e => e.life > 0);
+    this.emojis.forEach(e => {
+      // Spiral outward
+      const dx = e.x - cx, dy = e.y - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const ang = Math.atan2(dy, dx) + 0.03 + treble * 0.05;
+      const outSpeed = 0.5 + energy * 2;
+      e.vx = Math.cos(ang) * (dist * 0.02 + outSpeed);
+      e.vy = Math.sin(ang) * (dist * 0.02 + outSpeed);
+      e.x += e.vx;
+      e.y += e.vy;
+      e.rot += e.rotV;
+      e.life -= 0.005;
+      if (e.x < -50 || e.x > w + 50 || e.y < -50 || e.y > h + 50) e.life = 0;
+      ctx.save();
+      ctx.translate(e.x, e.y);
+      ctx.rotate(e.rot);
+      ctx.globalAlpha = Math.min(1, e.life * 1.5);
+      ctx.font = `${Math.floor(e.size)}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(e.emoji, 0, 0);
+      ctx.restore();
+    });
+  }
+
   destroy() {
     this.stop();
     this.particles = [];
+    this.emojis = [];
   }
 }
