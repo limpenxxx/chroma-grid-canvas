@@ -1,10 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, Trash2, Play, Pause, Square, GripVertical, Palette, SlidersHorizontal,
-  Zap, Copy, Settings, ChevronDown, ChevronRight, Monitor, Hand, Layers,
-  Speaker, SkipForward, X, Save, Edit2, Mic, Radio, Activity, Music,
-  ImagePlus, Lock, Unlock, Move
+  Plus, Trash2, Play, Square, GripVertical, Palette, SlidersHorizontal,
+  Zap, ChevronDown, ChevronRight, Monitor, Hand, Layers,
+  Speaker, X, Save, Mic, Activity,
+  ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -89,7 +89,34 @@ interface DJScript {
   linkedFixtureIds: string[];
 }
 
-type Tab = 'controller' | 'assignments' | 'scripts';
+// ── Fixture Group ──
+interface FixtureGroup {
+  id: string;
+  name: string;
+  color: string;
+  fixtureIds: string[]; // instance IDs
+}
+
+// ── Layout Page ──
+interface LayoutPage {
+  id: string;
+  name: string;
+  widgets: DJWidget[];
+}
+
+// ── Saved Layout ──
+interface SavedLayout {
+  id: string;
+  name: string;
+  createdAt: string;
+  pages: LayoutPage[];
+  groups: FixtureGroup[];
+  assignments: FixtureAssignment[];
+  scripts: DJScript[];
+  audioConfig: AudioConfig;
+}
+
+type Tab = 'controller' | 'assignments' | 'scripts' | 'groups';
 
 const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: number; h: number }[] = [
   { type: 'button', label: 'Flash Button', icon: Zap, w: 100, h: 100 },
@@ -588,36 +615,57 @@ function ScriptEditor({
   );
 }
 
+// ── Storage helpers ──
+const STORAGE_KEY = 'stokio-dj-layouts';
+
+function loadSavedLayouts(): SavedLayout[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function persistLayouts(layouts: SavedLayout[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts));
+}
+
 // ── Main LIVE DJ Component ──
 
 export function LiveDJ() {
   const store = useFixtureStore();
   const [tab, setTab] = useState<Tab>('controller');
+
+  // ── Pages ──
+  const [pages, setPages] = useState<LayoutPage[]>([
+    {
+      id: 'page-1', name: 'Main',
+      widgets: [
+        { id: 'w1', type: 'button', label: 'STROBE', x: 20, y: 30, width: 100, height: 100, color: '#ff2d78', flash: true, linkedFixtureIds: [], linkedFunction: 'strobe', lockAxis: 'none' },
+        { id: 'w2', type: 'button', label: 'BLACKOUT', x: 140, y: 30, width: 100, height: 100, color: '#ffffff', flash: true, linkedFixtureIds: [], linkedFunction: 'dimmer', lockAxis: 'none' },
+        { id: 'w3', type: 'slider', label: 'MASTER', x: 260, y: 20, width: 70, height: 200, color: '#00ff66', value: 100, min: 0, max: 100, linkedFixtureIds: [], linkedFunction: 'dimmer', lockAxis: 'none' },
+        { id: 'w4', type: 'color-wheel', label: 'COLOR', x: 350, y: 20, width: 140, height: 140, color: '#00e5ff', colorValue: { r: 255, g: 0, b: 100 }, linkedFixtureIds: [], lockAxis: 'none' },
+        { id: 'w5', type: 'xy-pad', label: 'PAN/TILT', x: 510, y: 20, width: 180, height: 180, color: '#00e5ff', colorValue: { r: 128, g: 128, b: 128 }, linkedFixtureIds: [], lockAxis: 'none' },
+      ],
+    },
+  ]);
+  const [activePageId, setActivePageId] = useState('page-1');
+  const activePage = pages.find(p => p.id === activePageId) || pages[0];
+  const widgets = activePage?.widgets || [];
+
+  const setWidgets = (updater: DJWidget[] | ((prev: DJWidget[]) => DJWidget[])) => {
+    setPages(prev => prev.map(p => p.id === activePageId
+      ? { ...p, widgets: typeof updater === 'function' ? updater(p.widgets) : updater }
+      : p
+    ));
+  };
+
+  // ── Groups ──
+  const [groups, setGroups] = useState<FixtureGroup[]>([]);
+
+  // ── Assignments & Scripts ──
   const [assignments, setAssignments] = useState<FixtureAssignment[]>(() =>
     store.instances.map(inst => ({ instanceId: inst.id, mode: 'buttons' as ControlMode }))
   );
-  const [widgets, setWidgets] = useState<DJWidget[]>([
-    {
-      id: 'w1', type: 'button', label: 'STROBE', x: 20, y: 30, width: 100, height: 100,
-      color: '#ff2d78', flash: true, linkedFixtureIds: [], linkedFunction: 'strobe', lockAxis: 'none',
-    },
-    {
-      id: 'w2', type: 'button', label: 'BLACKOUT', x: 140, y: 30, width: 100, height: 100,
-      color: '#ffffff', flash: true, linkedFixtureIds: [], linkedFunction: 'dimmer', lockAxis: 'none',
-    },
-    {
-      id: 'w3', type: 'slider', label: 'MASTER', x: 260, y: 20, width: 70, height: 200,
-      color: '#00ff66', value: 100, min: 0, max: 100, linkedFixtureIds: [], linkedFunction: 'dimmer', lockAxis: 'none',
-    },
-    {
-      id: 'w4', type: 'color-wheel', label: 'COLOR', x: 350, y: 20, width: 140, height: 140,
-      color: '#00e5ff', colorValue: { r: 255, g: 0, b: 100 }, linkedFixtureIds: [], lockAxis: 'none',
-    },
-    {
-      id: 'w5', type: 'xy-pad', label: 'PAN/TILT', x: 510, y: 20, width: 180, height: 180,
-      color: '#00e5ff', colorValue: { r: 128, g: 128, b: 128 }, linkedFixtureIds: [], lockAxis: 'none',
-    },
-  ]);
   const [scripts, setScripts] = useState<DJScript[]>([
     {
       id: 'sc1', name: 'Strobe Sequence', loop: true, linkedFixtureIds: [],
@@ -635,9 +683,17 @@ export function LiveDJ() {
       ],
     },
   ]);
+
   const [selectedWidget, setSelectedWidget] = useState<string | null>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Saved Layouts ──
+  const [savedLayouts, setSavedLayouts] = useState<SavedLayout[]>(() => loadSavedLayouts());
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [showLoadDialog, setShowLoadDialog] = useState(false);
+  const [saveName, setSaveName] = useState('');
 
   // ── Audio & BPM ──
   const [audioConfig, setAudioConfig] = useState<AudioConfig>({
@@ -728,6 +784,121 @@ export function LiveDJ() {
     e.target.value = '';
   };
 
+  // ── Page management ──
+  const addPage = () => {
+    const newPage: LayoutPage = {
+      id: `page-${Date.now()}`,
+      name: `Page ${pages.length + 1}`,
+      widgets: [],
+    };
+    setPages(prev => [...prev, newPage]);
+    setActivePageId(newPage.id);
+  };
+
+  const renamePage = (pageId: string, name: string) => {
+    setPages(prev => prev.map(p => p.id === pageId ? { ...p, name } : p));
+  };
+
+  const deletePage = (pageId: string) => {
+    if (pages.length <= 1) return;
+    setPages(prev => prev.filter(p => p.id !== pageId));
+    if (activePageId === pageId) setActivePageId(pages.find(p => p.id !== pageId)!.id);
+  };
+
+  // ── Group management ──
+  const addGroup = () => {
+    setGroups(prev => [...prev, {
+      id: `grp-${Date.now()}`,
+      name: `Group ${prev.length + 1}`,
+      color: '#00e5ff',
+      fixtureIds: [],
+    }]);
+  };
+
+  const updateGroup = (id: string, updates: Partial<FixtureGroup>) => {
+    setGroups(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g));
+  };
+
+  const deleteGroup = (id: string) => {
+    setGroups(prev => prev.filter(g => g.id !== id));
+  };
+
+  const toggleGroupFixture = (groupId: string, fixtureId: string) => {
+    setGroups(prev => prev.map(g => {
+      if (g.id !== groupId) return g;
+      return {
+        ...g,
+        fixtureIds: g.fixtureIds.includes(fixtureId)
+          ? g.fixtureIds.filter(id => id !== fixtureId)
+          : [...g.fixtureIds, fixtureId],
+      };
+    }));
+  };
+
+  // ── Save / Load ──
+  const saveLayout = () => {
+    if (!saveName.trim()) return;
+    const layout: SavedLayout = {
+      id: `layout-${Date.now()}`,
+      name: saveName.trim(),
+      createdAt: new Date().toISOString(),
+      pages,
+      groups,
+      assignments,
+      scripts,
+      audioConfig,
+    };
+    const updated = [...savedLayouts, layout];
+    setSavedLayouts(updated);
+    persistLayouts(updated);
+    setSaveName('');
+    setShowSaveDialog(false);
+  };
+
+  const loadLayout = (layout: SavedLayout) => {
+    setPages(layout.pages);
+    setActivePageId(layout.pages[0]?.id || 'page-1');
+    setGroups(layout.groups);
+    setAssignments(layout.assignments);
+    setScripts(layout.scripts);
+    setAudioConfig(layout.audioConfig);
+    setShowLoadDialog(false);
+  };
+
+  const deleteLayout = (id: string) => {
+    const updated = savedLayouts.filter(l => l.id !== id);
+    setSavedLayouts(updated);
+    persistLayouts(updated);
+  };
+
+  const exportLayout = () => {
+    const layout: SavedLayout = {
+      id: `layout-${Date.now()}`,
+      name: 'Export',
+      createdAt: new Date().toISOString(),
+      pages, groups, assignments, scripts, audioConfig,
+    };
+    const blob = new Blob([JSON.stringify(layout, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'stokio-dj-layout.json'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importLayout = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const layout = JSON.parse(reader.result as string) as SavedLayout;
+        loadLayout(layout);
+      } catch { /* invalid file */ }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const addScript = () => {
     setScripts(prev => [...prev, {
       id: `sc-${Date.now()}`,
@@ -745,6 +916,14 @@ export function LiveDJ() {
 
   const selectedWidgetData = widgets.find(w => w.id === selectedWidget);
 
+  // ── Link group to widget helper ──
+  const linkGroupToWidget = (groupId: string) => {
+    if (!selectedWidget) return;
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return;
+    updateWidget(selectedWidget, { linkedFixtureIds: [...new Set([...selectedWidgetData!.linkedFixtureIds, ...group.fixtureIds])] });
+  };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
       {/* Header */}
@@ -753,331 +932,526 @@ export function LiveDJ() {
           <Speaker size={16} className="text-stokio-pink" />
           <h2 className="text-sm font-semibold tracking-wider">LIVE DJ</h2>
         </div>
-        <div className="flex gap-1">
-          {(['controller', 'assignments', 'scripts'] as Tab[]).map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`px-3 py-1.5 text-[10px] uppercase tracking-wider font-semibold rounded transition-colors ${
-                tab === t ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground hover:text-foreground'
-              }`}>
-              {t === 'controller' ? '🎛 Controller' : t === 'assignments' ? '📡 Assignments' : '📜 Scripts'}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          {/* Save / Load / Export / Import */}
+          <div className="flex gap-1 mr-2 border-r border-border/20 pr-2">
+            <Button variant="ghost" size="sm" className="h-7 text-[9px] gap-1" onClick={() => { setSaveName(''); setShowSaveDialog(true); }}>
+              <Save size={11} /> Save
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-[9px] gap-1" onClick={() => setShowLoadDialog(true)}>
+              <FolderOpen size={11} /> Open
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-[9px] gap-1" onClick={exportLayout}>
+              <Download size={11} /> Export
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-[9px] gap-1" onClick={() => importInputRef.current?.click()}>
+              <Upload size={11} /> Import
+            </Button>
+            <input ref={importInputRef} type="file" accept=".json" className="hidden" onChange={importLayout} />
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-1">
+            {([
+              { id: 'controller' as Tab, label: '🎛 Controller' },
+              { id: 'assignments' as Tab, label: '📡 Assign' },
+              { id: 'groups' as Tab, label: '👥 Groups' },
+              { id: 'scripts' as Tab, label: '📜 Scripts' },
+            ]).map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)}
+                className={`px-3 py-1.5 text-[10px] uppercase tracking-wider font-semibold rounded transition-colors ${
+                  tab === t.id ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground hover:text-foreground'
+                }`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
+      {/* ── Save Dialog ── */}
+      <AnimatePresence>
+        {showSaveDialog && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center"
+            onClick={() => setShowSaveDialog(false)}>
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+              className="glass-panel-strong border border-border/30 rounded-xl p-6 w-96 space-y-4"
+              onClick={e => e.stopPropagation()}>
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Save size={14} /> Save Layout</h3>
+              <div>
+                <label className="text-[9px] uppercase text-muted-foreground">Layout Name</label>
+                <Input value={saveName} onChange={e => setSaveName(e.target.value)} placeholder="My DJ Setup..."
+                  className="mt-1 bg-muted/20 border-border/20" autoFocus
+                  onKeyDown={e => e.key === 'Enter' && saveLayout()} />
+              </div>
+              <div className="text-[9px] text-muted-foreground">
+                Saves: {pages.length} page(s), {groups.length} group(s), {scripts.length} script(s), all assignments & audio config
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" size="sm" onClick={() => setShowSaveDialog(false)}>Cancel</Button>
+                <Button size="sm" onClick={saveLayout} disabled={!saveName.trim()}>Save</Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Load Dialog ── */}
+      <AnimatePresence>
+        {showLoadDialog && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center"
+            onClick={() => setShowLoadDialog(false)}>
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+              className="glass-panel-strong border border-border/30 rounded-xl p-6 w-[28rem] space-y-4 max-h-[70vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}>
+              <h3 className="text-sm font-semibold flex items-center gap-2"><FolderOpen size={14} /> Open Layout</h3>
+              {savedLayouts.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-6">No saved layouts yet</div>
+              ) : (
+                <div className="space-y-2">
+                  {savedLayouts.map(layout => (
+                    <div key={layout.id}
+                      className="flex items-center gap-3 p-3 rounded-lg border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer group"
+                      onClick={() => loadLayout(layout)}>
+                      <FileText size={16} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-semibold">{layout.name}</div>
+                        <div className="text-[9px] text-muted-foreground">
+                          {layout.pages.length} pages · {layout.groups.length} groups · {new Date(layout.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm" className="h-6 text-[8px] text-destructive opacity-0 group-hover:opacity-100"
+                        onClick={(e) => { e.stopPropagation(); deleteLayout(layout.id); }}>
+                        <Trash2 size={10} />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={() => setShowLoadDialog(false)}>Close</Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── CONTROLLER TAB ── */}
       {tab === 'controller' && (
-        <div className="flex-1 flex overflow-hidden">
-          {/* Widget surface */}
-          <div className="flex-1 relative overflow-hidden" ref={surfaceRef}
-            onClick={(e) => {
-              if (e.target === e.currentTarget || (e.target as HTMLElement).dataset.surface) {
-                setSelectedWidget(null);
-              }
-            }}
-          >
-            {/* Grid background */}
-            <div className="absolute inset-0" data-surface="true"
-              style={{ backgroundImage: 'radial-gradient(circle, hsl(var(--border) / 0.15) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
-
-            {/* STOKIO watermark logo */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <img src={stokioLogo} alt="" className="w-[300px] h-[300px] object-contain opacity-[0.04]" />
-            </div>
-
-            {widgets.map(w => (
-              <ControlWidget
-                key={w.id}
-                widget={w}
-                isSelected={selectedWidget === w.id}
-                onSelect={() => setSelectedWidget(w.id)}
-                onUpdate={(updates) => updateWidget(w.id, updates)}
-                onPress={() => { }}
-                onRelease={() => { }}
-              />
-            ))}
-
-            {widgets.length === 0 && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground/40">
-                <SlidersHorizontal size={32} />
-                <span className="text-sm mt-2">Drop widgets here</span>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Page tabs */}
+          <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border/20 bg-card/30">
+            <span className="text-[8px] uppercase tracking-widest text-muted-foreground/50 mr-1">Pages:</span>
+            {pages.map((page, idx) => (
+              <div key={page.id} className="flex items-center">
+                <button
+                  onClick={() => setActivePageId(page.id)}
+                  onDoubleClick={() => {
+                    const name = prompt('Rename page:', page.name);
+                    if (name) renamePage(page.id, name);
+                  }}
+                  className={`px-3 py-1 text-[10px] font-semibold rounded-t transition-all ${
+                    activePageId === page.id
+                      ? 'bg-primary/10 text-primary border border-primary/30 border-b-0'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
+                  }`}
+                >
+                  {page.name}
+                </button>
+                {pages.length > 1 && activePageId === page.id && (
+                  <button onClick={() => deletePage(page.id)} className="ml-0.5 text-muted-foreground/40 hover:text-destructive">
+                    <X size={10} />
+                  </button>
+                )}
               </div>
-            )}
+            ))}
+            <button onClick={addPage}
+              className="px-2 py-1 text-[10px] text-muted-foreground hover:text-primary border border-dashed border-border/20 hover:border-primary/30 rounded transition-all">
+              <Plus size={10} />
+            </button>
           </div>
 
-          {/* Right panel: Audio/BPM + Add widget + Properties */}
-          <div className="w-72 border-l border-border/30 flex flex-col overflow-y-auto">
-            {/* Hidden file input for widget bg */}
-            <input ref={imgInputRef} type="file" accept="image/*" className="hidden" onChange={handleWidgetBgUpload} />
+          <div className="flex-1 flex overflow-hidden">
+            {/* Widget surface */}
+            <div className="flex-1 relative overflow-hidden" ref={surfaceRef}
+              onClick={(e) => {
+                if (e.target === e.currentTarget || (e.target as HTMLElement).dataset.surface) {
+                  setSelectedWidget(null);
+                }
+              }}
+            >
+              <div className="absolute inset-0" data-surface="true"
+                style={{ backgroundImage: 'radial-gradient(circle, hsl(var(--border) / 0.15) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
 
-            {/* ── Audio Input Section ── */}
-            <div className="p-3 border-b border-border/20 space-y-2">
-              <span className="text-[9px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
-                <Mic size={10} /> Audio Input
-              </span>
-              <select value={audioConfig.source}
-                onChange={e => setAudioConfig(prev => ({ ...prev, source: e.target.value as AudioSource }))}
-                className="w-full h-7 rounded bg-muted/30 border border-border/30 text-[10px] px-2 text-foreground">
-                {AUDIO_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-              {audioConfig.source !== 'none' && (
-                <div className="text-[8px] text-muted-foreground/60 bg-muted/10 rounded p-1.5">
-                  {AUDIO_SOURCES.find(s => s.value === audioConfig.source)?.description}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <img src={stokioLogo} alt="" className="w-[300px] h-[300px] object-contain opacity-[0.04]" />
+              </div>
+
+              {widgets.map(w => (
+                <ControlWidget
+                  key={w.id}
+                  widget={w}
+                  isSelected={selectedWidget === w.id}
+                  onSelect={() => setSelectedWidget(w.id)}
+                  onUpdate={(updates) => updateWidget(w.id, updates)}
+                  onPress={() => { }}
+                  onRelease={() => { }}
+                />
+              ))}
+
+              {widgets.length === 0 && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground/40">
+                  <SlidersHorizontal size={32} />
+                  <span className="text-sm mt-2">Add widgets from the right panel</span>
                 </div>
               )}
-              {audioConfig.source.startsWith('wled') && (
-                <div className="grid grid-cols-2 gap-1.5">
+            </div>
+
+            {/* Right panel */}
+            <div className="w-72 border-l border-border/30 flex flex-col overflow-y-auto">
+              <input ref={imgInputRef} type="file" accept="image/*" className="hidden" onChange={handleWidgetBgUpload} />
+
+              {/* Audio Input */}
+              <div className="p-3 border-b border-border/20 space-y-2">
+                <span className="text-[9px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
+                  <Mic size={10} /> Audio Input
+                </span>
+                <select value={audioConfig.source}
+                  onChange={e => setAudioConfig(prev => ({ ...prev, source: e.target.value as AudioSource }))}
+                  className="w-full h-7 rounded bg-muted/30 border border-border/30 text-[10px] px-2 text-foreground">
+                  {AUDIO_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+                {audioConfig.source !== 'none' && (
+                  <div className="text-[8px] text-muted-foreground/60 bg-muted/10 rounded p-1.5">
+                    {AUDIO_SOURCES.find(s => s.value === audioConfig.source)?.description}
+                  </div>
+                )}
+                {audioConfig.source.startsWith('wled') && (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">Squelch</label>
+                      <Slider value={[audioConfig.squelch]} onValueChange={([v]) => setAudioConfig(prev => ({ ...prev, squelch: v }))} max={255} className="mt-1" />
+                      <span className="text-[7px] font-mono text-muted-foreground/50">{audioConfig.squelch}</span>
+                    </div>
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">Gain</label>
+                      <Slider value={[audioConfig.gain]} onValueChange={([v]) => setAudioConfig(prev => ({ ...prev, gain: v }))} max={255} className="mt-1" />
+                      <span className="text-[7px] font-mono text-muted-foreground/50">{audioConfig.gain}</span>
+                    </div>
+                  </div>
+                )}
+                {audioConfig.source === 'wled-udp-sync' && (
                   <div>
-                    <label className="text-[7px] uppercase text-muted-foreground">Squelch</label>
-                    <Slider value={[audioConfig.squelch]} onValueChange={([v]) => setAudioConfig(prev => ({ ...prev, squelch: v }))}
-                      max={255} className="mt-1" />
-                    <span className="text-[7px] font-mono text-muted-foreground/50">{audioConfig.squelch}</span>
+                    <label className="text-[7px] uppercase text-muted-foreground">UDP Port</label>
+                    <Input type="number" value={audioConfig.udpPort}
+                      onChange={e => setAudioConfig(prev => ({ ...prev, udpPort: Number(e.target.value) }))}
+                      className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
                   </div>
-                  <div>
-                    <label className="text-[7px] uppercase text-muted-foreground">Gain</label>
-                    <Slider value={[audioConfig.gain]} onValueChange={([v]) => setAudioConfig(prev => ({ ...prev, gain: v }))}
-                      max={255} className="mt-1" />
-                    <span className="text-[7px] font-mono text-muted-foreground/50">{audioConfig.gain}</span>
-                  </div>
-                </div>
-              )}
-              {audioConfig.source === 'wled-udp-sync' && (
-                <div>
-                  <label className="text-[7px] uppercase text-muted-foreground">UDP Port</label>
-                  <Input type="number" value={audioConfig.udpPort}
-                    onChange={e => setAudioConfig(prev => ({ ...prev, udpPort: Number(e.target.value) }))}
-                    className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
-                </div>
-              )}
-            </div>
+                )}
+              </div>
 
-            {/* ── BPM / Tap Tempo ── */}
-            <div className="p-3 border-b border-border/20 space-y-2">
-              <span className="text-[9px] uppercase tracking-widest text-stokio-pink font-semibold flex items-center gap-1">
-                <Activity size={10} /> BPM / Tap Tempo
-              </span>
-              <div className="flex items-center gap-2">
-                <motion.button
-                  whileTap={{ scale: 0.9 }}
-                  onClick={handleTap}
-                  className="w-16 h-16 rounded-full control-glossy border-2 flex flex-col items-center justify-center transition-all"
-                  style={{
-                    borderColor: bpmState.flashOn ? '#ff2d78' : 'hsl(var(--border) / 0.3)',
-                    boxShadow: bpmState.flashOn ? '0 0 25px #ff2d7860, inset 0 0 15px #ff2d7820' : 'none',
-                    background: bpmState.flashOn ? 'radial-gradient(circle at center, #ff2d7815, transparent)' : undefined,
-                  }}
-                >
-                  <span className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold">TAP</span>
-                  <span className="text-xs font-bold text-primary font-mono">{bpmState.bpm}</span>
-                </motion.button>
-                <div className="flex-1 space-y-1">
-                  <div className="text-lg font-bold font-mono text-foreground flex items-center gap-1">
-                    {bpmState.bpm} <span className="text-[9px] text-muted-foreground font-normal">BPM</span>
-                    {bpmState.isSynced && (
-                      <motion.div
-                        className="w-2.5 h-2.5 rounded-full"
-                        animate={{
-                          backgroundColor: bpmState.flashOn ? '#ff2d78' : '#00ff66',
-                          boxShadow: bpmState.flashOn ? '0 0 10px #ff2d78' : '0 0 6px #00ff6660',
-                        }}
-                        transition={{ duration: 0.05 }}
-                      />
-                    )}
+              {/* BPM / Tap Tempo */}
+              <div className="p-3 border-b border-border/20 space-y-2">
+                <span className="text-[9px] uppercase tracking-widest text-stokio-pink font-semibold flex items-center gap-1">
+                  <Activity size={10} /> BPM / Tap Tempo
+                </span>
+                <div className="flex items-center gap-2">
+                  <motion.button whileTap={{ scale: 0.9 }} onClick={handleTap}
+                    className="w-16 h-16 rounded-full control-glossy border-2 flex flex-col items-center justify-center transition-all"
+                    style={{
+                      borderColor: bpmState.flashOn ? '#ff2d78' : 'hsl(var(--border) / 0.3)',
+                      boxShadow: bpmState.flashOn ? '0 0 25px #ff2d7860, inset 0 0 15px #ff2d7820' : 'none',
+                      background: bpmState.flashOn ? 'radial-gradient(circle at center, #ff2d7815, transparent)' : undefined,
+                    }}>
+                    <span className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold">TAP</span>
+                    <span className="text-xs font-bold text-primary font-mono">{bpmState.bpm}</span>
+                  </motion.button>
+                  <div className="flex-1 space-y-1">
+                    <div className="text-lg font-bold font-mono text-foreground flex items-center gap-1">
+                      {bpmState.bpm} <span className="text-[9px] text-muted-foreground font-normal">BPM</span>
+                      {bpmState.isSynced && (
+                        <motion.div className="w-2.5 h-2.5 rounded-full"
+                          animate={{ backgroundColor: bpmState.flashOn ? '#ff2d78' : '#00ff66', boxShadow: bpmState.flashOn ? '0 0 10px #ff2d78' : '0 0 6px #00ff6660' }}
+                          transition={{ duration: 0.05 }} />
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5"
+                        onClick={() => setBpmState(prev => ({ ...prev, bpm: Math.max(20, prev.bpm - 1) }))}>-1</Button>
+                      <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5"
+                        onClick={() => setBpmState(prev => ({ ...prev, bpm: Math.min(300, prev.bpm + 1) }))}>+1</Button>
+                      <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5"
+                        onClick={() => setBpmState(prev => ({ ...prev, tapTimes: [], isSynced: false }))}>Reset</Button>
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5"
-                      onClick={() => setBpmState(prev => ({ ...prev, bpm: Math.max(20, prev.bpm - 1) }))}>-1</Button>
-                    <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5"
-                      onClick={() => setBpmState(prev => ({ ...prev, bpm: Math.min(300, prev.bpm + 1) }))}>+1</Button>
-                    <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5"
-                      onClick={() => setBpmState(prev => ({ ...prev, tapTimes: [], isSynced: false }))}>Reset</Button>
+                </div>
+                <div>
+                  <label className="text-[7px] uppercase text-muted-foreground">Sync to Widgets</label>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {widgets.map(w => {
+                      const linked = bpmState.linkedWidgetIds.includes(w.id);
+                      return (
+                        <button key={w.id} onClick={() => toggleBpmWidgetLink(w.id)}
+                          className={`text-[8px] px-1.5 py-0.5 rounded border transition-all ${
+                            linked ? 'bg-stokio-pink/10 border-stokio-pink/30 text-stokio-pink' : 'border-border/20 text-muted-foreground hover:border-border/40'
+                          }`}>{w.label}</button>
+                      );
+                    })}
+                    {widgets.length === 0 && <span className="text-[8px] text-muted-foreground/40">No widgets</span>}
                   </div>
                 </div>
               </div>
-              <div>
-                <label className="text-[7px] uppercase text-muted-foreground">Sync to Widgets</label>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {widgets.map(w => {
-                    const linked = bpmState.linkedWidgetIds.includes(w.id);
-                    return (
-                      <button key={w.id} onClick={() => toggleBpmWidgetLink(w.id)}
-                        className={`text-[8px] px-1.5 py-0.5 rounded border transition-all ${
-                          linked ? 'bg-stokio-pink/10 border-stokio-pink/30 text-stokio-pink' : 'border-border/20 text-muted-foreground hover:border-border/40'
-                        }`}>
-                        {w.label}
-                      </button>
-                    );
-                  })}
-                  {widgets.length === 0 && <span className="text-[8px] text-muted-foreground/40">No widgets</span>}
+
+              {/* Add widget buttons */}
+              <div className="p-3 border-b border-border/20 space-y-2">
+                <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Add Widget</span>
+                <div className="grid grid-cols-2 gap-1">
+                  {WIDGET_PRESETS.map(p => (
+                    <button key={p.type} onClick={() => addWidget(p.type)}
+                      className="flex flex-col items-center gap-1 p-2 rounded border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-all">
+                      <p.icon size={14} className="text-muted-foreground" />
+                      <span className="text-[8px] text-muted-foreground">{p.label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
-            </div>
 
-            {/* Add widget buttons */}
-            <div className="p-3 border-b border-border/20 space-y-2">
-              <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Add Widget</span>
-              <div className="grid grid-cols-2 gap-1">
-                {WIDGET_PRESETS.map(p => (
-                  <button key={p.type} onClick={() => addWidget(p.type)}
-                    className="flex flex-col items-center gap-1 p-2 rounded border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-all">
-                    <p.icon size={14} className="text-muted-foreground" />
-                    <span className="text-[8px] text-muted-foreground">{p.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Selected widget properties */}
-            {selectedWidgetData && (
-              <div className="p-3 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] uppercase tracking-widest text-primary font-semibold">Properties</span>
-                  <Button variant="ghost" size="sm" className="h-5 text-[8px] text-destructive" onClick={() => removeWidget(selectedWidgetData.id)}>
-                    <Trash2 size={10} />
-                  </Button>
-                </div>
-
-                <div>
-                  <label className="text-[7px] uppercase text-muted-foreground">Label</label>
-                  <Input value={selectedWidgetData.label}
-                    onChange={e => updateWidget(selectedWidgetData.id, { label: e.target.value })}
-                    className="h-6 text-[10px] bg-muted/20 border-border/20" />
-                </div>
-
-                <div>
-                  <label className="text-[7px] uppercase text-muted-foreground">Background Color</label>
-                  <div className="flex gap-1">
-                    <Input type="color" value={selectedWidgetData.color}
-                      onChange={e => updateWidget(selectedWidgetData.id, { color: e.target.value })}
-                      className="h-6 w-10 p-0 bg-transparent border-0 cursor-pointer" />
-                    <Input value={selectedWidgetData.color}
-                      onChange={e => updateWidget(selectedWidgetData.id, { color: e.target.value })}
-                      className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono flex-1" />
-                  </div>
-                </div>
-
-                {/* Background Image */}
-                <div>
-                  <label className="text-[7px] uppercase text-muted-foreground">Background Image</label>
-                  <div className="flex gap-1 mt-1">
-                    <Button variant="outline" size="sm" className="h-6 text-[8px] gap-1 flex-1"
-                      onClick={() => imgInputRef.current?.click()}>
-                      <ImagePlus size={10} /> Upload
+              {/* Selected widget properties */}
+              {selectedWidgetData && (
+                <div className="p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] uppercase tracking-widest text-primary font-semibold">Properties</span>
+                    <Button variant="ghost" size="sm" className="h-5 text-[8px] text-destructive" onClick={() => removeWidget(selectedWidgetData.id)}>
+                      <Trash2 size={10} />
                     </Button>
-                    {selectedWidgetData.bgImage && (
-                      <Button variant="ghost" size="sm" className="h-6 text-[8px] text-destructive"
-                        onClick={() => updateWidget(selectedWidgetData.id, { bgImage: null })}>
-                        <X size={10} />
+                  </div>
+
+                  <div>
+                    <label className="text-[7px] uppercase text-muted-foreground">Label</label>
+                    <Input value={selectedWidgetData.label}
+                      onChange={e => updateWidget(selectedWidgetData.id, { label: e.target.value })}
+                      className="h-6 text-[10px] bg-muted/20 border-border/20" />
+                  </div>
+
+                  <div>
+                    <label className="text-[7px] uppercase text-muted-foreground">Background Color</label>
+                    <div className="flex gap-1">
+                      <Input type="color" value={selectedWidgetData.color}
+                        onChange={e => updateWidget(selectedWidgetData.id, { color: e.target.value })}
+                        className="h-6 w-10 p-0 bg-transparent border-0 cursor-pointer" />
+                      <Input value={selectedWidgetData.color}
+                        onChange={e => updateWidget(selectedWidgetData.id, { color: e.target.value })}
+                        className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono flex-1" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[7px] uppercase text-muted-foreground">Background Image</label>
+                    <div className="flex gap-1 mt-1">
+                      <Button variant="outline" size="sm" className="h-6 text-[8px] gap-1 flex-1"
+                        onClick={() => imgInputRef.current?.click()}>
+                        <ImagePlus size={10} /> Upload
                       </Button>
+                      {selectedWidgetData.bgImage && (
+                        <Button variant="ghost" size="sm" className="h-6 text-[8px] text-destructive"
+                          onClick={() => updateWidget(selectedWidgetData.id, { bgImage: null })}>
+                          <X size={10} />
+                        </Button>
+                      )}
+                    </div>
+                    {selectedWidgetData.bgImage && (
+                      <div className="mt-1 h-10 rounded border border-border/20 overflow-hidden">
+                        <img src={selectedWidgetData.bgImage} alt="" className="w-full h-full object-cover" />
+                      </div>
                     )}
                   </div>
-                  {selectedWidgetData.bgImage && (
-                    <div className="mt-1 h-10 rounded border border-border/20 overflow-hidden">
-                      <img src={selectedWidgetData.bgImage} alt="" className="w-full h-full object-cover" />
+
+                  <div className="grid grid-cols-2 gap-1">
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">X</label>
+                      <Input type="number" value={Math.round(selectedWidgetData.x)}
+                        onChange={e => updateWidget(selectedWidgetData.id, { x: Number(e.target.value) })}
+                        className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
+                    </div>
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">Y</label>
+                      <Input type="number" value={Math.round(selectedWidgetData.y)}
+                        onChange={e => updateWidget(selectedWidgetData.id, { y: Number(e.target.value) })}
+                        className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1">
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">Width</label>
+                      <Input type="number" value={selectedWidgetData.width}
+                        onChange={e => updateWidget(selectedWidgetData.id, { width: Number(e.target.value) })}
+                        className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
+                    </div>
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">Height</label>
+                      <Input type="number" value={selectedWidgetData.height}
+                        onChange={e => updateWidget(selectedWidgetData.id, { height: Number(e.target.value) })}
+                        className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[7px] uppercase text-muted-foreground flex items-center gap-1">
+                      <Move size={9} /> Movement Axis Lock
+                    </label>
+                    <div className="flex gap-1 mt-1">
+                      {(['none', 'x', 'y'] as const).map(axis => (
+                        <button key={axis}
+                          onClick={() => updateWidget(selectedWidgetData.id, { lockAxis: axis })}
+                          className={`flex-1 h-6 rounded text-[9px] font-semibold border transition-all flex items-center justify-center gap-1 ${
+                            selectedWidgetData.lockAxis === axis
+                              ? 'bg-primary/10 border-primary/30 text-primary'
+                              : 'border-border/20 text-muted-foreground hover:border-border/40'
+                          }`}>
+                          {axis === 'none' ? <><Unlock size={9} /> Free</> :
+                           axis === 'x' ? <><Lock size={9} /> Lock Y</> :
+                           <><Lock size={9} /> Lock X</>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {selectedWidgetData.type === 'button' && (
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">Behavior</label>
+                      <select value={selectedWidgetData.flash ? 'flash' : 'toggle'}
+                        onChange={e => updateWidget(selectedWidgetData.id, { flash: e.target.value === 'flash' })}
+                        className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground">
+                        <option value="flash">Flash (hold)</option>
+                        <option value="toggle">Toggle</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Link fixtures — individual */}
+                  <div>
+                    <label className="text-[7px] uppercase text-muted-foreground">Linked Fixtures</label>
+                    <div className="space-y-0.5 mt-1">
+                      {fixturesWithDefs.map(({ inst, def }) => {
+                        const linked = selectedWidgetData.linkedFixtureIds.includes(inst.id);
+                        return (
+                          <button key={inst.id}
+                            onClick={() => updateWidget(selectedWidgetData.id, {
+                              linkedFixtureIds: linked
+                                ? selectedWidgetData.linkedFixtureIds.filter(id => id !== inst.id)
+                                : [...selectedWidgetData.linkedFixtureIds, inst.id],
+                            })}
+                            className={`w-full flex items-center gap-1.5 p-1 rounded text-[9px] transition-all ${
+                              linked ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted/20'
+                            }`}>
+                            <span>{getFixtureTypeIcon(def.type)}</span>
+                            <span>{inst.name}</span>
+                            {linked && <span className="ml-auto text-[7px]">✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Link by group */}
+                  {groups.length > 0 && (
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">Link Group</label>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {groups.map(g => (
+                          <button key={g.id} onClick={() => linkGroupToWidget(g.id)}
+                            className="text-[8px] px-2 py-0.5 rounded border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-all flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: g.color }} />
+                            {g.name} ({g.fixtureIds.length})
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
+              )}
 
-                {/* Position */}
-                <div className="grid grid-cols-2 gap-1">
-                  <div>
-                    <label className="text-[7px] uppercase text-muted-foreground">X</label>
-                    <Input type="number" value={Math.round(selectedWidgetData.x)}
-                      onChange={e => updateWidget(selectedWidgetData.id, { x: Number(e.target.value) })}
-                      className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
-                  </div>
-                  <div>
-                    <label className="text-[7px] uppercase text-muted-foreground">Y</label>
-                    <Input type="number" value={Math.round(selectedWidgetData.y)}
-                      onChange={e => updateWidget(selectedWidgetData.id, { y: Number(e.target.value) })}
-                      className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
-                  </div>
+              {!selectedWidgetData && (
+                <div className="flex-1 flex items-center justify-center text-[10px] text-muted-foreground/40 p-4 text-center">
+                  Select a widget to edit its properties
                 </div>
-
-                {/* Size */}
-                <div className="grid grid-cols-2 gap-1">
-                  <div>
-                    <label className="text-[7px] uppercase text-muted-foreground">Width</label>
-                    <Input type="number" value={selectedWidgetData.width}
-                      onChange={e => updateWidget(selectedWidgetData.id, { width: Number(e.target.value) })}
-                      className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
-                  </div>
-                  <div>
-                    <label className="text-[7px] uppercase text-muted-foreground">Height</label>
-                    <Input type="number" value={selectedWidgetData.height}
-                      onChange={e => updateWidget(selectedWidgetData.id, { height: Number(e.target.value) })}
-                      className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
-                  </div>
-                </div>
-
-                {/* Axis Lock */}
-                <div>
-                  <label className="text-[7px] uppercase text-muted-foreground flex items-center gap-1">
-                    <Move size={9} /> Movement Axis Lock
-                  </label>
-                  <div className="flex gap-1 mt-1">
-                    {(['none', 'x', 'y'] as const).map(axis => (
-                      <button key={axis}
-                        onClick={() => updateWidget(selectedWidgetData.id, { lockAxis: axis })}
-                        className={`flex-1 h-6 rounded text-[9px] font-semibold border transition-all flex items-center justify-center gap-1 ${
-                          selectedWidgetData.lockAxis === axis
-                            ? 'bg-primary/10 border-primary/30 text-primary'
-                            : 'border-border/20 text-muted-foreground hover:border-border/40'
-                        }`}>
-                        {axis === 'none' ? <><Unlock size={9} /> Free</> :
-                         axis === 'x' ? <><Lock size={9} /> Lock Y</> :
-                         <><Lock size={9} /> Lock X</>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {selectedWidgetData.type === 'button' && (
-                  <div>
-                    <label className="text-[7px] uppercase text-muted-foreground">Behavior</label>
-                    <select value={selectedWidgetData.flash ? 'flash' : 'toggle'}
-                      onChange={e => updateWidget(selectedWidgetData.id, { flash: e.target.value === 'flash' })}
-                      className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground">
-                      <option value="flash">Flash (hold)</option>
-                      <option value="toggle">Toggle</option>
-                    </select>
-                  </div>
-                )}
-
-                {/* Link fixtures */}
-                <div>
-                  <label className="text-[7px] uppercase text-muted-foreground">Linked Fixtures</label>
-                  <div className="space-y-0.5 mt-1">
-                    {fixturesWithDefs.map(({ inst, def }) => {
-                      const linked = selectedWidgetData.linkedFixtureIds.includes(inst.id);
-                      return (
-                        <button key={inst.id}
-                          onClick={() => updateWidget(selectedWidgetData.id, {
-                            linkedFixtureIds: linked
-                              ? selectedWidgetData.linkedFixtureIds.filter(id => id !== inst.id)
-                              : [...selectedWidgetData.linkedFixtureIds, inst.id],
-                          })}
-                          className={`w-full flex items-center gap-1.5 p-1 rounded text-[9px] transition-all ${
-                            linked ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted/20'
-                          }`}
-                        >
-                          <span>{getFixtureTypeIcon(def.type)}</span>
-                          <span>{inst.name}</span>
-                          {linked && <span className="ml-auto text-[7px]">✓</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {!selectedWidgetData && (
-              <div className="flex-1 flex items-center justify-center text-[10px] text-muted-foreground/40 p-4 text-center">
-                Select a widget to edit its properties
-              </div>
-            )}
+              )}
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* ── GROUPS TAB ── */}
+      {tab === 'groups' && (
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold flex items-center gap-1">
+              <Users size={12} /> Fixture Groups
+            </div>
+            <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1" onClick={addGroup}>
+              <Plus size={12} /> New Group
+            </Button>
+          </div>
+
+          <div className="glass-panel p-3 mb-3">
+            <div className="text-[9px] text-muted-foreground">
+              Create pre-made groups of fixtures and WLED devices. Use groups to quickly link multiple fixtures to controller widgets, scripts, or scenes.
+            </div>
+          </div>
+
+          {groups.map(group => (
+            <div key={group.id} className="glass-panel border border-border/20 rounded-lg overflow-hidden">
+              <div className="flex items-center gap-2 p-3 border-b border-border/10">
+                <div className="w-4 h-4 rounded-full border border-border/30" style={{ backgroundColor: group.color }} />
+                <Input value={group.name}
+                  onChange={e => updateGroup(group.id, { name: e.target.value })}
+                  className="h-6 text-xs bg-transparent border-0 font-semibold flex-1 p-0 focus-visible:ring-0" />
+                <Input type="color" value={group.color}
+                  onChange={e => updateGroup(group.id, { color: e.target.value })}
+                  className="h-6 w-8 p-0 bg-transparent border-0 cursor-pointer" />
+                <Button variant="ghost" size="sm" className="h-6 text-[8px] text-destructive" onClick={() => deleteGroup(group.id)}>
+                  <Trash2 size={10} />
+                </Button>
+              </div>
+              <div className="p-3 space-y-1">
+                <span className="text-[8px] text-muted-foreground uppercase">
+                  {group.fixtureIds.length} fixture(s) selected
+                </span>
+                <div className="grid grid-cols-2 gap-1">
+                  {fixturesWithDefs.map(({ inst, def }) => {
+                    const inGroup = group.fixtureIds.includes(inst.id);
+                    return (
+                      <button key={inst.id}
+                        onClick={() => toggleGroupFixture(group.id, inst.id)}
+                        className={`flex items-center gap-1.5 p-1.5 rounded text-[9px] border transition-all ${
+                          inGroup
+                            ? 'border-primary/30 bg-primary/10 text-primary'
+                            : 'border-border/15 text-muted-foreground hover:border-border/30 hover:bg-muted/10'
+                        }`}>
+                        <span>{getFixtureTypeIcon(def.type)}</span>
+                        <span className="truncate">{inst.name}</span>
+                        {inGroup && <span className="ml-auto">✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                {fixturesWithDefs.length === 0 && (
+                  <div className="text-[9px] text-muted-foreground/50 text-center py-2">No fixtures available — add them in Devices first</div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {groups.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <Users size={24} className="text-muted-foreground/30 mb-2" />
+              <span className="text-sm">No groups yet</span>
+              <span className="text-[10px] text-muted-foreground/50 mt-1">Create a group to organize fixtures together</span>
+            </div>
+          )}
         </div>
       )}
 
