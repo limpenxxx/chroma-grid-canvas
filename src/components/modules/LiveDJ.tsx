@@ -2188,7 +2188,7 @@ export function LiveDJ() {
                     {widgets.length === 0 && <span className="text-[8px] text-muted-foreground/40">No widgets</span>}
                   </div>
                 </div>
-              </div>
+              </div>}
 
               {/* Add widget buttons */}
               <div className="p-3 border-b border-border/20 space-y-2">
