@@ -201,7 +201,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'button', label: 'Flash Button', icon: Zap, w: 100, h: 100 },
   { type: 'slider', label: 'Fader', icon: SlidersHorizontal, w: 70, h: 200 },
   { type: 'color-wheel', label: 'Color Pick', icon: Palette, w: 140, h: 140 },
-  { type: 'xy-pad', label: 'XY Pad', icon: Plus, w: 180, h: 180 },
+  { type: 'xy-pad', label: 'XY Pad', icon: Plus, w: 200, h: 260 },
   { type: 'preset', label: 'Pre Set', icon: Bookmark, w: 120, h: 120 },
   { type: 'fixed-color', label: 'Fixed Color', icon: CircleDot, w: 150, h: 150 },
   { type: 'media-trigger', label: 'Media', icon: Film, w: 120, h: 120 },
