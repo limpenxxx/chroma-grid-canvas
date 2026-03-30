@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, Trash2, Upload, Download, Search, Edit2, Save, X, ChevronDown, ChevronRight, Copy
+  Plus, Trash2, Upload, Download, Search, Edit2, Save, X, ChevronDown, ChevronRight, Copy, Wifi
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,8 +10,9 @@ import {
   type FixtureChannel, type ChannelFunction, type ColorSystem, type ColorWheelSlot,
   CHANNEL_FUNCTION_LABELS, getChannelColor, getFixtureTypeIcon,
 } from '@/store/fixtureStore';
+import { WledPanel } from './WledPanel';
 
-type Tab = 'instances' | 'library' | 'editor';
+type Tab = 'instances' | 'library' | 'editor' | 'wled';
 
 const FIXTURE_TYPES: FixtureDefinition['type'][] = [
   'moving-head', 'par', 'strip', 'wash', 'spot', 'beam', 'strobe', 'laser', 'effect', 'dimmer', 'other',
@@ -240,7 +241,7 @@ export function Devices() {
 
       {/* Tabs */}
       <div className="flex border-b border-border/30">
-        {(['instances', 'library', 'editor'] as Tab[]).map(t => (
+        {(['instances', 'library', 'editor', 'wled'] as Tab[]).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -248,7 +249,7 @@ export function Devices() {
               tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {t === 'instances' ? 'Patched Fixtures' : t === 'library' ? 'Fixture Library' : 'Fixture Editor'}
+            {t === 'instances' ? 'Patched Fixtures' : t === 'library' ? 'Fixture Library' : t === 'editor' ? 'Fixture Editor' : '📡 WLED Live'}
           </button>
         ))}
       </div>
@@ -688,6 +689,9 @@ export function Devices() {
           </Button>
         </div>
       )}
+
+      {/* WLED TAB */}
+      {tab === 'wled' && <WledPanel />}
     </motion.div>
   );
 }
