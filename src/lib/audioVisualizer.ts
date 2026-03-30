@@ -78,8 +78,8 @@ export class AudioVisualizerEngine {
       this.analyser.smoothingTimeConstant = 0.8;
       this.source = this.audioCtx.createMediaStreamSource(stream);
       this.source.connect(this.analyser);
-      this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
-      this.timeData = new Uint8Array(this.analyser.fftSize);
+      this.freqData = new Uint8Array(this.analyser.frequencyBinCount) as Uint8Array<ArrayBuffer>;
+      this.timeData = new Uint8Array(this.analyser.fftSize) as Uint8Array<ArrayBuffer>;
       this._isRunning = true;
     } catch (err) {
       console.error('Audio input error:', err);
