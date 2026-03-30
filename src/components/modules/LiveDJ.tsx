@@ -1350,6 +1350,9 @@ export function LiveDJ() {
   const store = useFixtureStore();
   const [tab, setTab] = useState<Tab>('controller');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [customColorPresets, setCustomColorPresets] = useState<{ label: string; mode: ColorProgramMode; colors: { r: number; g: number; b: number }[] }[]>(() => {
+    try { return JSON.parse(localStorage.getItem('stokio-custom-color-presets') || '[]'); } catch { return []; }
+  });
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
   const [editingPageName, setEditingPageName] = useState('');
 
