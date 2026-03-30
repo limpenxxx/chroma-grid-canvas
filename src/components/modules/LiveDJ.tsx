@@ -1543,6 +1543,24 @@ function persistLayouts(layouts: SavedLayout[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts));
 }
 
+/** Create a virtual FixtureInstance + FixtureDefinition for a WLED device-list fixture so LiveDJ can treat it like any other fixture */
+function wledFixtureToVirtual(fix: WledFixture): { inst: FixtureInstance; def: FixtureDefinition } {
+  return {
+    inst: {
+      id: fix.id, definitionId: `_wled_${fix.id}`, name: fix.name, icon: fix.icon,
+      universe: 0, dmxAddress: 0, modeId: 'wled-m1',
+      onStage: false, stageX: 0, stageY: 0, stageWidth: 36, stageHeight: 36,
+    },
+    def: {
+      id: `_wled_${fix.id}`, manufacturer: 'WLED', model: fix.deviceName, type: 'wled',
+      category: 'wled', colorSystem: 'rgb',
+      wledConfig: { ip: fix.deviceIp, ledCount: Math.max(1, fix.ledEnd - fix.ledStart + 1), segments: 1, presets: [] },
+      modes: [{ id: 'wled-m1', name: 'WLED RGB', channelCount: 0, channels: [] }],
+      createdAt: 0,
+    },
+  };
+}
+
 // ── Main LIVE DJ Component ──
 
 export function LiveDJ() {
