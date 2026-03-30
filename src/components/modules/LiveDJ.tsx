@@ -999,6 +999,34 @@ function ControlWidget({
           </div>
         );
       })()}
+
+      {/* DMX RESET */}
+      {widget.type === 'dmx-reset' && (() => {
+        const universe = widget.resetUniverse ?? 1;
+        const s = Math.min(widget.width, widget.height);
+        const fs = Math.max(10, Math.min(18, s * 0.15));
+        const subFs = Math.max(8, Math.min(13, s * 0.1));
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-destructive/30 flex flex-col items-center justify-center gap-1 transition-all overflow-hidden relative cursor-pointer hover:border-destructive/60 hover:bg-destructive/5 active:bg-destructive/15 active:scale-95"
+            style={bgStyle}
+            onClick={e => {
+              e.stopPropagation();
+              onSelect();
+              onPress();
+              // Visual feedback
+              onUpdate({ toggled: true });
+              setTimeout(() => onUpdate({ toggled: false }), 300);
+            }}>
+            {widget.toggled && (
+              <div className="absolute inset-0 rounded-lg bg-destructive/20 animate-pulse z-0" />
+            )}
+            <Square size={Math.max(14, s * 0.12)} className="text-destructive relative z-10" />
+            <span className="text-destructive font-bold uppercase tracking-wider relative z-10" style={{ fontSize: fs }}>RESET</span>
+            <span className="text-muted-foreground/60 font-semibold relative z-10" style={{ fontSize: subFs }}>Universe {universe}</span>
+            <span className="text-muted-foreground/30 relative z-10" style={{ fontSize: Math.max(7, subFs * 0.7) }}>512 CH → 0</span>
+          </div>
+        );
+      })()}
     </div>
   );
 }
