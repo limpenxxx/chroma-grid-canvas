@@ -1996,6 +1996,33 @@ export function LiveDJ() {
                               </div>
                             </div>
                           )}
+                          {/* WLED Fixtures */}
+                          {fixturesWithDefs.filter(f => f.def.category === 'wled').length > 0 && (
+                            <div>
+                              <span className="text-[7px] text-muted-foreground/60">WLED Fixtures:</span>
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {fixturesWithDefs.filter(f => f.def.category === 'wled').map(({ inst, def }) => {
+                                  const inScene = selectedWidgetData.presetEntries?.some(e => e.targetId === inst.id && e.targetType === 'wled');
+                                  return (
+                                    <button key={inst.id}
+                                      onClick={() => {
+                                        const entries = selectedWidgetData.presetEntries || [];
+                                        if (inScene) {
+                                          updateWidget(selectedWidgetData.id, { presetEntries: entries.filter(e => !(e.targetId === inst.id && e.targetType === 'wled')) });
+                                        } else {
+                                          updateWidget(selectedWidgetData.id, { presetEntries: [...entries, { targetId: inst.id, targetType: 'wled', dimmer: 255 }] });
+                                        }
+                                      }}
+                                      className={`text-[8px] px-1.5 py-0.5 rounded border transition-all flex items-center gap-1 ${
+                                        inScene ? 'bg-[#ff6600]/10 border-[#ff6600]/30 text-[#ff6600]' : 'border-border/20 text-muted-foreground hover:border-border/40'
+                                      }`}>
+                                      💡 {inst.name}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
