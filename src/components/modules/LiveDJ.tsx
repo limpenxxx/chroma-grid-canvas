@@ -423,14 +423,16 @@ function ControlWidget({
             boxShadow: isButtonActive ? `0 0 24px ${widget.color}50, inset 0 0 20px ${widget.color}25` : undefined }}
           onMouseDown={handleButtonDown} onMouseUp={handleButtonUp}
           onMouseLeave={() => { if (widget.flash && isPressed) handleButtonUp(); }}>
-          {!widget.bgImage && <div className="absolute inset-0 rounded-lg opacity-15" style={{ backgroundColor: widget.color }} />}
-          {isButtonActive && <div className="absolute inset-0 rounded-lg" style={{ background: `radial-gradient(circle at center, ${widget.color}30, transparent)` }} />}
-          <Bookmark size={Math.min(widget.width, widget.height) * 0.2} style={{ color: widget.color }} className="relative z-10" />
+          <div className="absolute inset-0 rounded-lg opacity-15" style={{ backgroundColor: widget.color }} />
+          {widget.bgImage && <div className="absolute inset-0 rounded-lg bg-gradient-to-t from-black/70 via-black/30 to-transparent z-[1]" />}
+          {isButtonActive && <div className="absolute inset-0 rounded-lg z-[2]" style={{ background: `radial-gradient(circle at center, ${widget.color}30, transparent)` }} />}
+          <Bookmark size={Math.min(widget.width, widget.height) * 0.2} style={{ color: widget.color }} className="relative z-10 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" />
           <span className="text-muted-foreground font-semibold truncate px-1 relative z-10"
-            style={{ fontSize: Math.max(8, Math.min(14, widget.width * 0.12)) }}>{widget.label}</span>
-          <div className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full transition-all ${widget.toggled ? 'bg-primary shadow-[0_0_6px_hsl(var(--primary))]' : 'bg-muted-foreground/20'}`} />
+            style={{ fontSize: Math.max(8, Math.min(14, widget.width * 0.12)), textShadow: '0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6)' }}>{widget.label}</span>
+          <div className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full transition-all z-10 ${widget.toggled ? 'bg-primary shadow-[0_0_6px_hsl(var(--primary))]' : 'bg-muted-foreground/20'}`} />
           {(widget.presetEntries?.length || 0) > 0 && (
-            <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[7px] text-muted-foreground/50 z-10">
+            <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[7px] text-muted-foreground/50 z-10"
+              style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
               {widget.presetEntries!.length} scene(s)
             </span>
           )}
