@@ -1628,8 +1628,26 @@ export function LiveDJ() {
                     </div>
                   )}
 
+                  {/* Color Sync + MH for XY Pad */}
                   {selectedWidgetData.type === 'xy-pad' && (
                     <div className="space-y-2 border-t border-border/20 pt-2">
+                      {/* Color Sync */}
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Sync Dot Color From Widget</label>
+                        <select
+                          value={selectedWidgetData.syncColorWidgetId || ''}
+                          onChange={e => updateWidget(selectedWidgetData.id, { syncColorWidgetId: e.target.value || null })}
+                          className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-1">
+                          <option value="">None (default)</option>
+                          {widgets.filter(w => (w.type === 'color-wheel' || w.type === 'fixed-color') && w.id !== selectedWidgetData.id).map(w => (
+                            <option key={w.id} value={w.id}>🎨 {w.label}</option>
+                          ))}
+                        </select>
+                        <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5 mt-1">
+                          💡 Links the XY pad cursor color to a Color Wheel or Fixed Color widget.
+                        </div>
+                      </div>
+
                       <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold">MH Movement Program</label>
 
                       {/* Pattern selector */}
