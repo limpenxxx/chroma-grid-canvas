@@ -2407,7 +2407,9 @@ export function LiveDJ() {
                   </div>
 
                   <div>
-                    <label className="text-[7px] uppercase text-muted-foreground">Background Color</label>
+                    <label className="text-[7px] uppercase text-muted-foreground">
+                      {selectedWidgetData.type === 'slider' ? 'Fader Color' : 'Background Color'}
+                    </label>
                     <div className="flex gap-1">
                       <Input type="color" value={selectedWidgetData.color}
                         onChange={e => updateWidget(selectedWidgetData.id, { color: e.target.value })}
@@ -2416,7 +2418,50 @@ export function LiveDJ() {
                         onChange={e => updateWidget(selectedWidgetData.id, { color: e.target.value })}
                         className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono flex-1" />
                     </div>
+                    {/* Fader color sync with color wheel widget */}
+                    {selectedWidgetData.type === 'slider' && (() => {
+                      const colorWidgets = widgets.filter(w => w.type === 'color-wheel');
+                      return colorWidgets.length > 0 ? (
+                        <div className="mt-1.5">
+                          <label className="text-[7px] uppercase text-muted-foreground">Sync Fader Color with Color Widget</label>
+                          <select
+                            value={selectedWidgetData.faderColorSyncWidgetId || ''}
+                            onChange={e => updateWidget(selectedWidgetData.id, { faderColorSyncWidgetId: e.target.value || null })}
+                            className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
+                            <option value="">None (use fader color)</option>
+                            {colorWidgets.map(cw => (
+                              <option key={cw.id} value={cw.id}>{cw.label}</option>
+                            ))}
+                          </select>
+                          {selectedWidgetData.faderColorSyncWidgetId && (
+                            <div className="text-[7px] text-primary/60 mt-0.5">✓ Fader fill follows live color</div>
+                          )}
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
+
+                  {/* Background Color — only for slider widgets */}
+                  {selectedWidgetData.type === 'slider' && (
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">Background Color</label>
+                      <div className="flex gap-1">
+                        <Input type="color" value={selectedWidgetData.bgColor || '#1a1a2e'}
+                          onChange={e => updateWidget(selectedWidgetData.id, { bgColor: e.target.value })}
+                          className="h-6 w-10 p-0 bg-transparent border-0 cursor-pointer" />
+                        <Input value={selectedWidgetData.bgColor || ''}
+                          onChange={e => updateWidget(selectedWidgetData.id, { bgColor: e.target.value })}
+                          placeholder="Default"
+                          className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono flex-1" />
+                        {selectedWidgetData.bgColor && (
+                          <Button variant="ghost" size="sm" className="h-6 px-1 text-muted-foreground"
+                            onClick={() => updateWidget(selectedWidgetData.id, { bgColor: undefined })}>
+                            <X size={10} />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <label className="text-[7px] uppercase text-muted-foreground">Background Image</label>
