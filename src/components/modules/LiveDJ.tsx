@@ -436,10 +436,17 @@ function ControlWidget({
             }}>
             <div className="absolute left-1/2 top-0 w-px h-full bg-border/20" />
             <div className="absolute top-1/2 left-0 w-full h-px bg-border/20" />
-            {widget.colorValue && (
-              <div className="absolute w-4 h-4 rounded-full bg-primary border border-foreground -translate-x-1/2 -translate-y-1/2"
-                style={{ left: `${(widget.colorValue.r / 255) * 100}%`, top: `${(widget.colorValue.g / 255) * 100}%`, boxShadow: '0 0 10px hsl(var(--primary))' }} />
-            )}
+            {widget.colorValue && (() => {
+              const syncWidget = widget.syncColorWidgetId ? allWidgets.find(w => w.id === widget.syncColorWidgetId) : null;
+              const dotColor = syncWidget?.colorValue
+                ? `rgb(${syncWidget.colorValue.r},${syncWidget.colorValue.g},${syncWidget.colorValue.b})`
+                : 'hsl(var(--primary))';
+              return (
+                <div className="absolute w-4 h-4 rounded-full border border-foreground -translate-x-1/2 -translate-y-1/2"
+                  style={{ left: `${(widget.colorValue.r / 255) * 100}%`, top: `${(widget.colorValue.g / 255) * 100}%`,
+                    backgroundColor: dotColor, boxShadow: `0 0 10px ${dotColor}` }} />
+              );
+            })()}
             <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[8px] text-muted-foreground/40">PAN</span>
             <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] text-muted-foreground/40 -rotate-90">TILT</span>
           </div>
