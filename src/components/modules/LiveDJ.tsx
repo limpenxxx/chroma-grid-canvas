@@ -560,11 +560,17 @@ function ControlWidget({
 
       {/* COLOR WHEEL */}
       {widget.type === 'color-wheel' && (
-        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-3 gap-1 overflow-hidden" style={bgStyle}>
-          <span className="text-muted-foreground font-semibold truncate" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.1)) }}>{widget.label}</span>
-          <div className="flex-1 flex items-center justify-center">
+        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-2 gap-0.5 overflow-hidden" style={bgStyle}>
+          <span className="text-muted-foreground font-semibold truncate shrink-0" style={{ fontSize: Math.max(8, Math.min(11, widget.width * 0.08)) }}>{widget.label}</span>
+          {/* Color program indicator */}
+          {widget.colorProgram?.running && (
+            <div className="absolute top-1 right-1 text-[6px] px-1 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 animate-pulse font-semibold z-20">
+              {widget.colorProgram.mode === 'fade' ? '🌈 FADE' : '⚡ SWITCH'}
+            </div>
+          )}
+          <div className="flex-1 flex items-center justify-center min-h-0">
             <div className="rounded-full border-2 border-border/30 cursor-pointer"
-              style={{ width: Math.min(widget.width, widget.height) - 40, height: Math.min(widget.width, widget.height) - 40,
+              style={{ width: Math.min(widget.width, widget.height) - 60, height: Math.min(widget.width, widget.height) - 60,
                 background: `conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)` }}
               onClick={(e) => {
                 onSelect();
@@ -580,13 +586,45 @@ function ControlWidget({
               }}>
               {widget.colorValue && (
                 <div className="w-full h-full rounded-full flex items-center justify-center">
-                  <div className="w-6 h-6 rounded-full border border-foreground/50"
-                    style={{ backgroundColor: `rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})`,
-                      boxShadow: `0 0 10px rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})` }} />
+                  <div className="rounded-full border border-foreground/50"
+                    style={{ width: Math.max(12, (Math.min(widget.width, widget.height) - 60) * 0.3),
+                      height: Math.max(12, (Math.min(widget.width, widget.height) - 60) * 0.3),
+                      backgroundColor: `rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})`,
+                      boxShadow: `0 0 12px rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})` }} />
                 </div>
               )}
             </div>
           </div>
+          {/* Quick color buttons */}
+          {(() => {
+            const s = Math.min(widget.width, widget.height);
+            const btnSize = Math.max(14, Math.min(24, s * 0.1));
+            const fs = Math.max(6, Math.min(10, s * 0.045));
+            return (
+              <div className="w-full shrink-0 flex flex-wrap justify-center gap-0.5">
+                {QUICK_COLORS.map(qc => {
+                  const isActive = widget.colorValue && widget.colorValue.r === qc.color.r && widget.colorValue.g === qc.color.g && widget.colorValue.b === qc.color.b;
+                  const isBlack = qc.color.r === 0 && qc.color.g === 0 && qc.color.b === 0;
+                  return (
+                    <button key={qc.label}
+                      onClick={e => { e.stopPropagation(); onSelect(); onUpdate({ colorValue: qc.color }); }}
+                      className={`rounded border transition-all font-bold ${
+                        isActive ? 'border-foreground/60 ring-1 ring-primary/50 scale-110' : 'border-border/30 hover:border-border/60'
+                      }`}
+                      style={{
+                        width: btnSize, height: btnSize, fontSize: fs,
+                        backgroundColor: isBlack ? '#111' : `rgb(${qc.color.r},${qc.color.g},${qc.color.b})`,
+                        color: (qc.color.r + qc.color.g + qc.color.b) > 400 ? '#000' : '#fff',
+                        textShadow: (qc.color.r + qc.color.g + qc.color.b) > 400 ? 'none' : '0 1px 2px rgba(0,0,0,0.8)',
+                      }}
+                      title={qc.label}>
+                      {qc.label}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 
