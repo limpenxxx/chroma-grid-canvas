@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { useFixtureStore, getFixtureTypeIcon, getChannelColor, getFixtureIconEmoji } from '@/store/fixtureStore';
 import { useWledStore } from '@/store/wledStore';
+import { setWledState } from '@/lib/wledApi';
 import { useMediaStore, getEmbedUrl } from '@/store/mediaStore';
 import { AudioVisualizerEngine, PRESET_LABELS, INPUT_LABELS, type VisualizerPreset, type AudioInputSource } from '@/lib/audioVisualizer';
 import { exportMappingPreset, parseMappingPreset, downloadJson, openJsonFile } from '@/lib/backupRestore';
@@ -26,6 +27,7 @@ interface WLEDNode {
   id: string;
   name: string;
   ip: string;
+  wledFixtureId?: string;
   x: number;
   y: number;
   width: number;
@@ -93,6 +95,8 @@ const ORIENTATION_LABELS: Record<SegmentOrientation, string> = {
   'zigzag-v': '⇵ Zigzag V',
 };
 
+const rgbToHex = (r: number, g: number, b: number) => [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('').toUpperCase();
+
 type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null;
 type SelectionType = 'node' | 'fixture' | 'mapping-fixture' | null;
 
@@ -105,6 +109,8 @@ export function StageBuilder() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const vizEngineRef = useRef<AudioVisualizerEngine>(new AudioVisualizerEngine());
   const vizCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const nodeOutputFramesRef = useRef<Record<string, string[]>>({});
+  const lastNodeOutputRef = useRef<Record<string, string>>({});
   const [nodes, setNodes] = useState<WLEDNode[]>(MOCK_NODES);
   const [mappingFixtures, setMappingFixtures] = useState<MappingFixture[]>([]);
   const [selectionType, setSelectionType] = useState<SelectionType>(null);
@@ -216,6 +222,15 @@ export function StageBuilder() {
     setVizRunning(false);
     if (bgSource === 'visualizer') setBgSource('none');
   };
+
+  const getLinkedFixture = useCallback((node: WLEDNode) => {
+    if (node.wledFixtureId) {
+      const linkedById = wledStore.fixtures.find(f => f.id === node.wledFixtureId);
+      if (linkedById) return linkedById;
+    }
+
+    return wledStore.fixtures.find(f => f.deviceIp === node.ip);
+  }, [wledStore.fixtures]);
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -388,6 +403,8 @@ export function StageBuilder() {
       return [Math.round(rSum / count), Math.round(gSum / count), Math.round(bSum / count)];
     };
 
+    const nextNodeFrames: Record<string, string[]> = {};
+
     // Draw WLED nodes
     nodes.forEach((node) => {
       ctx.save();
@@ -412,6 +429,7 @@ export function StageBuilder() {
       const pxH = node.height / node.pixelsY;
       let segColorIndex = 0;
       const segColors = ['#00e5ff', '#ff2d78', '#00ff66', '#ffaa00', '#aa66ff', '#ff6644'];
+      const nodeFrame: string[] = [];
 
       // Pre-compute node center in canvas coords (before rotation, but we need world coords)
       const cosR = Math.cos((node.rotation * Math.PI) / 180);
@@ -453,6 +471,7 @@ export function StageBuilder() {
 
             // Sample color from background at this world position
             const [r, g, b] = sampleBgColor(worldX, worldY, node.sampleRadius, node.blurAmount);
+            nodeFrame.push(rgbToHex(r, g, b));
 
             const px = -hw + col * pxW;
             const py = -hh + row * pxH;
@@ -478,6 +497,8 @@ export function StageBuilder() {
         ctx.fillStyle = 'rgba(0,229,255,0.4)';
         ctx.fillText(`blur:${node.blurAmount} rad:${node.sampleRadius}`, 0, hh + 28);
       }
+
+      nextNodeFrames[node.id] = nodeFrame;
 
       // Selection handles
       if (isSelected) {
@@ -653,9 +674,45 @@ export function StageBuilder() {
       }
     }
 
+    nodeOutputFramesRef.current = nextNodeFrames;
     ctx.restore();
     animRef.current = requestAnimationFrame(drawCanvas);
   }, [nodes, selectionType, selectedId, showGrid, stageFixtures, mappingFixtures, fixtureStore, isVideoPlaying, bgSource]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      const pendingSends = nodes.flatMap((node) => {
+        const fixture = getLinkedFixture(node);
+        const device = fixture ? wledStore.devices.find(d => d.id === fixture.deviceId) : undefined;
+        const frame = nodeOutputFramesRef.current[node.id];
+
+        if (!fixture || !device?.online || !frame || frame.length === 0) return [];
+
+        const segInfo = device.state?.seg?.find(seg => seg.id === fixture.segmentId);
+        const segmentStart = segInfo?.start ?? 0;
+        const offset = Math.max(0, fixture.ledStart - segmentStart);
+        const fixturePixelCount = Math.max(1, fixture.ledEnd - fixture.ledStart + 1);
+        const payloadFrame = frame.slice(0, fixturePixelCount);
+        const signature = `${fixture.id}:${payloadFrame.join(',')}`;
+
+        if (lastNodeOutputRef.current[node.id] === signature) return [];
+
+        lastNodeOutputRef.current[node.id] = signature;
+        const segmentPayload = offset > 0 ? [offset, ...payloadFrame] : payloadFrame;
+
+        return [
+          setWledState(fixture.deviceIp, {
+            on: true,
+            seg: [{ id: fixture.segmentId, i: segmentPayload }],
+          }).catch(() => {})
+        ];
+      });
+
+      void Promise.all(pendingSends);
+    }, 120);
+
+    return () => window.clearInterval(timer);
+  }, [nodes, getLinkedFixture, wledStore.devices]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1159,20 +1216,29 @@ export function StageBuilder() {
                       <div>
                         <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">WLED Fixture</label>
                         <select
-                          value={selectedNode.ip}
+                          value={selectedNode.wledFixtureId || ''}
                           onChange={e => {
-                            const fix = wledStore.fixtures.find(f => f.deviceIp === e.target.value);
+                            const fix = wledStore.fixtures.find(f => f.id === e.target.value);
                             if (fix) {
-                              updateNode(selectedNode.id, { ip: fix.deviceIp, name: fix.name });
+                              const ledCount = Math.max(1, fix.ledEnd - fix.ledStart + 1);
+                              const pixelsX = Math.max(1, Math.min(selectedNode.pixelsX, ledCount));
+                              updateNode(selectedNode.id, {
+                                wledFixtureId: fix.id,
+                                ip: fix.deviceIp,
+                                name: fix.name,
+                                totalPixels: ledCount,
+                                pixelsX,
+                                pixelsY: Math.ceil(ledCount / pixelsX),
+                                segments: [{ ...(selectedNode.segments[0] || createDefaultSegment(0, 0, ledCount)), pixelStart: 0, pixelEnd: ledCount - 1 }, ...selectedNode.segments.slice(1)],
+                              });
                             }
                           }}
                           className="w-full h-7 rounded bg-muted/30 border border-border/30 text-xs px-2 text-foreground"
                         >
                           <option value="">Select WLED fixture...</option>
                           {wledStore.fixtures.map(fix => {
-                            const device = wledStore.devices.find(d => d.id === fix.deviceId);
                             return (
-                              <option key={fix.id} value={fix.deviceIp}>
+                              <option key={fix.id} value={fix.id}>
                                 {getFixtureIconEmoji(fix.icon)} {fix.name} — {fix.deviceIp} (Seg {fix.segmentId}, LED {fix.ledStart}–{fix.ledEnd})
                               </option>
                             );
@@ -1183,7 +1249,7 @@ export function StageBuilder() {
 
                     {/* Pixel Matrix — auto-filled from WLED fixture */}
                     {(() => {
-                      const linkedFixture = wledStore.fixtures.find(f => f.deviceIp === selectedNode.ip);
+                      const linkedFixture = getLinkedFixture(selectedNode);
                       const ledCount = linkedFixture ? (linkedFixture.ledEnd - linkedFixture.ledStart + 1) : null;
                       return (
                         <div className="glass-panel p-3 space-y-2">
