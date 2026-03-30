@@ -141,8 +141,43 @@ interface DJWidget {
   wledIp?: string;
   wledPresets?: { id: number; name: string }[];
   // DMX Reset widget
-  resetUniverse?: number; // 1-based universe number
+  resetUniverse?: number;
+  // Color program (color-wheel)
+  colorProgram?: ColorProgram;
 }
+
+type ColorProgramMode = 'static' | 'switch' | 'fade';
+
+interface ColorProgram {
+  mode: ColorProgramMode;
+  colors: { r: number; g: number; b: number }[];
+  speed: number; // 0-255
+  bpmSync: boolean;
+  running: boolean;
+}
+
+const COLOR_PROGRAM_PRESETS: { label: string; mode: ColorProgramMode; colors: { r: number; g: number; b: number }[] }[] = [
+  { label: 'R/B Switch', mode: 'switch', colors: [{ r: 255, g: 0, b: 0 }, { r: 0, g: 0, b: 255 }] },
+  { label: 'R/G/B', mode: 'switch', colors: [{ r: 255, g: 0, b: 0 }, { r: 0, g: 255, b: 0 }, { r: 0, g: 0, b: 255 }] },
+  { label: 'Rainbow Fade', mode: 'fade', colors: [{ r: 255, g: 0, b: 0 }, { r: 255, g: 255, b: 0 }, { r: 0, g: 255, b: 0 }, { r: 0, g: 255, b: 255 }] },
+  { label: 'Warm Fade', mode: 'fade', colors: [{ r: 255, g: 60, b: 0 }, { r: 255, g: 180, b: 50 }, { r: 255, g: 100, b: 20 }] },
+  { label: 'Cool Fade', mode: 'fade', colors: [{ r: 0, g: 100, b: 255 }, { r: 0, g: 255, b: 255 }, { r: 100, g: 0, b: 255 }] },
+  { label: 'Police', mode: 'switch', colors: [{ r: 255, g: 0, b: 0 }, { r: 0, g: 0, b: 255 }, { r: 255, g: 0, b: 0 }, { r: 255, g: 255, b: 255 }] },
+  { label: 'Purple/Pink', mode: 'fade', colors: [{ r: 128, g: 0, b: 255 }, { r: 255, g: 50, b: 150 }] },
+  { label: 'Fire', mode: 'fade', colors: [{ r: 255, g: 60, b: 0 }, { r: 255, g: 0, b: 0 }, { r: 255, g: 160, b: 0 }] },
+];
+
+const QUICK_COLORS: { label: string; color: { r: number; g: number; b: number } }[] = [
+  { label: 'R', color: { r: 255, g: 0, b: 0 } },
+  { label: 'G', color: { r: 0, g: 255, b: 0 } },
+  { label: 'B', color: { r: 0, g: 0, b: 255 } },
+  { label: 'W', color: { r: 255, g: 255, b: 255 } },
+  { label: 'CY', color: { r: 0, g: 255, b: 255 } },
+  { label: 'PU', color: { r: 128, g: 0, b: 255 } },
+  { label: 'AM', color: { r: 255, g: 160, b: 0 } },
+  { label: 'PK', color: { r: 255, g: 50, b: 150 } },
+  { label: '⬛', color: { r: 0, g: 0, b: 0 } },
+];
 
 interface ScriptStep {
   id: string;
