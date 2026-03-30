@@ -1,10 +1,11 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown } from 'lucide-react';
+import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown, Film, Droplets } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { useFixtureStore, getFixtureTypeIcon, getChannelColor } from '@/store/fixtureStore';
+import { useMediaStore, getEmbedUrl } from '@/store/mediaStore';
 
 type SegmentOrientation = 'horizontal' | 'vertical' | 'zigzag-h' | 'zigzag-v';
 
@@ -30,6 +31,22 @@ interface WLEDNode {
   pixelsY: number;
   segments: WLEDSegment[];
   totalPixels: number;
+  // SignalRGB-style settings
+  blurAmount: number;       // 0-100 — how much to blur/smooth the sampled colors
+  sampleRadius: number;     // 1-50 — radius of the area each pixel samples from (in canvas px)
+  interpolationSpeed: number; // 1-100 — how fast colors transition (temporal smoothing)
+}
+
+// DMX fixture on the mapping canvas with its own blur/radius
+interface MappingFixture {
+  id: string;
+  fixtureInstanceId: string;
+  x: number;
+  y: number;
+  radius: number;           // visual size on canvas
+  blurAmount: number;       // 0-100
+  sampleRadius: number;     // 1-50
+  interpolationSpeed: number;
 }
 
 const createDefaultSegment = (index: number, start: number, count: number): WLEDSegment => ({
@@ -45,6 +62,7 @@ const MOCK_NODES: WLEDNode[] = [
   {
     id: '1', name: 'WLED-Main', ip: '192.168.1.100', x: 200, y: 120, width: 240, height: 135,
     pixelsX: 16, pixelsY: 16, totalPixels: 256, rotation: 0,
+    blurAmount: 20, sampleRadius: 5, interpolationSpeed: 50,
     segments: [
       createDefaultSegment(0, 0, 128),
       createDefaultSegment(1, 128, 128),
@@ -53,11 +71,13 @@ const MOCK_NODES: WLEDNode[] = [
   {
     id: '2', name: 'WLED-Left', ip: '192.168.1.101', x: 40, y: 250, width: 60, height: 180,
     pixelsX: 8, pixelsY: 18, totalPixels: 144, rotation: 0,
+    blurAmount: 30, sampleRadius: 8, interpolationSpeed: 50,
     segments: [createDefaultSegment(0, 0, 144)],
   },
   {
     id: '3', name: 'WLED-Right', ip: '192.168.1.102', x: 520, y: 200, width: 120, height: 50,
     pixelsX: 20, pixelsY: 3, totalPixels: 60, rotation: 0,
+    blurAmount: 10, sampleRadius: 3, interpolationSpeed: 50,
     segments: [createDefaultSegment(0, 0, 60)],
   },
 ];
@@ -70,15 +90,17 @@ const ORIENTATION_LABELS: Record<SegmentOrientation, string> = {
 };
 
 type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null;
+type SelectionType = 'node' | 'fixture' | 'mapping-fixture' | null;
 
 export function StageBuilder() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [nodes, setNodes] = useState<WLEDNode[]>(MOCK_NODES);
-  const [selectedNode, setSelectedNode] = useState<string | null>(null);
-  const [selectedFixture, setSelectedFixture] = useState<string | null>(null);
-  const [dragging, setDragging] = useState<string | null>(null);
-  const [draggingFixture, setDraggingFixture] = useState<string | null>(null);
+  const [mappingFixtures, setMappingFixtures] = useState<MappingFixture[]>([]);
+  const [selectionType, setSelectionType] = useState<SelectionType>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<{ type: SelectionType; id: string } | null>(null);
   const [resizing, setResizing] = useState<{ nodeId: string; handle: ResizeHandle; startX: number; startY: number; startNode: WLEDNode } | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -87,7 +109,12 @@ export function StageBuilder() {
   const animRef = useRef<number>(0);
   const canvasDims = useRef({ w: 0, h: 0 });
   const fixtureStore = useFixtureStore();
+  const mediaStore = useMediaStore();
   const stageFixtures = fixtureStore.instances.filter(i => i.onStage);
+
+  // Get active media item for video background
+  const activeItem = mediaStore.items.find(i => i.id === mediaStore.activeItemId);
+  const isVideoPlaying = mediaStore.isPlaying && activeItem?.type === 'video';
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -118,16 +145,22 @@ export function StageBuilder() {
       }
     }
 
-    // Animated background texture (mock video layer)
-    const time = Date.now() / 2000;
-    for (let i = 0; i < 6; i++) {
-      const gx = (Math.sin(time + i * 1.5) * 0.5 + 0.5) * w;
-      const gy = (Math.cos(time * 0.7 + i * 2) * 0.5 + 0.5) * h;
-      const gradient = ctx.createRadialGradient(gx, gy, 0, gx, gy, 140);
-      gradient.addColorStop(0, `hsla(${(time * 30 + i * 55) % 360}, 80%, 50%, 0.12)`);
-      gradient.addColorStop(1, 'transparent');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, w, h);
+    // Video background or animated texture
+    const video = videoRef.current;
+    if (video && isVideoPlaying && video.readyState >= 2) {
+      ctx.drawImage(video, 0, 0, w, h);
+    } else {
+      // Animated background texture (fallback)
+      const time = Date.now() / 2000;
+      for (let i = 0; i < 6; i++) {
+        const gx = (Math.sin(time + i * 1.5) * 0.5 + 0.5) * w;
+        const gy = (Math.cos(time * 0.7 + i * 2) * 0.5 + 0.5) * h;
+        const gradient = ctx.createRadialGradient(gx, gy, 0, gx, gy, 140);
+        gradient.addColorStop(0, `hsla(${(time * 30 + i * 55) % 360}, 80%, 50%, 0.12)`);
+        gradient.addColorStop(1, 'transparent');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, w, h);
+      }
     }
 
     // Draw WLED nodes
@@ -136,11 +169,11 @@ export function StageBuilder() {
       ctx.translate(node.x + node.width / 2, node.y + node.height / 2);
       ctx.rotate((node.rotation * Math.PI) / 180);
 
-      const isSelected = selectedNode === node.id;
+      const isSelected = selectionType === 'node' && selectedId === node.id;
       const hw = node.width / 2;
       const hh = node.height / 2;
 
-      // Node background (sampled area indicator)
+      // Node background
       ctx.fillStyle = 'rgba(10,10,10,0.6)';
       ctx.fillRect(-hw, -hh, node.width, node.height);
 
@@ -149,7 +182,7 @@ export function StageBuilder() {
       ctx.lineWidth = isSelected ? 2 : 1;
       ctx.strokeRect(-hw, -hh, node.width, node.height);
 
-      // Draw pixel grid based on segments
+      // Draw pixel grid
       const pxW = node.width / node.pixelsX;
       const pxH = node.height / node.pixelsY;
       let segColorIndex = 0;
@@ -178,20 +211,14 @@ export function StageBuilder() {
             row = col % 2 === 0 ? globalPixel % node.pixelsY : (node.pixelsY - 1 - (globalPixel % node.pixelsY));
           }
 
-          if (seg.reversed) {
-            col = node.pixelsX - 1 - col;
-          }
+          if (seg.reversed) col = node.pixelsX - 1 - col;
 
           if (col >= 0 && col < node.pixelsX && row >= 0 && row < node.pixelsY) {
             const px = -hw + col * pxW;
             const py = -hh + row * pxH;
-
-            // Animated color per pixel
             const hue = ((col + row) * 18 + Date.now() / 25) % 360;
             ctx.fillStyle = `hsla(${hue}, 85%, 50%, 0.65)`;
             ctx.fillRect(px + 0.5, py + 0.5, pxW - 1, pxH - 1);
-
-            // Segment color border on every pixel
             ctx.strokeStyle = `${segColor}30`;
             ctx.lineWidth = 0.3;
             ctx.strokeRect(px + 0.5, py + 0.5, pxW - 1, pxH - 1);
@@ -199,7 +226,15 @@ export function StageBuilder() {
         }
       });
 
-      // Label below
+      // Blur indicator
+      if (node.blurAmount > 0) {
+        ctx.fillStyle = `rgba(0,229,255,${Math.min(0.15, node.blurAmount / 500)})`;
+        ctx.filter = `blur(${node.blurAmount / 10}px)`;
+        ctx.fillRect(-hw, -hh, node.width, node.height);
+        ctx.filter = 'none';
+      }
+
+      // Label
       ctx.fillStyle = isSelected ? '#00ff66' : 'rgba(255,255,255,0.6)';
       ctx.font = '9px Inter, sans-serif';
       ctx.textAlign = 'center';
@@ -207,8 +242,12 @@ export function StageBuilder() {
       ctx.fillStyle = 'rgba(255,255,255,0.3)';
       ctx.font = '7px monospace';
       ctx.fillText(`${node.pixelsX}×${node.pixelsY} (${node.totalPixels}px)`, 0, hh + 20);
+      if (node.blurAmount > 0 || node.sampleRadius > 1) {
+        ctx.fillStyle = 'rgba(0,229,255,0.4)';
+        ctx.fillText(`blur:${node.blurAmount} rad:${node.sampleRadius}`, 0, hh + 28);
+      }
 
-      // Resize handles when selected
+      // Selection handles
       if (isSelected) {
         ctx.shadowColor = '#00ff66';
         ctx.shadowBlur = 8;
@@ -216,8 +255,6 @@ export function StageBuilder() {
         ctx.lineWidth = 1;
         ctx.strokeRect(-hw - 2, -hh - 2, node.width + 4, node.height + 4);
         ctx.shadowBlur = 0;
-
-        // Draw 8 resize handles
         const handleSize = 5;
         const handles = [
           { x: -hw, y: -hh }, { x: 0, y: -hh }, { x: hw, y: -hh },
@@ -233,48 +270,45 @@ export function StageBuilder() {
       ctx.restore();
     });
 
-    // Draw fixture instances on stage
+    // Draw DMX fixtures on stage (legacy circles)
     stageFixtures.forEach((inst) => {
       const def = fixtureStore.definitions.find(d => d.id === inst.definitionId);
       if (!def) return;
-      const isSelected = selectedFixture === inst.id;
+      // Skip if this fixture has a mapping fixture entry (drawn separately)
+      if (mappingFixtures.some(mf => mf.fixtureInstanceId === inst.id)) return;
+
+      const isSelected2 = selectionType === 'fixture' && selectedId === inst.id;
       const x = inst.stageX;
       const y = inst.stageY;
       const w2 = inst.stageWidth;
       const h2 = inst.stageHeight;
 
       ctx.save();
-      // Fixture body
-      ctx.fillStyle = isSelected ? 'rgba(255,45,120,0.25)' : 'rgba(255,255,255,0.08)';
-      ctx.strokeStyle = isSelected ? '#ff2d78' : 'rgba(255,255,255,0.25)';
-      ctx.lineWidth = isSelected ? 2 : 1;
+      ctx.fillStyle = isSelected2 ? 'rgba(255,45,120,0.25)' : 'rgba(255,255,255,0.08)';
+      ctx.strokeStyle = isSelected2 ? '#ff2d78' : 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = isSelected2 ? 2 : 1;
       ctx.beginPath();
       ctx.arc(x + w2 / 2, y + h2 / 2, w2 / 2, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      // Glow
-      if (isSelected) {
+      if (isSelected2) {
         ctx.shadowColor = '#ff2d78';
         ctx.shadowBlur = 12;
         ctx.stroke();
         ctx.shadowBlur = 0;
       }
 
-      // Type icon
-      ctx.fillStyle = isSelected ? '#ff2d78' : 'rgba(255,255,255,0.7)';
+      ctx.fillStyle = isSelected2 ? '#ff2d78' : 'rgba(255,255,255,0.7)';
       ctx.font = `${Math.max(10, w2 * 0.45)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(getFixtureTypeIcon(def.type), x + w2 / 2, y + h2 / 2);
 
-      // Label
-      ctx.fillStyle = isSelected ? '#ff2d78' : 'rgba(255,255,255,0.5)';
+      ctx.fillStyle = isSelected2 ? '#ff2d78' : 'rgba(255,255,255,0.5)';
       ctx.font = '8px Inter, sans-serif';
       ctx.textBaseline = 'top';
       ctx.fillText(inst.name, x + w2 / 2, y + h2 + 3);
-
-      // DMX address
       ctx.fillStyle = 'rgba(255,255,255,0.3)';
       ctx.font = '7px monospace';
       ctx.fillText(`U${inst.universe}.${inst.dmxAddress}`, x + w2 / 2, y + h2 + 12);
@@ -282,17 +316,89 @@ export function StageBuilder() {
       ctx.restore();
     });
 
+    // Draw mapping fixtures (DMX fixtures with blur/radius on the mapping canvas)
+    mappingFixtures.forEach((mf) => {
+      const inst = fixtureStore.instances.find(i => i.id === mf.fixtureInstanceId);
+      const def = inst ? fixtureStore.definitions.find(d => d.id === inst.definitionId) : null;
+      if (!inst || !def) return;
+
+      const isSelected2 = selectionType === 'mapping-fixture' && selectedId === mf.id;
+
+      ctx.save();
+
+      // Sample radius indicator (outer ring)
+      if (mf.sampleRadius > 1) {
+        ctx.strokeStyle = `rgba(0,229,255,${isSelected2 ? 0.4 : 0.15})`;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.arc(mf.x, mf.y, mf.radius + mf.sampleRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // Blur glow
+      if (mf.blurAmount > 0) {
+        const blurGrad = ctx.createRadialGradient(mf.x, mf.y, mf.radius * 0.5, mf.x, mf.y, mf.radius + mf.blurAmount / 3);
+        blurGrad.addColorStop(0, `rgba(0,229,255,${Math.min(0.3, mf.blurAmount / 200)})`);
+        blurGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = blurGrad;
+        ctx.beginPath();
+        ctx.arc(mf.x, mf.y, mf.radius + mf.blurAmount / 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Fixture circle
+      const hue = (Date.now() / 30 + mf.x * 2) % 360;
+      ctx.fillStyle = isSelected2
+        ? `hsla(${hue}, 80%, 50%, 0.5)`
+        : `hsla(${hue}, 70%, 45%, 0.35)`;
+      ctx.strokeStyle = isSelected2 ? '#00e5ff' : 'rgba(0,229,255,0.5)';
+      ctx.lineWidth = isSelected2 ? 2 : 1;
+      ctx.beginPath();
+      ctx.arc(mf.x, mf.y, mf.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      if (isSelected2) {
+        ctx.shadowColor = '#00e5ff';
+        ctx.shadowBlur = 10;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      // Icon
+      ctx.fillStyle = isSelected2 ? '#00e5ff' : 'rgba(255,255,255,0.8)';
+      ctx.font = `${Math.max(10, mf.radius * 0.7)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(getFixtureTypeIcon(def.type), mf.x, mf.y);
+
+      // Label
+      ctx.fillStyle = isSelected2 ? '#00e5ff' : 'rgba(255,255,255,0.5)';
+      ctx.font = '8px Inter, sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.fillText(inst.name, mf.x, mf.y + mf.radius + 3);
+      if (mf.blurAmount > 0 || mf.sampleRadius > 1) {
+        ctx.fillStyle = 'rgba(0,229,255,0.4)';
+        ctx.font = '7px monospace';
+        ctx.fillText(`b:${mf.blurAmount} r:${mf.sampleRadius}`, mf.x, mf.y + mf.radius + 12);
+      }
+
+      ctx.restore();
+    });
+
     // Coord readout
-    if (selectedNode) {
-      const sel = nodes.find(n => n.id === selectedNode);
+    if (selectionType === 'node' && selectedId) {
+      const sel = nodes.find(n => n.id === selectedId);
       if (sel) {
         ctx.fillStyle = 'rgba(0,0,0,0.8)';
-        const rW = 280;
-        ctx.fillRect(8, h - 30, rW, 22);
+        ctx.fillRect(8, h - 30, 320, 22);
         ctx.fillStyle = '#00ff66';
         ctx.font = '10px monospace';
+        ctx.textAlign = 'left';
         ctx.fillText(
-          `${sel.name}  X:${Math.round(sel.x)} Y:${Math.round(sel.y)} ${sel.width}×${sel.height} R:${sel.rotation}° ${sel.pixelsX}×${sel.pixelsY}px`,
+          `${sel.name}  X:${Math.round(sel.x)} Y:${Math.round(sel.y)} ${sel.width}×${sel.height} R:${sel.rotation}° blur:${sel.blurAmount}`,
           14, h - 15
         );
       }
@@ -300,13 +406,12 @@ export function StageBuilder() {
 
     ctx.restore();
     animRef.current = requestAnimationFrame(drawCanvas);
-  }, [nodes, selectedNode, selectedFixture, showGrid, stageFixtures, fixtureStore.definitions]);
+  }, [nodes, selectionType, selectedId, showGrid, stageFixtures, mappingFixtures, fixtureStore, isVideoPlaying]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
-
     const cw = container.clientWidth;
     const ch = cw * (9 / 16);
     canvas.style.width = `${cw}px`;
@@ -314,10 +419,21 @@ export function StageBuilder() {
     canvas.width = cw * 2;
     canvas.height = ch * 2;
     canvasDims.current = { w: cw, h: ch };
-
     drawCanvas();
     return () => cancelAnimationFrame(animRef.current);
   }, [drawCanvas, zoom]);
+
+  // Video element sync
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (isVideoPlaying && activeItem?.sourceType === 'file') {
+      video.src = activeItem.src;
+      video.play().catch(() => {});
+    } else if (!isVideoPlaying) {
+      video.pause();
+    }
+  }, [isVideoPlaying, activeItem]);
 
   const getResizeHandle = (mx: number, my: number, node: WLEDNode): ResizeHandle => {
     const tol = 8;
@@ -325,7 +441,6 @@ export function StageBuilder() {
     const onRight = Math.abs(mx - (node.x + node.width)) < tol;
     const onTop = Math.abs(my - node.y) < tol;
     const onBottom = Math.abs(my - (node.y + node.height)) < tol;
-
     if (onTop && onLeft) return 'nw';
     if (onTop && onRight) return 'ne';
     if (onBottom && onLeft) return 'sw';
@@ -344,24 +459,39 @@ export function StageBuilder() {
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
-    // Check fixtures first (they're drawn on top)
+    // Check mapping fixtures first
+    for (let i = mappingFixtures.length - 1; i >= 0; i--) {
+      const mf = mappingFixtures[i];
+      const dist = Math.sqrt((mx - mf.x) ** 2 + (my - mf.y) ** 2);
+      if (dist <= mf.radius + 4) {
+        setSelectionType('mapping-fixture');
+        setSelectedId(mf.id);
+        setDragging({ type: 'mapping-fixture', id: mf.id });
+        setDragOffset({ x: mx - mf.x, y: my - mf.y });
+        return;
+      }
+    }
+
+    // Check stage fixtures
     for (let i = stageFixtures.length - 1; i >= 0; i--) {
       const f = stageFixtures[i];
+      if (mappingFixtures.some(mf => mf.fixtureInstanceId === f.id)) continue;
       const cx = f.stageX + f.stageWidth / 2;
       const cy = f.stageY + f.stageHeight / 2;
       const dist = Math.sqrt((mx - cx) ** 2 + (my - cy) ** 2);
       if (dist <= f.stageWidth / 2 + 4) {
-        setSelectedFixture(f.id);
-        setSelectedNode(null);
-        setDraggingFixture(f.id);
+        setSelectionType('fixture');
+        setSelectedId(f.id);
+        setDragging({ type: 'fixture', id: f.id });
         setDragOffset({ x: mx - f.stageX, y: my - f.stageY });
         return;
       }
     }
 
+    // Check WLED nodes
     for (let i = nodes.length - 1; i >= 0; i--) {
       const n = nodes[i];
-      if (selectedNode === n.id) {
+      if (selectionType === 'node' && selectedId === n.id) {
         const handle = getResizeHandle(mx, my, n);
         if (handle) {
           setResizing({ nodeId: n.id, handle, startX: mx, startY: my, startNode: { ...n } });
@@ -369,15 +499,15 @@ export function StageBuilder() {
         }
       }
       if (mx >= n.x && mx <= n.x + n.width && my >= n.y && my <= n.y + n.height) {
-        setSelectedNode(n.id);
-        setSelectedFixture(null);
-        setDragging(n.id);
+        setSelectionType('node');
+        setSelectedId(n.id);
+        setDragging({ type: 'node', id: n.id });
         setDragOffset({ x: mx - n.x, y: my - n.y });
         return;
       }
     }
-    setSelectedNode(null);
-    setSelectedFixture(null);
+    setSelectionType(null);
+    setSelectedId(null);
   };
 
   const handleCanvasMouseMove = (e: React.MouseEvent) => {
@@ -391,97 +521,110 @@ export function StageBuilder() {
       const { handle, startX, startY, startNode } = resizing;
       const dx = mx - startX;
       const dy = my - startY;
-
       setNodes(prev => prev.map(n => {
         if (n.id !== resizing.nodeId) return n;
         let { x, y, width, height } = startNode;
         const minW = 30, minH = 20;
-
         if (handle?.includes('e')) width = Math.max(minW, width + dx);
         if (handle?.includes('w')) { x = x + dx; width = Math.max(minW, width - dx); }
         if (handle?.includes('s')) height = Math.max(minH, height + dy);
         if (handle?.includes('n')) { y = y + dy; height = Math.max(minH, height - dy); }
-
         return { ...n, x, y, width, height };
       }));
       return;
     }
 
-    if (draggingFixture) {
-      fixtureStore.updateInstance(draggingFixture, {
-        stageX: Math.max(0, mx - dragOffset.x),
-        stageY: Math.max(0, my - dragOffset.y),
-      });
-      return;
-    }
-
     if (dragging) {
-      setNodes(prev => prev.map(n =>
-        n.id === dragging
-          ? { ...n, x: Math.max(0, mx - dragOffset.x), y: Math.max(0, my - dragOffset.y) }
-          : n
-      ));
+      if (dragging.type === 'node') {
+        setNodes(prev => prev.map(n =>
+          n.id === dragging.id ? { ...n, x: Math.max(0, mx - dragOffset.x), y: Math.max(0, my - dragOffset.y) } : n
+        ));
+      } else if (dragging.type === 'fixture') {
+        fixtureStore.updateInstance(dragging.id, {
+          stageX: Math.max(0, mx - dragOffset.x),
+          stageY: Math.max(0, my - dragOffset.y),
+        });
+      } else if (dragging.type === 'mapping-fixture') {
+        setMappingFixtures(prev => prev.map(mf =>
+          mf.id === dragging.id ? { ...mf, x: Math.max(0, mx - dragOffset.x), y: Math.max(0, my - dragOffset.y) } : mf
+        ));
+      }
     }
   };
 
   const handleCanvasMouseUp = () => {
     setDragging(null);
-    setDraggingFixture(null);
     setResizing(null);
   };
 
   const addNode = () => {
     const id = String(Date.now());
     const newNode: WLEDNode = {
-      id,
-      name: `WLED-${nodes.length + 1}`,
-      ip: `192.168.1.${110 + nodes.length}`,
-      x: 100 + Math.random() * 200,
-      y: 80 + Math.random() * 150,
-      width: 120,
-      height: 68,
-      rotation: 0,
-      pixelsX: 16,
-      pixelsY: 9,
-      totalPixels: 144,
+      id, name: `WLED-${nodes.length + 1}`, ip: `192.168.1.${110 + nodes.length}`,
+      x: 100 + Math.random() * 200, y: 80 + Math.random() * 150,
+      width: 120, height: 68, rotation: 0, pixelsX: 16, pixelsY: 9, totalPixels: 144,
+      blurAmount: 15, sampleRadius: 5, interpolationSpeed: 50,
       segments: [createDefaultSegment(0, 0, 144)],
     };
     setNodes(prev => [...prev, newNode]);
-    setSelectedNode(newNode.id);
+    setSelectionType('node');
+    setSelectedId(newNode.id);
+  };
+
+  const addMappingFixture = (fixtureInstanceId: string) => {
+    if (mappingFixtures.some(mf => mf.fixtureInstanceId === fixtureInstanceId)) return;
+    const mf: MappingFixture = {
+      id: `mf-${Date.now()}`,
+      fixtureInstanceId,
+      x: 300 + Math.random() * 100,
+      y: 200 + Math.random() * 80,
+      radius: 20,
+      blurAmount: 25,
+      sampleRadius: 15,
+      interpolationSpeed: 50,
+    };
+    setMappingFixtures(prev => [...prev, mf]);
+    setSelectionType('mapping-fixture');
+    setSelectedId(mf.id);
   };
 
   const rotateSelected = () => {
-    if (!selectedNode) return;
+    if (selectionType !== 'node' || !selectedId) return;
     setNodes(prev => prev.map(n =>
-      n.id === selectedNode ? { ...n, rotation: (n.rotation + 15) % 360 } : n
+      n.id === selectedId ? { ...n, rotation: (n.rotation + 15) % 360 } : n
     ));
   };
 
   const duplicateSelected = () => {
-    if (!selectedNode) return;
-    const source = nodes.find(n => n.id === selectedNode);
+    if (selectionType !== 'node' || !selectedId) return;
+    const source = nodes.find(n => n.id === selectedId);
     if (!source) return;
     const id = String(Date.now());
     const newNode: WLEDNode = {
-      ...source,
-      id,
-      name: `${source.name}-copy`,
-      x: source.x + 30,
-      y: source.y + 30,
+      ...source, id, name: `${source.name}-copy`, x: source.x + 30, y: source.y + 30,
       segments: source.segments.map(s => ({ ...s, id: `seg-${Date.now()}-${Math.random()}` })),
     };
     setNodes(prev => [...prev, newNode]);
-    setSelectedNode(id);
+    setSelectionType('node');
+    setSelectedId(id);
   };
 
   const deleteSelected = () => {
-    if (!selectedNode) return;
-    setNodes(prev => prev.filter(n => n.id !== selectedNode));
-    setSelectedNode(null);
+    if (selectionType === 'node' && selectedId) {
+      setNodes(prev => prev.filter(n => n.id !== selectedId));
+    } else if (selectionType === 'mapping-fixture' && selectedId) {
+      setMappingFixtures(prev => prev.filter(mf => mf.id !== selectedId));
+    }
+    setSelectionType(null);
+    setSelectedId(null);
   };
 
   const updateNode = (id: string, updates: Partial<WLEDNode>) => {
     setNodes(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n));
+  };
+
+  const updateMappingFixture = (id: string, updates: Partial<MappingFixture>) => {
+    setMappingFixtures(prev => prev.map(mf => mf.id === id ? { ...mf, ...updates } : mf));
   };
 
   const updateSegment = (nodeId: string, segId: string, updates: Partial<WLEDSegment>) => {
@@ -496,10 +639,7 @@ export function StageBuilder() {
       if (n.id !== nodeId) return n;
       const lastEnd = n.segments.length > 0 ? n.segments[n.segments.length - 1].pixelEnd + 1 : 0;
       const remaining = Math.max(1, n.totalPixels - lastEnd);
-      return {
-        ...n,
-        segments: [...n.segments, createDefaultSegment(n.segments.length, lastEnd, remaining)],
-      };
+      return { ...n, segments: [...n.segments, createDefaultSegment(n.segments.length, lastEnd, remaining)] };
     }));
   };
 
@@ -510,33 +650,60 @@ export function StageBuilder() {
     }));
   };
 
-  const selected = nodes.find(n => n.id === selectedNode);
+  const selectedNode = selectionType === 'node' ? nodes.find(n => n.id === selectedId) : null;
+  const selectedMF = selectionType === 'mapping-fixture' ? mappingFixtures.find(mf => mf.id === selectedId) : null;
+  const selectedMFInst = selectedMF ? fixtureStore.instances.find(i => i.id === selectedMF.fixtureInstanceId) : null;
+  const selectedMFDef = selectedMFInst ? fixtureStore.definitions.find(d => d.id === selectedMFInst.definitionId) : null;
+
+  // Get RGBW-capable fixtures for adding to mapping
+  const rgbwFixtures = fixtureStore.instances.filter(inst => {
+    const def = fixtureStore.definitions.find(d => d.id === inst.definitionId);
+    return def && ['rgb', 'rgbw', 'rgbww', 'rgbwc'].includes(def.colorSystem);
+  });
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
+      {/* Hidden video element for canvas rendering */}
+      <video ref={videoRef} className="hidden" muted loop playsInline crossOrigin="anonymous" />
+
       {/* Toolbar */}
       <div className="flex items-center gap-2 p-3 border-b border-border/30 flex-wrap">
-        <h2 className="text-sm font-semibold tracking-wider text-foreground mr-3">STAGE BUILDER</h2>
+        <h2 className="text-sm font-semibold tracking-wider text-foreground mr-3">PIXEL-VIDEO-MAPPING</h2>
         <Button variant="outline" size="sm" onClick={addNode} className="h-7 text-[10px] gap-1">
-          <Plus size={12} /> Add WLED Node
+          <Plus size={12} /> WLED Node
         </Button>
-        <Button variant="outline" size="sm" onClick={rotateSelected} disabled={!selectedNode} className="h-7 text-[10px] gap-1">
+
+        {/* Add DMX fixture dropdown */}
+        {rgbwFixtures.length > 0 && (
+          <select className="h-7 text-[9px] bg-muted/30 border border-border/30 rounded px-2 text-foreground"
+            value="" onChange={e => { if (e.target.value) addMappingFixture(e.target.value); }}>
+            <option value="" disabled>+ DMX Fixture</option>
+            {rgbwFixtures.filter(f => !mappingFixtures.some(mf => mf.fixtureInstanceId === f.id)).map(f => (
+              <option key={f.id} value={f.id}>{f.name}</option>
+            ))}
+          </select>
+        )}
+
+        <Button variant="outline" size="sm" onClick={rotateSelected} disabled={selectionType !== 'node'} className="h-7 text-[10px] gap-1">
           <RotateCw size={12} /> Rotate
         </Button>
-        <Button variant="outline" size="sm" onClick={duplicateSelected} disabled={!selectedNode} className="h-7 text-[10px] gap-1">
+        <Button variant="outline" size="sm" onClick={duplicateSelected} disabled={selectionType !== 'node'} className="h-7 text-[10px] gap-1">
           <Copy size={12} /> Duplicate
         </Button>
-        <Button variant="outline" size="sm" onClick={deleteSelected} disabled={!selectedNode} className="h-7 text-[10px] gap-1 text-destructive hover:text-destructive">
+        <Button variant="outline" size="sm" onClick={deleteSelected} disabled={!selectedId} className="h-7 text-[10px] gap-1 text-destructive hover:text-destructive">
           <Trash2 size={12} /> Delete
         </Button>
-        <Button
-          variant={showGrid ? 'secondary' : 'outline'}
-          size="sm"
-          onClick={() => setShowGrid(!showGrid)}
-          className="h-7 text-[10px] gap-1"
-        >
+        <Button variant={showGrid ? 'secondary' : 'outline'} size="sm" onClick={() => setShowGrid(!showGrid)} className="h-7 text-[10px] gap-1">
           <Grid3X3 size={12} /> Grid
         </Button>
+
+        {/* Video status */}
+        {isVideoPlaying && (
+          <div className="flex items-center gap-1 text-[9px] text-primary bg-primary/10 px-2 py-1 rounded border border-primary/30">
+            <Film size={10} /> Video Active
+          </div>
+        )}
+
         <div className="ml-auto flex items-center gap-1">
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}>
             <ZoomOut size={14} />
@@ -564,7 +731,7 @@ export function StageBuilder() {
 
         {/* Properties Panel */}
         <AnimatePresence>
-          {showProperties && selected && (
+          {showProperties && (selectedNode || selectedMF) && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 280, opacity: 1 }}
@@ -573,170 +740,244 @@ export function StageBuilder() {
               className="border-l border-border/30 overflow-y-auto overflow-x-hidden bg-card/30"
             >
               <div className="w-[280px] p-3 space-y-4">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase tracking-widest text-primary font-semibold">Node Properties</span>
-                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setShowProperties(false)}>
-                    <ChevronDown size={12} className="rotate-90" />
-                  </Button>
-                </div>
 
-                {/* Name & IP */}
-                <div className="space-y-2">
-                  <div>
-                    <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">Name</label>
-                    <Input
-                      value={selected.name}
-                      onChange={(e) => updateNode(selected.id, { name: e.target.value })}
-                      className="h-7 text-xs bg-muted/30 border-border/30"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">IP Address</label>
-                    <Input
-                      value={selected.ip}
-                      onChange={(e) => updateNode(selected.id, { ip: e.target.value })}
-                      className="h-7 text-xs bg-muted/30 border-border/30 font-mono"
-                    />
-                  </div>
-                </div>
+                {/* ── WLED Node Properties ── */}
+                {selectedNode && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase tracking-widest text-primary font-semibold">WLED Node</span>
+                      <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setShowProperties(false)}>
+                        <ChevronDown size={12} className="rotate-90" />
+                      </Button>
+                    </div>
 
-                {/* Pixel Grid */}
-                <div className="glass-panel p-3 space-y-2">
-                  <span className="text-[9px] uppercase tracking-widest text-stokio-cyan font-semibold">Pixel Matrix</span>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Pixels X</label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={256}
-                        value={selected.pixelsX}
-                        onChange={(e) => {
-                          const v = Math.max(1, Number(e.target.value));
-                          updateNode(selected.id, { pixelsX: v, totalPixels: v * selected.pixelsY });
-                        }}
-                        className="h-7 text-xs bg-muted/30 border-border/30 font-mono"
-                      />
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">Name</label>
+                        <Input value={selectedNode.name} onChange={e => updateNode(selectedNode.id, { name: e.target.value })}
+                          className="h-7 text-xs bg-muted/30 border-border/30" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">IP Address</label>
+                        <Input value={selectedNode.ip} onChange={e => updateNode(selectedNode.id, { ip: e.target.value })}
+                          className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Pixels Y</label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={256}
-                        value={selected.pixelsY}
-                        onChange={(e) => {
-                          const v = Math.max(1, Number(e.target.value));
-                          updateNode(selected.id, { pixelsY: v, totalPixels: selected.pixelsX * v });
-                        }}
-                        className="h-7 text-xs bg-muted/30 border-border/30 font-mono"
-                      />
-                    </div>
-                  </div>
-                  <div className="text-[9px] font-mono text-muted-foreground text-center">
-                    Total: <span className="text-stokio-cyan">{selected.totalPixels}</span> pixels
-                  </div>
-                </div>
 
-                {/* Position & Size */}
-                <div className="glass-panel p-3 space-y-2">
-                  <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Transform</span>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">X</label>
-                      <Input type="number" value={Math.round(selected.x)} onChange={(e) => updateNode(selected.id, { x: Number(e.target.value) })}
-                        className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
-                    </div>
-                    <div>
-                      <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Y</label>
-                      <Input type="number" value={Math.round(selected.y)} onChange={(e) => updateNode(selected.id, { y: Number(e.target.value) })}
-                        className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
-                    </div>
-                    <div>
-                      <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Width</label>
-                      <Input type="number" min={30} value={selected.width} onChange={(e) => updateNode(selected.id, { width: Math.max(30, Number(e.target.value)) })}
-                        className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
-                    </div>
-                    <div>
-                      <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Height</label>
-                      <Input type="number" min={20} value={selected.height} onChange={(e) => updateNode(selected.id, { height: Math.max(20, Number(e.target.value)) })}
-                        className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Rotation: {selected.rotation}°</label>
-                    <Slider value={[selected.rotation]} onValueChange={([v]) => updateNode(selected.id, { rotation: v })} min={0} max={359} step={1} />
-                  </div>
-                </div>
-
-                {/* Segments */}
-                <div className="glass-panel p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] uppercase tracking-widest text-stokio-pink font-semibold">Segments</span>
-                    <Button variant="ghost" size="sm" className="h-5 text-[9px] px-2" onClick={() => addSegment(selected.id)}>
-                      <Plus size={10} /> Add
-                    </Button>
-                  </div>
-
-                  {selected.segments.map((seg, idx) => {
-                    const segColors = ['border-stokio-cyan/30', 'border-stokio-pink/30', 'border-primary/30', 'border-yellow-500/30', 'border-purple-500/30'];
-                    return (
-                      <div key={seg.id} className={`p-2 rounded border ${segColors[idx % segColors.length]} bg-muted/20 space-y-2`}>
-                        <div className="flex items-center justify-between">
-                          <Input
-                            value={seg.label}
-                            onChange={(e) => updateSegment(selected.id, seg.id, { label: e.target.value })}
-                            className="h-5 text-[10px] bg-transparent border-0 p-0 font-semibold w-20"
-                          />
-                          {selected.segments.length > 1 && (
-                            <button onClick={() => removeSegment(selected.id, seg.id)} className="text-muted-foreground hover:text-destructive">
-                              <Trash2 size={10} />
-                            </button>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <div>
-                            <label className="text-[7px] uppercase text-muted-foreground">Start Pixel</label>
-                            <Input type="number" min={0} value={seg.pixelStart}
-                              onChange={(e) => updateSegment(selected.id, seg.id, { pixelStart: Number(e.target.value) })}
-                              className="h-6 text-[10px] bg-muted/30 border-border/30 font-mono" />
-                          </div>
-                          <div>
-                            <label className="text-[7px] uppercase text-muted-foreground">End Pixel</label>
-                            <Input type="number" min={0} value={seg.pixelEnd}
-                              onChange={(e) => updateSegment(selected.id, seg.id, { pixelEnd: Number(e.target.value) })}
-                              className="h-6 text-[10px] bg-muted/30 border-border/30 font-mono" />
-                          </div>
+                    {/* Pixel Matrix */}
+                    <div className="glass-panel p-3 space-y-2">
+                      <span className="text-[9px] uppercase tracking-widest text-stokio-cyan font-semibold">Pixel Matrix</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Pixels X</label>
+                          <Input type="number" min={1} max={256} value={selectedNode.pixelsX}
+                            onChange={e => { const v = Math.max(1, Number(e.target.value)); updateNode(selectedNode.id, { pixelsX: v, totalPixels: v * selectedNode.pixelsY }); }}
+                            className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
                         </div>
                         <div>
-                          <label className="text-[7px] uppercase text-muted-foreground">Orientation</label>
-                          <select
-                            value={seg.orientation}
-                            onChange={(e) => updateSegment(selected.id, seg.id, { orientation: e.target.value as SegmentOrientation })}
-                            className="w-full h-6 rounded bg-muted/30 border border-border/30 text-[10px] px-1 text-foreground"
-                          >
-                            {Object.entries(ORIENTATION_LABELS).map(([k, v]) => (
-                              <option key={k} value={k}>{v}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <label className="flex items-center gap-1.5 text-[9px] text-muted-foreground cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={seg.reversed}
-                            onChange={(e) => updateSegment(selected.id, seg.id, { reversed: e.target.checked })}
-                            className="rounded border-border"
-                          />
-                          Reversed direction
-                        </label>
-                        <div className="text-[8px] font-mono text-muted-foreground">
-                          {seg.pixelEnd - seg.pixelStart + 1} pixels
+                          <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Pixels Y</label>
+                          <Input type="number" min={1} max={256} value={selectedNode.pixelsY}
+                            onChange={e => { const v = Math.max(1, Number(e.target.value)); updateNode(selectedNode.id, { pixelsY: v, totalPixels: selectedNode.pixelsX * v }); }}
+                            className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className="text-[9px] font-mono text-muted-foreground text-center">
+                        Total: <span className="text-stokio-cyan">{selectedNode.totalPixels}</span> pixels
+                      </div>
+                    </div>
+
+                    {/* SignalRGB-style Blur & Sample Settings */}
+                    <div className="glass-panel p-3 space-y-3">
+                      <span className="text-[9px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
+                        <Droplets size={10} /> Color Sampling
+                      </span>
+                      <div>
+                        <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">
+                          Blur Amount: <span className="text-stokio-cyan">{selectedNode.blurAmount}</span>
+                        </label>
+                        <Slider value={[selectedNode.blurAmount]} onValueChange={([v]) => updateNode(selectedNode.id, { blurAmount: v })} max={100} />
+                        <div className="text-[7px] text-muted-foreground/50 mt-0.5">Smooths color transitions between adjacent pixels</div>
+                      </div>
+                      <div>
+                        <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">
+                          Sample Radius: <span className="text-stokio-cyan">{selectedNode.sampleRadius}px</span>
+                        </label>
+                        <Slider value={[selectedNode.sampleRadius]} onValueChange={([v]) => updateNode(selectedNode.id, { sampleRadius: v })} min={1} max={50} />
+                        <div className="text-[7px] text-muted-foreground/50 mt-0.5">Area each pixel samples from the video/texture</div>
+                      </div>
+                      <div>
+                        <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">
+                          Interpolation Speed: <span className="text-stokio-cyan">{selectedNode.interpolationSpeed}%</span>
+                        </label>
+                        <Slider value={[selectedNode.interpolationSpeed]} onValueChange={([v]) => updateNode(selectedNode.id, { interpolationSpeed: v })} max={100} />
+                        <div className="text-[7px] text-muted-foreground/50 mt-0.5">How fast colors transition (temporal smoothing)</div>
+                      </div>
+                    </div>
+
+                    {/* Transform */}
+                    <div className="glass-panel p-3 space-y-2">
+                      <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Transform</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">X</label>
+                          <Input type="number" value={Math.round(selectedNode.x)} onChange={e => updateNode(selectedNode.id, { x: Number(e.target.value) })}
+                            className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
+                        </div>
+                        <div>
+                          <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Y</label>
+                          <Input type="number" value={Math.round(selectedNode.y)} onChange={e => updateNode(selectedNode.id, { y: Number(e.target.value) })}
+                            className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
+                        </div>
+                        <div>
+                          <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Width</label>
+                          <Input type="number" min={30} value={selectedNode.width} onChange={e => updateNode(selectedNode.id, { width: Math.max(30, Number(e.target.value)) })}
+                            className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
+                        </div>
+                        <div>
+                          <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Height</label>
+                          <Input type="number" min={20} value={selectedNode.height} onChange={e => updateNode(selectedNode.id, { height: Math.max(20, Number(e.target.value)) })}
+                            className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Rotation: {selectedNode.rotation}°</label>
+                        <Slider value={[selectedNode.rotation]} onValueChange={([v]) => updateNode(selectedNode.id, { rotation: v })} min={0} max={359} step={1} />
+                      </div>
+                    </div>
+
+                    {/* Segments */}
+                    <div className="glass-panel p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] uppercase tracking-widest text-stokio-pink font-semibold">Segments</span>
+                        <Button variant="ghost" size="sm" className="h-5 text-[9px] px-2" onClick={() => addSegment(selectedNode.id)}>
+                          <Plus size={10} /> Add
+                        </Button>
+                      </div>
+                      {selectedNode.segments.map((seg, idx) => {
+                        const segColors = ['border-stokio-cyan/30', 'border-stokio-pink/30', 'border-primary/30', 'border-yellow-500/30', 'border-purple-500/30'];
+                        return (
+                          <div key={seg.id} className={`p-2 rounded border ${segColors[idx % segColors.length]} bg-muted/20 space-y-2`}>
+                            <div className="flex items-center justify-between">
+                              <Input value={seg.label} onChange={e => updateSegment(selectedNode.id, seg.id, { label: e.target.value })}
+                                className="h-5 text-[10px] bg-transparent border-0 p-0 font-semibold w-20" />
+                              {selectedNode.segments.length > 1 && (
+                                <button onClick={() => removeSegment(selectedNode.id, seg.id)} className="text-muted-foreground hover:text-destructive">
+                                  <Trash2 size={10} />
+                                </button>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <div>
+                                <label className="text-[7px] uppercase text-muted-foreground">Start Pixel</label>
+                                <Input type="number" min={0} value={seg.pixelStart}
+                                  onChange={e => updateSegment(selectedNode.id, seg.id, { pixelStart: Number(e.target.value) })}
+                                  className="h-6 text-[10px] bg-muted/30 border-border/30 font-mono" />
+                              </div>
+                              <div>
+                                <label className="text-[7px] uppercase text-muted-foreground">End Pixel</label>
+                                <Input type="number" min={0} value={seg.pixelEnd}
+                                  onChange={e => updateSegment(selectedNode.id, seg.id, { pixelEnd: Number(e.target.value) })}
+                                  className="h-6 text-[10px] bg-muted/30 border-border/30 font-mono" />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="text-[7px] uppercase text-muted-foreground">Orientation</label>
+                              <select value={seg.orientation}
+                                onChange={e => updateSegment(selectedNode.id, seg.id, { orientation: e.target.value as SegmentOrientation })}
+                                className="w-full h-6 rounded bg-muted/30 border border-border/30 text-[10px] px-1 text-foreground">
+                                {Object.entries(ORIENTATION_LABELS).map(([k, v]) => (
+                                  <option key={k} value={k}>{v}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <label className="flex items-center gap-1.5 text-[9px] text-muted-foreground cursor-pointer">
+                              <input type="checkbox" checked={seg.reversed}
+                                onChange={e => updateSegment(selectedNode.id, seg.id, { reversed: e.target.checked })}
+                                className="rounded border-border" />
+                              Reversed direction
+                            </label>
+                            <div className="text-[8px] font-mono text-muted-foreground">
+                              {seg.pixelEnd - seg.pixelStart + 1} pixels
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+
+                {/* ── Mapping Fixture Properties ── */}
+                {selectedMF && selectedMFInst && selectedMFDef && (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase tracking-widest text-stokio-cyan font-semibold">DMX Fixture Mapping</span>
+                      <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setShowProperties(false)}>
+                        <ChevronDown size={12} className="rotate-90" />
+                      </Button>
+                    </div>
+
+                    <div className="glass-panel p-3 space-y-2">
+                      <div className="text-[10px] font-semibold">{selectedMFInst.name}</div>
+                      <div className="text-[8px] text-muted-foreground">
+                        {selectedMFDef.manufacturer} {selectedMFDef.model} • U{selectedMFInst.universe}.{selectedMFInst.dmxAddress}
+                      </div>
+                      <div className="text-[8px] text-muted-foreground">
+                        Color: <span className="text-stokio-cyan uppercase">{selectedMFDef.colorSystem}</span>
+                      </div>
+                    </div>
+
+                    {/* Position & Size */}
+                    <div className="glass-panel p-3 space-y-2">
+                      <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Position</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">X</label>
+                          <Input type="number" value={Math.round(selectedMF.x)} onChange={e => updateMappingFixture(selectedMF.id, { x: Number(e.target.value) })}
+                            className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
+                        </div>
+                        <div>
+                          <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Y</label>
+                          <Input type="number" value={Math.round(selectedMF.y)} onChange={e => updateMappingFixture(selectedMF.id, { y: Number(e.target.value) })}
+                            className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">
+                          Visual Radius: <span className="text-stokio-cyan">{selectedMF.radius}px</span>
+                        </label>
+                        <Slider value={[selectedMF.radius]} onValueChange={([v]) => updateMappingFixture(selectedMF.id, { radius: v })} min={8} max={60} />
+                      </div>
+                    </div>
+
+                    {/* SignalRGB-style settings */}
+                    <div className="glass-panel p-3 space-y-3">
+                      <span className="text-[9px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
+                        <Droplets size={10} /> Color Sampling
+                      </span>
+                      <div>
+                        <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">
+                          Blur Amount: <span className="text-stokio-cyan">{selectedMF.blurAmount}</span>
+                        </label>
+                        <Slider value={[selectedMF.blurAmount]} onValueChange={([v]) => updateMappingFixture(selectedMF.id, { blurAmount: v })} max={100} />
+                        <div className="text-[7px] text-muted-foreground/50 mt-0.5">Smooths sampled color output for softer transitions</div>
+                      </div>
+                      <div>
+                        <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">
+                          Sample Radius: <span className="text-stokio-cyan">{selectedMF.sampleRadius}px</span>
+                        </label>
+                        <Slider value={[selectedMF.sampleRadius]} onValueChange={([v]) => updateMappingFixture(selectedMF.id, { sampleRadius: v })} min={1} max={50} />
+                        <div className="text-[7px] text-muted-foreground/50 mt-0.5">Area around fixture position to average color from</div>
+                      </div>
+                      <div>
+                        <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">
+                          Interpolation Speed: <span className="text-stokio-cyan">{selectedMF.interpolationSpeed}%</span>
+                        </label>
+                        <Slider value={[selectedMF.interpolationSpeed]} onValueChange={([v]) => updateMappingFixture(selectedMF.id, { interpolationSpeed: v })} max={100} />
+                        <div className="text-[7px] text-muted-foreground/50 mt-0.5">Temporal smoothing — lower = smoother color changes</div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </motion.div>
           )}
@@ -744,14 +985,13 @@ export function StageBuilder() {
       </div>
 
       {/* Bottom status */}
-      {!showProperties && selectedNode && (
-        <motion.div
-          initial={{ y: 10, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="p-2 border-t border-border/30 flex items-center justify-between px-4"
-        >
+      {!showProperties && selectedId && (
+        <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+          className="p-2 border-t border-border/30 flex items-center justify-between px-4">
           <div className="text-[10px] text-muted-foreground">
-            Selected: <span className="text-primary font-semibold">{selected?.name}</span>
+            Selected: <span className="text-primary font-semibold">
+              {selectedNode?.name || selectedMFInst?.name || '—'}
+            </span>
           </div>
           <Button variant="ghost" size="sm" className="h-5 text-[9px]" onClick={() => setShowProperties(true)}>
             Show Properties →
