@@ -775,6 +775,7 @@ export function LiveDJ() {
       value: type === 'slider' ? 50 : undefined,
       linkedFixtureIds: [],
       lockAxis: 'none',
+      presetEntries: type === 'preset' ? [] : undefined,
     }]);
   };
 
