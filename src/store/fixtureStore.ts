@@ -80,7 +80,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     manufacturer: 'Generic',
     model: 'RGB PAR',
     type: 'par',
-    createdAt: 0,
+    colorSystem: 'rgb',
     modes: [{
       id: 'm1', name: '3 Channel', channelCount: 3,
       channels: [
