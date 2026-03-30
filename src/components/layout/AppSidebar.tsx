@@ -1,10 +1,14 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker, Grid3X3
+  Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker, Grid3X3, Download, Upload
 } from 'lucide-react';
 import { useAppStore, type ModuleId } from '@/store/appStore';
 import stokioLogo from '@/assets/stokio-logo-color.png';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+import { exportFullBackup, importFullBackup, downloadJson, openJsonFile } from '@/lib/backupRestore';
+import { toast } from 'sonner';
 
 const navItems: { id: ModuleId; icon: typeof Layout; label: string }[] = [
   { id: 'stage', icon: Grid3X3, label: 'Pixel Mapping' },
@@ -62,6 +66,41 @@ export function AppSidebar() {
           );
         })}
       </nav>
+
+      {/* Backup / Restore */}
+      <div className="flex flex-col items-center gap-1 w-full px-2 mb-2">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="w-full h-8 text-[8px] gap-1 text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                const json = exportFullBackup();
+                const ts = new Date().toISOString().slice(0, 10);
+                downloadJson(json, `stokio-backup-${ts}.json`);
+                toast.success('Full project backup saved');
+              }}>
+              <Download size={12} /> Backup
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Export full project backup</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="w-full h-8 text-[8px] gap-1 text-muted-foreground hover:text-foreground"
+              onClick={async () => {
+                try {
+                  const json = await openJsonFile();
+                  const err = importFullBackup(json);
+                  if (err) { toast.error(err); return; }
+                  toast.success('Backup restored — reloading…');
+                  setTimeout(() => window.location.reload(), 800);
+                } catch { /* cancelled */ }
+              }}>
+              <Upload size={12} /> Restore
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">Import project backup</TooltipContent>
+        </Tooltip>
+      </div>
 
       {/* Credit & Version */}
       <div className="flex flex-col items-center gap-1 mt-2">

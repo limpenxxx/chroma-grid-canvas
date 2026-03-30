@@ -1,12 +1,14 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown, Film, Droplets, Music, Mic, Volume2, Monitor } from 'lucide-react';
+import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown, Film, Droplets, Music, Mic, Volume2, Monitor, Save, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { useFixtureStore, getFixtureTypeIcon, getChannelColor } from '@/store/fixtureStore';
 import { useMediaStore, getEmbedUrl } from '@/store/mediaStore';
 import { AudioVisualizerEngine, PRESET_LABELS, INPUT_LABELS, type VisualizerPreset, type AudioInputSource } from '@/lib/audioVisualizer';
+import { exportMappingPreset, parseMappingPreset, downloadJson, openJsonFile } from '@/lib/backupRestore';
+import { toast } from 'sonner';
 
 type SegmentOrientation = 'horizontal' | 'vertical' | 'zigzag-h' | 'zigzag-v';
 
@@ -756,6 +758,26 @@ export function StageBuilder() {
     }));
   };
 
+  const saveMapping = () => {
+    const name = `mapping-${new Date().toISOString().slice(0, 16).replace('T', '_')}`;
+    const json = exportMappingPreset(name, nodes, mappingFixtures);
+    downloadJson(json, `${name}.json`);
+    toast.success('Mapping preset saved');
+  };
+
+  const openMapping = async () => {
+    try {
+      const json = await openJsonFile();
+      const result = parseMappingPreset(json);
+      if (typeof result === 'string') { toast.error(result); return; }
+      setNodes(result.nodes as WLEDNode[]);
+      setMappingFixtures(result.mappingFixtures as MappingFixture[]);
+      setSelectionType(null);
+      setSelectedId(null);
+      toast.success(`Loaded mapping: ${result.name}`);
+    } catch { toast.error('No file selected'); }
+  };
+
   const selectedNode = selectionType === 'node' ? nodes.find(n => n.id === selectedId) : null;
   const selectedMF = selectionType === 'mapping-fixture' ? mappingFixtures.find(mf => mf.id === selectedId) : null;
   const selectedMFInst = selectedMF ? fixtureStore.instances.find(i => i.id === selectedMF.fixtureInstanceId) : null;
@@ -826,6 +848,13 @@ export function StageBuilder() {
         </div>
 
         <div className="ml-auto flex items-center gap-1">
+          <Button variant="outline" size="sm" onClick={saveMapping} className="h-7 text-[10px] gap-1">
+            <Save size={12} /> Save
+          </Button>
+          <Button variant="outline" size="sm" onClick={openMapping} className="h-7 text-[10px] gap-1">
+            <FolderOpen size={12} /> Open
+          </Button>
+          <div className="w-px h-5 bg-border/30 mx-1" />
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}>
             <ZoomOut size={14} />
           </Button>
