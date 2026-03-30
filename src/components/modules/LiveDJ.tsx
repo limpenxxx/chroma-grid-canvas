@@ -559,15 +559,27 @@ function ControlWidget({
       )}
 
       {/* COLOR WHEEL */}
-      {widget.type === 'color-wheel' && (
-        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-2 gap-0.5 overflow-hidden" style={bgStyle}>
+      {widget.type === 'color-wheel' && (() => {
+        const cv = widget.colorValue || { r: 0, g: 0, b: 0 };
+        const s = Math.min(widget.width, widget.height);
+        const previewSize = Math.max(16, Math.min(32, s * 0.15));
+        return (
+        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-2 gap-0.5 overflow-hidden relative" style={bgStyle}>
           <span className="text-muted-foreground font-semibold truncate shrink-0" style={{ fontSize: Math.max(8, Math.min(11, widget.width * 0.08)) }}>{widget.label}</span>
+
+          {/* Live color preview square — top right */}
+          <div className="absolute top-1.5 right-1.5 z-20 rounded border border-foreground/30"
+            style={{ width: previewSize, height: previewSize,
+              backgroundColor: `rgb(${cv.r},${cv.g},${cv.b})`,
+              boxShadow: `0 0 8px rgb(${cv.r},${cv.g},${cv.b}), inset 0 0 4px rgba(255,255,255,0.1)` }} />
+
           {/* Color program indicator */}
           {widget.colorProgram?.running && (
-            <div className="absolute top-1 right-1 text-[6px] px-1 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 animate-pulse font-semibold z-20">
-              {widget.colorProgram.mode === 'fade' ? '🌈 FADE' : '⚡ SWITCH'}
+            <div className="absolute top-1 left-1 text-[6px] px-1 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 animate-pulse font-semibold z-20">
+              {widget.colorProgram.mode === 'fade' ? '🌈' : '⚡'}
             </div>
           )}
+
           <div className="flex-1 flex items-center justify-center min-h-0">
             <div className="rounded-full border-2 border-border/30 cursor-pointer"
               style={{ width: Math.min(widget.width, widget.height) - 60, height: Math.min(widget.width, widget.height) - 60,
@@ -589,21 +601,21 @@ function ControlWidget({
                   <div className="rounded-full border border-foreground/50"
                     style={{ width: Math.max(12, (Math.min(widget.width, widget.height) - 60) * 0.3),
                       height: Math.max(12, (Math.min(widget.width, widget.height) - 60) * 0.3),
-                      backgroundColor: `rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})`,
-                      boxShadow: `0 0 12px rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})` }} />
+                      backgroundColor: `rgb(${cv.r},${cv.g},${cv.b})`,
+                      boxShadow: `0 0 12px rgb(${cv.r},${cv.g},${cv.b})` }} />
                 </div>
               )}
             </div>
           </div>
+
           {/* Quick color buttons */}
           {(() => {
-            const s = Math.min(widget.width, widget.height);
             const btnSize = Math.max(14, Math.min(24, s * 0.1));
             const fs = Math.max(6, Math.min(10, s * 0.045));
             return (
               <div className="w-full shrink-0 flex flex-wrap justify-center gap-0.5">
                 {QUICK_COLORS.map(qc => {
-                  const isActive = widget.colorValue && widget.colorValue.r === qc.color.r && widget.colorValue.g === qc.color.g && widget.colorValue.b === qc.color.b;
+                  const isActive = cv.r === qc.color.r && cv.g === qc.color.g && cv.b === qc.color.b;
                   const isBlack = qc.color.r === 0 && qc.color.g === 0 && qc.color.b === 0;
                   return (
                     <button key={qc.label}
@@ -625,8 +637,46 @@ function ControlWidget({
               </div>
             );
           })()}
+
+          {/* Color program quick dropdown on widget */}
+          {(() => {
+            const dropFs = Math.max(7, Math.min(10, s * 0.045));
+            const allPresets = [...COLOR_PROGRAM_PRESETS];
+            return (
+              <div className="w-full shrink-0">
+                <select
+                  value=""
+                  onClick={e => e.stopPropagation()}
+                  onChange={e => {
+                    e.stopPropagation();
+                    onSelect();
+                    const val = e.target.value;
+                    if (val === 'stop') {
+                      if (widget.colorProgram) onUpdate({ colorProgram: { ...widget.colorProgram, running: false } });
+                      return;
+                    }
+                    const idx = Number(val);
+                    if (isNaN(idx)) return;
+                    const preset = allPresets[idx];
+                    if (preset) {
+                      onUpdate({ colorProgram: { mode: preset.mode, colors: [...preset.colors], speed: widget.colorProgram?.speed ?? 128, bpmSync: widget.colorProgram?.bpmSync ?? false, running: true } });
+                    }
+                  }}
+                  className="w-full rounded bg-muted/20 border border-border/20 text-muted-foreground cursor-pointer px-1"
+                  style={{ fontSize: dropFs, height: Math.max(18, s * 0.09) }}>
+                  <option value="">🎨 Color Program...</option>
+                  {allPresets.map((p, i) => (
+                    <option key={i} value={i}>{p.mode === 'fade' ? '🌈' : '⚡'} {p.label}</option>
+                  ))}
+                  <option value="" disabled>───</option>
+                  <option value="stop">⬛ Stop Program</option>
+                </select>
+              </div>
+            );
+          })()}
         </div>
-      )}
+        );
+      })()}
 
       {/* XY PAD */}
       {widget.type === 'xy-pad' && (
@@ -1350,6 +1400,9 @@ export function LiveDJ() {
   const store = useFixtureStore();
   const [tab, setTab] = useState<Tab>('controller');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [customColorPresets, setCustomColorPresets] = useState<{ label: string; mode: ColorProgramMode; colors: { r: number; g: number; b: number }[] }[]>(() => {
+    try { return JSON.parse(localStorage.getItem('stokio-custom-color-presets') || '[]'); } catch { return []; }
+  });
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
   const [editingPageName, setEditingPageName] = useState('');
 
@@ -2710,37 +2763,51 @@ export function LiveDJ() {
                           <>
                             <div>
                               <label className="text-[7px] uppercase text-muted-foreground">Colors ({prog.colors.length}/4)</label>
-                              <div className="flex gap-1 mt-1 flex-wrap">
+                              <div className="flex gap-1 mt-1 flex-wrap items-center">
                                 {prog.colors.map((c, i) => (
-                                  <div key={i} className="relative group">
-                                    <div className="w-7 h-7 rounded border border-border/30 cursor-pointer"
+                                  <div key={i} className="relative group flex flex-col items-center gap-0.5">
+                                    <input
+                                      type="color"
+                                      value={`#${c.r.toString(16).padStart(2,'0')}${c.g.toString(16).padStart(2,'0')}${c.b.toString(16).padStart(2,'0')}`}
+                                      onChange={e => {
+                                        const hex = e.target.value;
+                                        const nr = parseInt(hex.slice(1,3), 16);
+                                        const ng = parseInt(hex.slice(3,5), 16);
+                                        const nb = parseInt(hex.slice(5,7), 16);
+                                        const newColors = [...prog.colors];
+                                        newColors[i] = { r: nr, g: ng, b: nb };
+                                        updateWidget(selectedWidgetData.id, { colorProgram: { ...prog, colors: newColors } });
+                                      }}
+                                      className="w-7 h-7 rounded border border-border/30 cursor-pointer p-0 bg-transparent"
                                       style={{ backgroundColor: `rgb(${c.r},${c.g},${c.b})` }}
+                                    />
+                                    <button
                                       onClick={() => {
                                         const newColors = prog.colors.filter((_, j) => j !== i);
                                         updateWidget(selectedWidgetData.id, { colorProgram: { ...prog, colors: newColors } });
-                                      }} />
-                                    <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-destructive text-[6px] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">×</span>
+                                      }}
+                                      className="text-[6px] text-destructive/50 hover:text-destructive transition-colors">✕</button>
                                   </div>
                                 ))}
                                 {prog.colors.length < 4 && (
                                   <button onClick={() => {
-                                    const cv = selectedWidgetData.colorValue || { r: 255, g: 0, b: 0 };
-                                    updateWidget(selectedWidgetData.id, { colorProgram: { ...prog, colors: [...prog.colors, cv] } });
+                                    const cv2 = selectedWidgetData.colorValue || { r: 255, g: 0, b: 0 };
+                                    updateWidget(selectedWidgetData.id, { colorProgram: { ...prog, colors: [...prog.colors, cv2] } });
                                   }}
                                     className="w-7 h-7 rounded border border-dashed border-border/30 text-muted-foreground/40 hover:border-primary/30 hover:text-primary transition-all flex items-center justify-center text-lg">+</button>
                                 )}
                               </div>
-                              <div className="text-[7px] text-muted-foreground/40 mt-0.5">Click color to remove. + adds current wheel color.</div>
+                              <div className="text-[7px] text-muted-foreground/40 mt-0.5">Click swatch to edit color. ✕ to remove. + adds current color.</div>
                             </div>
 
                             {/* Presets */}
                             <div>
                               <label className="text-[7px] uppercase text-muted-foreground">Presets</label>
                               <div className="flex flex-wrap gap-1 mt-1">
-                                {COLOR_PROGRAM_PRESETS.filter(p => p.mode === prog.mode || prog.mode === 'fade' || prog.mode === 'switch').map((preset, i) => (
+                                {[...COLOR_PROGRAM_PRESETS, ...customColorPresets].filter(p => p.mode === prog.mode || prog.mode === 'fade' || prog.mode === 'switch').map((preset, i) => (
                                   <button key={i}
                                     onClick={() => updateWidget(selectedWidgetData.id, {
-                                      colorProgram: { ...prog, mode: preset.mode, colors: preset.colors },
+                                      colorProgram: { ...prog, mode: preset.mode, colors: [...preset.colors] },
                                     })}
                                     className="text-[7px] px-1.5 py-0.5 rounded border border-border/20 text-muted-foreground hover:border-primary/30 hover:bg-primary/5 transition-all flex items-center gap-0.5">
                                     {preset.colors.map((c, j) => (
@@ -2751,6 +2818,22 @@ export function LiveDJ() {
                                 ))}
                               </div>
                             </div>
+
+                            {/* Save as custom preset */}
+                            {prog.colors.length >= 2 && (
+                              <button
+                                onClick={() => {
+                                  const name = prompt('Preset name:');
+                                  if (!name) return;
+                                  const newPreset = { label: name, mode: prog.mode, colors: [...prog.colors] };
+                                  const updated = [...customColorPresets, newPreset];
+                                  setCustomColorPresets(updated);
+                                  localStorage.setItem('stokio-custom-color-presets', JSON.stringify(updated));
+                                }}
+                                className="w-full h-6 rounded text-[9px] font-semibold border border-border/20 text-muted-foreground hover:border-primary/30 hover:bg-primary/5 transition-all flex items-center justify-center gap-1">
+                                <Save size={9} /> Save as Custom Preset
+                              </button>
+                            )}
 
                             {/* Speed */}
                             <div>
