@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Home, Crosshair } from 'lucide-react';
+import { Home, Crosshair, Wifi, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { Input } from '@/components/ui/input';
 import {
   useFixtureStore, type FixtureDefinition, type FixtureInstance,
   type ColorSystem, type ColorWheelSlot, getFixtureTypeIcon,
