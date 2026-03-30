@@ -5,7 +5,7 @@ import {
   Zap, ChevronDown, ChevronRight, Monitor, Hand, Layers,
   Speaker, X, Save, Mic, Activity,
   ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users,
-  Bookmark, Settings2
+  Bookmark, Settings2, CircleDot
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,7 @@ interface FixtureAssignment {
   mode: ControlMode;
 }
 
-type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset';
+type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color';
 
 // ── Preset Scene Entry ──
 interface PresetSceneEntry {
@@ -124,6 +124,12 @@ interface DJWidget {
   // Preset scene entries (preset only)
   presetEntries?: PresetSceneEntry[];
   presetShowSubmenu?: boolean;
+  // Color sync: link this widget to another widget's color output
+  syncColorWidgetId?: string | null;
+  // Fixed color: selected slot DMX value
+  fixedColorSlotValue?: number;
+  // RGB sync mode for fixed-color widget
+  rgbSyncEnabled?: boolean;
 }
 
 interface ScriptStep {
@@ -176,7 +182,28 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'color-wheel', label: 'Color Pick', icon: Palette, w: 140, h: 140 },
   { type: 'xy-pad', label: 'XY Pad', icon: Plus, w: 180, h: 180 },
   { type: 'preset', label: 'Pre Set', icon: Bookmark, w: 120, h: 120 },
+  { type: 'fixed-color', label: 'Fixed Color', icon: CircleDot, w: 150, h: 150 },
 ];
+
+// ── Color distance helper (Euclidean in RGB space) ──
+function rgbDistance(a: { r: number; g: number; b: number }, b: { r: number; g: number; b: number }) {
+  return Math.sqrt((a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2);
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace('#', '');
+  return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+}
+
+function findClosestSlot(rgb: { r: number; g: number; b: number }, slots: { color: string; dmxValue: number; name: string }[]) {
+  let best = slots[0];
+  let bestDist = Infinity;
+  for (const slot of slots) {
+    const d = rgbDistance(rgb, hexToRgb(slot.color));
+    if (d < bestDist) { bestDist = d; best = slot; }
+  }
+  return best;
+}
 
 const STEP_TYPES: { value: ScriptStep['type']; label: string }[] = [
   { value: 'set-color', label: 'Set Color' },
@@ -213,7 +240,7 @@ function ModeBadge({ mode }: { mode: ControlMode }) {
 type DragMode = 'none' | 'move' | 'resize-br' | 'resize-bl' | 'resize-tr' | 'resize-tl';
 
 function ControlWidget({
-  widget, isSelected, onSelect, onUpdate, onPress, onRelease,
+  widget, isSelected, onSelect, onUpdate, onPress, onRelease, allWidgets, fixtureData,
 }: {
   widget: DJWidget;
   isSelected: boolean;
@@ -221,6 +248,8 @@ function ControlWidget({
   onUpdate: (updates: Partial<DJWidget>) => void;
   onPress: () => void;
   onRelease: () => void;
+  allWidgets: DJWidget[];
+  fixtureData: { inst: FixtureInstance; def: FixtureDefinition }[];
 }) {
   const dragRef = useRef<{
     mode: DragMode;
@@ -407,10 +436,17 @@ function ControlWidget({
             }}>
             <div className="absolute left-1/2 top-0 w-px h-full bg-border/20" />
             <div className="absolute top-1/2 left-0 w-full h-px bg-border/20" />
-            {widget.colorValue && (
-              <div className="absolute w-4 h-4 rounded-full bg-primary border border-foreground -translate-x-1/2 -translate-y-1/2"
-                style={{ left: `${(widget.colorValue.r / 255) * 100}%`, top: `${(widget.colorValue.g / 255) * 100}%`, boxShadow: '0 0 10px hsl(var(--primary))' }} />
-            )}
+            {widget.colorValue && (() => {
+              const syncWidget = widget.syncColorWidgetId ? allWidgets.find(w => w.id === widget.syncColorWidgetId) : null;
+              const dotColor = syncWidget?.colorValue
+                ? `rgb(${syncWidget.colorValue.r},${syncWidget.colorValue.g},${syncWidget.colorValue.b})`
+                : 'hsl(var(--primary))';
+              return (
+                <div className="absolute w-4 h-4 rounded-full border border-foreground -translate-x-1/2 -translate-y-1/2"
+                  style={{ left: `${(widget.colorValue.r / 255) * 100}%`, top: `${(widget.colorValue.g / 255) * 100}%`,
+                    backgroundColor: dotColor, boxShadow: `0 0 10px ${dotColor}` }} />
+              );
+            })()}
             <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[8px] text-muted-foreground/40">PAN</span>
             <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] text-muted-foreground/40 -rotate-90">TILT</span>
           </div>
@@ -439,6 +475,72 @@ function ControlWidget({
           )}
         </div>
       )}
+
+      {/* FIXED COLOR PICKER */}
+      {widget.type === 'fixed-color' && (() => {
+        // Gather color wheel slots from linked fixtures
+        const slots: { color: string; dmxValue: number; name: string }[] = [];
+        widget.linkedFixtureIds.forEach(fid => {
+          const fd = fixtureData.find(f => f.inst.id === fid);
+          if (fd?.def.colorWheelSlots) {
+            fd.def.colorWheelSlots.forEach(s => {
+              if (!slots.find(x => x.dmxValue === s.dmxValue && x.color === s.color)) {
+                slots.push({ color: s.color, dmxValue: s.dmxValue, name: s.name });
+              }
+            });
+          }
+        });
+
+        // If RGB sync enabled, find synced color widget and auto-select closest slot
+        const syncWidget = widget.rgbSyncEnabled && widget.syncColorWidgetId
+          ? allWidgets.find(w => w.id === widget.syncColorWidgetId)
+          : null;
+        const syncedSlot = syncWidget?.colorValue && slots.length > 0
+          ? findClosestSlot(syncWidget.colorValue, slots)
+          : null;
+        const activeSlotValue = syncedSlot ? syncedSlot.dmxValue : widget.fixedColorSlotValue;
+
+        const slotSize = slots.length > 0 
+          ? Math.max(16, Math.min(32, (Math.min(widget.width, widget.height) - 40) / Math.ceil(Math.sqrt(slots.length))))
+          : 0;
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-2 gap-1 overflow-hidden" style={bgStyle}>
+            <span className="text-muted-foreground font-semibold truncate" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.1)) }}>{widget.label}</span>
+            {widget.rgbSyncEnabled && (
+              <div className="text-[6px] px-1.5 py-0.5 rounded bg-stokio-cyan/10 text-stokio-cyan border border-stokio-cyan/20 font-semibold">
+                RGB SYNC
+              </div>
+            )}
+            <div className="flex-1 flex flex-wrap items-center justify-center gap-1 overflow-y-auto p-1">
+              {slots.map(slot => {
+                const isActive = activeSlotValue === slot.dmxValue;
+                return (
+                  <button key={`${slot.dmxValue}-${slot.color}`}
+                    onClick={() => onUpdate({ fixedColorSlotValue: slot.dmxValue })}
+                    className={`rounded-full border-2 transition-all flex-shrink-0 ${isActive ? 'scale-110' : 'hover:scale-105'}`}
+                    style={{
+                      width: slotSize, height: slotSize,
+                      backgroundColor: slot.color,
+                      borderColor: isActive ? '#fff' : 'transparent',
+                      boxShadow: isActive ? `0 0 12px ${slot.color}, 0 0 4px #fff` : `inset 0 -2px 4px rgba(0,0,0,0.3)`,
+                    }}
+                    title={`${slot.name} (DMX ${slot.dmxValue})`}
+                  />
+                );
+              })}
+              {slots.length === 0 && (
+                <span className="text-[8px] text-muted-foreground/40 text-center">Link fixtures with fixed color wheels</span>
+              )}
+            </div>
+            {activeSlotValue !== undefined && slots.length > 0 && (
+              <span className="text-[8px] text-muted-foreground font-mono" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
+                {slots.find(s => s.dmxValue === activeSlotValue)?.name || '—'} · DMX {activeSlotValue}
+              </span>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -783,6 +885,8 @@ export function LiveDJ() {
       linkedFixtureIds: [],
       lockAxis: 'none',
       presetEntries: type === 'preset' ? [] : undefined,
+      fixedColorSlotValue: type === 'fixed-color' ? undefined : undefined,
+      rgbSyncEnabled: type === 'fixed-color' ? false : undefined,
     }]);
   };
 
@@ -1114,6 +1218,8 @@ export function LiveDJ() {
                   onUpdate={(updates) => updateWidget(w.id, updates)}
                   onPress={() => { }}
                   onRelease={() => { }}
+                  allWidgets={widgets}
+                  fixtureData={fixturesWithDefs}
                 />
               ))}
 
@@ -1524,8 +1630,26 @@ export function LiveDJ() {
                     </div>
                   )}
 
+                  {/* Color Sync + MH for XY Pad */}
                   {selectedWidgetData.type === 'xy-pad' && (
                     <div className="space-y-2 border-t border-border/20 pt-2">
+                      {/* Color Sync */}
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Sync Dot Color From Widget</label>
+                        <select
+                          value={selectedWidgetData.syncColorWidgetId || ''}
+                          onChange={e => updateWidget(selectedWidgetData.id, { syncColorWidgetId: e.target.value || null })}
+                          className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-1">
+                          <option value="">None (default)</option>
+                          {widgets.filter(w => (w.type === 'color-wheel' || w.type === 'fixed-color') && w.id !== selectedWidgetData.id).map(w => (
+                            <option key={w.id} value={w.id}>🎨 {w.label}</option>
+                          ))}
+                        </select>
+                        <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5 mt-1">
+                          💡 Links the XY pad cursor color to a Color Wheel or Fixed Color widget.
+                        </div>
+                      </div>
+
                       <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold">MH Movement Program</label>
 
                       {/* Pattern selector */}
@@ -1641,6 +1765,63 @@ export function LiveDJ() {
                       </div>
                     </div>
                   )}
+
+                  {/* Fixed Color Widget Config */}
+                  {selectedWidgetData.type === 'fixed-color' && (
+                    <div className="space-y-2 border-t border-border/20 pt-2">
+                      <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
+                        <CircleDot size={10} /> Fixed Color Config
+                      </label>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">RGB Sync</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <button
+                            onClick={() => updateWidget(selectedWidgetData.id, { rgbSyncEnabled: !selectedWidgetData.rgbSyncEnabled })}
+                            className={`flex-1 h-6 rounded text-[9px] font-semibold border transition-all flex items-center justify-center gap-1 ${
+                              selectedWidgetData.rgbSyncEnabled
+                                ? 'bg-stokio-cyan/10 border-stokio-cyan/30 text-stokio-cyan'
+                                : 'border-border/20 text-muted-foreground hover:border-border/40'
+                            }`}>
+                            {selectedWidgetData.rgbSyncEnabled ? '🔗 RGB Sync ON' : '🔗 RGB Sync OFF'}
+                          </button>
+                        </div>
+                        {selectedWidgetData.rgbSyncEnabled && (
+                          <div className="mt-1">
+                            <label className="text-[7px] uppercase text-muted-foreground">Sync From Color Widget</label>
+                            <select
+                              value={selectedWidgetData.syncColorWidgetId || ''}
+                              onChange={e => updateWidget(selectedWidgetData.id, { syncColorWidgetId: e.target.value || null })}
+                              className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
+                              <option value="">Select widget...</option>
+                              {widgets.filter(w => w.type === 'color-wheel' && w.id !== selectedWidgetData.id).map(w => (
+                                <option key={w.id} value={w.id}>🎨 {w.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                        <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5 mt-1">
+                          💡 When RGB Sync is ON, incoming RGB color auto-selects the closest fixed color slot. Works with RGB DMX fixtures and WLED devices.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Also add RGB sync option on color-wheel widget for fixed-color fixtures */}
+                  {selectedWidgetData.type === 'color-wheel' && (() => {
+                    const hasFixedColorFixtures = selectedWidgetData.linkedFixtureIds.some(fid => {
+                      const fd = fixturesWithDefs.find(f => f.inst.id === fid);
+                      return fd?.def.colorSystem === 'color-wheel';
+                    });
+                    if (!hasFixedColorFixtures) return null;
+                    return (
+                      <div className="space-y-2 border-t border-border/20 pt-2">
+                        <label className="text-[8px] uppercase tracking-widest text-stokio-pink font-semibold">Fixed Color Sync</label>
+                        <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                          💡 Linked fixtures with fixed color wheels will auto-match to the closest color slot when you pick an RGB color.
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Link fixtures — individual */}
                   <div>
