@@ -661,7 +661,6 @@ function ControlWidget({
                     if (preset) {
                       onUpdate({ colorProgram: { mode: preset.mode, colors: [...preset.colors], speed: widget.colorProgram?.speed ?? 128, bpmSync: widget.colorProgram?.bpmSync ?? false, running: true } });
                     }
-                  }
                   }}
                   className="w-full rounded bg-muted/20 border border-border/20 text-muted-foreground cursor-pointer px-1"
                   style={{ fontSize: dropFs, height: Math.max(18, s * 0.09) }}>
