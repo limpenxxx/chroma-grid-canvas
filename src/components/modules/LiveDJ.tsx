@@ -495,8 +495,8 @@ function ControlWidget({
               onClick={(e) => {
                 onSelect();
                 const rect = e.currentTarget.getBoundingClientRect();
-                const cx = e.clientX - rect.left - rect.width / 2, cy = e.clientY - rect.top - rect.height / 2;
-                const hue = ((Math.atan2(-cy, -cx) * 180 / Math.PI) + 180 + 360) % 360;
+                const cx2 = e.clientX - rect.left - rect.width / 2, cy2 = e.clientY - rect.top - rect.height / 2;
+                const hue = ((Math.atan2(cx2, -cy2) * 180 / Math.PI) + 360) % 360;
                 const c = 1, xx = c * (1 - Math.abs((hue / 60) % 2 - 1)), m = 0;
                 let r = 0, g = 0, b = 0;
                 if (hue < 60) { r = c; g = xx; } else if (hue < 120) { r = xx; g = c; }
