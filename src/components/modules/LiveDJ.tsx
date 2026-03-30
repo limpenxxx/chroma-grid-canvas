@@ -151,6 +151,9 @@ interface DJWidget {
   // Fader-specific
   bgColor?: string;              // separate background color for fader widget
   faderColorSyncWidgetId?: string | null; // sync fader color with a color-wheel widget
+  // XY pad: per-fixture positions and selected fixture for individual control
+  selectedFixtureId?: string | null;
+  fixturePositions?: Record<string, { x: number; y: number }>;
 }
 
 type ColorProgramMode = 'static' | 'switch' | 'fade';
