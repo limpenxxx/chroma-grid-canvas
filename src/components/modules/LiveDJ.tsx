@@ -1565,6 +1565,7 @@ function wledFixtureToVirtual(fix: WledFixture): { inst: FixtureInstance; def: F
 
 export function LiveDJ() {
   const store = useFixtureStore();
+  const wledStore = useWledStore();
   const [tab, setTab] = useState<Tab>('controller');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [customColorPresets, setCustomColorPresets] = useState<{ label: string; mode: ColorProgramMode; colors: { r: number; g: number; b: number }[] }[]>(() => {
@@ -1634,6 +1635,7 @@ export function LiveDJ() {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [saveName, setSaveName] = useState('');
+  const lastWledSentRef = useRef<Record<string, string>>({});
 
   // ── Audio & BPM ──
   const [audioConfig, setAudioConfig] = useState<AudioConfig>({
@@ -2079,6 +2081,9 @@ export function LiveDJ() {
     inst,
     def: store.definitions.find(d => d.id === inst.definitionId)!,
   })).filter(f => f.def);
+  // Merge real WLED device-list fixtures into the fixture picker
+  const wledVirtualFixtures = wledStore.fixtures.map(wledFixtureToVirtual);
+  const allFixturesWithDefs = [...fixturesWithDefs, ...wledVirtualFixtures];
 
   const selectedWidgetData = widgets.find(w => w.id === selectedWidget);
 
