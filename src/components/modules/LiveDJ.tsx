@@ -114,9 +114,9 @@ interface DJWidget {
   height: number;
   color: string;
   bgImage?: string | null;
-  bgOpacity?: number; // 0-100, default 70
+  bgOpacity?: number;
   flash?: boolean;
-  toggled?: boolean; // for toggle mode state
+  toggled?: boolean;
   value?: number;
   min?: number;
   max?: number;
@@ -124,30 +124,24 @@ interface DJWidget {
   linkedFixtureIds: string[];
   linkedFunction?: string;
   lockAxis?: 'none' | 'x' | 'y';
-  // MH program (xy-pad only)
   mhProgram?: MHProgram;
-  // Preset scene entries (preset only)
   presetEntries?: PresetSceneEntry[];
   presetShowSubmenu?: boolean;
-  // Color sync: link this widget to another widget's color output
   syncColorWidgetId?: string | null;
-  // Fixed color: selected slot DMX value
   fixedColorSlotValue?: number;
-  // RGB sync mode for fixed-color widget
   rgbSyncEnabled?: boolean;
-  // Media trigger
   mediaItemId?: string | null;
   mediaPlaylistId?: string | null;
-  mediaPlayMode?: 'play-once' | 'loop' | 'loop-random'; // default: loop
-  mediaFlash?: boolean; // true = flash (hold to play), false = toggle
-  // VFX
+  mediaPlayMode?: 'play-once' | 'loop' | 'loop-random';
+  mediaFlash?: boolean;
   vfxPreset?: VisualizerPreset;
   vfxRunning?: boolean;
-  // WLED Preset
   wledPresetId?: number;
   wledPresetName?: string;
   wledIp?: string;
   wledPresets?: { id: number; name: string }[];
+  // DMX Reset widget
+  resetUniverse?: number; // 1-based universe number
 }
 
 interface ScriptStep {
