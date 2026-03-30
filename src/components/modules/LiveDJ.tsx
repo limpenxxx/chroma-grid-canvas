@@ -478,9 +478,13 @@ function ControlWidget({
 
       {/* FIXED COLOR PICKER */}
       {widget.type === 'fixed-color' && (() => {
-        // Gather color wheel slots from linked fixtures
+        // Gather color wheel slots from linked fixtures, OR from all available fixtures if none linked
         const slots: { color: string; dmxValue: number; name: string }[] = [];
-        widget.linkedFixtureIds.forEach(fid => {
+        const sourceFixtures = widget.linkedFixtureIds.length > 0
+          ? widget.linkedFixtureIds
+          : fixtureData.filter(f => f.def.colorWheelSlots && f.def.colorWheelSlots.length > 0).map(f => f.inst.id);
+        
+        sourceFixtures.forEach(fid => {
           const fd = fixtureData.find(f => f.inst.id === fid);
           if (fd?.def.colorWheelSlots) {
             fd.def.colorWheelSlots.forEach(s => {
@@ -580,8 +584,12 @@ function ControlWidget({
             )}
 
             {slots.length === 0 && (
-              <div className="flex-1 flex items-center justify-center">
-                <span className="text-[8px] text-muted-foreground/40 text-center">Link fixtures with fixed color wheels</span>
+              <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                <CircleDot size={Math.min(widget.width, widget.height) * 0.2} className="text-muted-foreground/20" />
+                <span className="text-[9px] text-muted-foreground/40 text-center px-2">
+                  No fixed color wheel fixtures found.
+                  <br />Add fixtures with color wheels in Devices first.
+                </span>
               </div>
             )}
           </div>
