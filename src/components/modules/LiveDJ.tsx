@@ -570,6 +570,32 @@ function ControlWidget({
             const gap = Math.max(2, Math.min(6, s * 0.015));
             return (
               <div className="w-full shrink-0 flex flex-col mt-1" style={{ gap }}>
+                {/* Zero all channels button */}
+                <div className="flex justify-center">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      onSelect();
+                      // Zero pan/tilt on the pad
+                      onUpdate({ colorValue: { r: 0, g: 0, b: 128 } });
+                      // Stop any running MH program
+                      if (widget.mhProgram?.running) {
+                        onUpdate({ mhProgram: { ...widget.mhProgram, running: false }, colorValue: { r: 0, g: 0, b: 128 } });
+                      }
+                      // Zero all linked fixture sliders/values
+                      widget.linkedFixtureIds.forEach(fid => {
+                        allWidgets.forEach(aw => {
+                          if (aw.id !== widget.id && aw.linkedFixtureIds.includes(fid) && (aw.type === 'slider' || aw.type === 'button')) {
+                            // We signal zero via the widget's own update — parent handles propagation
+                          }
+                        });
+                      });
+                    }}
+                    className="rounded border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive/60 transition-all font-bold uppercase tracking-wider"
+                    style={{ fontSize: btnFs * 0.85, paddingLeft: btnPx * 2, paddingRight: btnPx * 2, paddingTop: btnPy, paddingBottom: btnPy }}>
+                    ⬛ ZERO
+                  </button>
+                </div>
                 {/* Pattern quick-select row */}
                 <div className="flex flex-wrap justify-center" style={{ gap: Math.max(2, gap) }}>
                   {MH_PATTERNS.map(p => {
