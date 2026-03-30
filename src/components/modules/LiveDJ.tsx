@@ -1568,6 +1568,85 @@ export function LiveDJ() {
     return () => { if (wledPollRef.current) clearInterval(wledPollRef.current); };
   }, [audioConfig.source, audioConfig.wledIp, audioConfig.squelch]);
 
+  // ── Browser Mic → BPM detection via Web Audio API ──
+  const micBpmRef = useRef<{ ctx: AudioContext | null; analyser: AnalyserNode | null; stream: MediaStream | null; raf: number; peaks: number[]; lastEnergy: number; lastPeakTime: number }>({
+    ctx: null, analyser: null, stream: null, raf: 0, peaks: [], lastEnergy: 0, lastPeakTime: 0,
+  });
+
+  useEffect(() => {
+    const mic = micBpmRef.current;
+    // Cleanup previous
+    const cleanup = () => {
+      if (mic.raf) cancelAnimationFrame(mic.raf);
+      mic.stream?.getTracks().forEach(t => t.stop());
+      mic.ctx?.close().catch(() => {});
+      mic.ctx = null; mic.analyser = null; mic.stream = null; mic.raf = 0;
+      mic.peaks = []; mic.lastEnergy = 0; mic.lastPeakTime = 0;
+    };
+
+    if (audioConfig.source !== 'browser-mic') { cleanup(); return cleanup; }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+        const ctx = new AudioContext();
+        const source = ctx.createMediaStreamSource(stream);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        source.connect(analyser);
+        mic.ctx = ctx; mic.analyser = analyser; mic.stream = stream;
+
+        const freqData = new Uint8Array(analyser.frequencyBinCount);
+        const nyquist = ctx.sampleRate / 2;
+        const binHz = nyquist / analyser.frequencyBinCount;
+
+        const detect = () => {
+          if (cancelled) return;
+          analyser.getByteFrequencyData(freqData);
+
+          // Filter to selected frequency range
+          const lowBin = Math.max(0, Math.floor(audioConfig.freqLow / binHz));
+          const highBin = Math.min(freqData.length - 1, Math.ceil(audioConfig.freqHigh / binHz));
+          let sum = 0;
+          let count = 0;
+          for (let i = lowBin; i <= highBin; i++) {
+            sum += freqData[i];
+            count++;
+          }
+          const energy = count > 0 ? sum / count : 0;
+
+          const threshold = (255 - audioConfig.sensitivity) * 0.6 + 15; // higher sensitivity = lower threshold
+          const now = Date.now();
+
+          // Rising edge detection
+          if (energy > threshold && mic.lastEnergy <= threshold && now - mic.lastPeakTime > 200) {
+            mic.lastPeakTime = now;
+            mic.peaks = [...mic.peaks.filter(t => now - t < 6000), now];
+
+            if (mic.peaks.length >= 4) {
+              const intervals = mic.peaks.slice(1).map((t, i) => t - mic.peaks[i]);
+              const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+              const detectedBpm = Math.round(60000 / avgInterval);
+              if (detectedBpm >= 40 && detectedBpm <= 300) {
+                setBpmState(prev => ({ ...prev, bpm: detectedBpm, isSynced: true }));
+              }
+            }
+          }
+          mic.lastEnergy = energy;
+          mic.raf = requestAnimationFrame(detect);
+        };
+        mic.raf = requestAnimationFrame(detect);
+      } catch {
+        console.warn('Browser mic access denied for BPM detection');
+      }
+    })();
+
+    return () => { cancelled = true; cleanup(); };
+  }, [audioConfig.source, audioConfig.sensitivity, audioConfig.freqLow, audioConfig.freqHigh]);
+
   const toggleBpmWidgetLink = (widgetId: string) => {
     setBpmState(prev => ({
       ...prev,
