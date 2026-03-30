@@ -130,6 +130,9 @@ interface DJWidget {
   fixedColorSlotValue?: number;
   // RGB sync mode for fixed-color widget
   rgbSyncEnabled?: boolean;
+  // Media trigger
+  mediaItemId?: string | null;
+  mediaPlaylistId?: string | null;
 }
 
 interface ScriptStep {
