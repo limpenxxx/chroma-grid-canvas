@@ -2180,12 +2180,20 @@ export function LiveDJ() {
                   </div>
                 )}
                 {audioConfig.source === 'wled-udp-sync' && (
-                  <div>
-                    <label className="text-[7px] uppercase text-muted-foreground">UDP Port</label>
-                    <Input type="number" value={audioConfig.udpPort}
-                      onChange={e => setAudioConfig(prev => ({ ...prev, udpPort: Number(e.target.value) }))}
-                      className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
-                  </div>
+                  <>
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">WLED Device IP</label>
+                      <Input type="text" placeholder="192.168.1.x" value={audioConfig.wledIp}
+                        onChange={e => setAudioConfig(prev => ({ ...prev, wledIp: e.target.value }))}
+                        className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
+                    </div>
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">UDP Port</label>
+                      <Input type="number" value={audioConfig.udpPort}
+                        onChange={e => setAudioConfig(prev => ({ ...prev, udpPort: Number(e.target.value) }))}
+                        className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
+                    </div>
+                  </>
                 )}
               </div>
 
