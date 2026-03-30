@@ -410,7 +410,7 @@ function ControlWidget({
   const handleButtonUp = () => {
     if (widget.flash) { setIsPressed(false); onRelease(); }
   };
-  const isButtonActive = widget.flash ? (isPressed || !!widget.toggled) : !!widget.toggled;
+  const isButtonActive = widget.flash ? isPressed : !!widget.toggled;
 
   return (
     <div className={`absolute select-none group transition-shadow ${isSelected ? 'ring-1 ring-primary/60 z-30' : 'z-10'} ${interacting ? 'z-50' : ''}`}
