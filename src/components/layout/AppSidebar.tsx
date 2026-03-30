@@ -21,7 +21,8 @@ const navItems: { id: ModuleId; icon: typeof Layout; label: string }[] = [
 ];
 
 export function AppSidebar() {
-  const { activeModule, setActiveModule } = useAppStore();
+  const { activeModule, setActiveModule, isModuleAllowed, userRole, logout } = useAppStore();
+  const filteredNav = navItems.filter(item => isModuleAllowed(item.id));
 
   return (
     <div className="w-[100px] h-full flex flex-col items-center py-4 border-r border-border/50 bg-[hsl(0_0%_3%)]">
