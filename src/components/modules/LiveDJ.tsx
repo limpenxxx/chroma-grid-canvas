@@ -84,6 +84,7 @@ interface AudioConfig {
   squelch: number;
   gain: number;
   udpPort: number;
+  wledIp: string;
 }
 
 interface BPMState {
@@ -1480,7 +1481,7 @@ export function LiveDJ() {
 
   // ── Audio & BPM ──
   const [audioConfig, setAudioConfig] = useState<AudioConfig>({
-    source: 'none', squelch: 10, gain: 128, udpPort: 11988,
+    source: 'none', squelch: 10, gain: 128, udpPort: 11988, wledIp: '',
   });
   const [bpmState, setBpmState] = useState<BPMState>({
     bpm: 120, tapTimes: [], isSynced: false, linkedWidgetIds: [], flashOn: false,
@@ -1512,6 +1513,56 @@ export function LiveDJ() {
     }
     return () => { if (bpmFlashRef.current) clearInterval(bpmFlashRef.current); };
   }, [bpmState.bpm, bpmState.isSynced]);
+
+  // ── WLED UDP Sound Sync → BPM detection via polling ──
+  const wledBeatRef = useRef<{ peaks: number[]; lastVol: number; lastPeakTime: number }>({ peaks: [], lastVol: 0, lastPeakTime: 0 });
+  const wledPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (wledPollRef.current) { clearInterval(wledPollRef.current); wledPollRef.current = null; }
+    if (audioConfig.source !== 'wled-udp-sync' || !audioConfig.wledIp) return;
+
+    const ip = audioConfig.wledIp;
+    const beatData = wledBeatRef.current;
+    beatData.peaks = [];
+    beatData.lastVol = 0;
+    beatData.lastPeakTime = 0;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`http://${ip}/json/si`, { signal: AbortSignal.timeout(1500) });
+        if (!res.ok) return;
+        const data = await res.json();
+        // WLED sound-reactive info: data.leds.lx = volume/loudness estimate
+        // or data.um?.AudioReactive?.volumeSmth or similar
+        const um = data?.um;
+        const ar = um?.['AudioReactive'] || um?.['audioreactive'] || {};
+        const vol = ar?.volumeSmth ?? ar?.volume ?? ar?.inputLevel ?? data?.leds?.lx ?? 0;
+        const now = Date.now();
+        const threshold = audioConfig.squelch * 0.5 + 20;
+
+        // Simple beat detection: rising edge above threshold
+        if (vol > threshold && beatData.lastVol <= threshold && now - beatData.lastPeakTime > 200) {
+          beatData.lastPeakTime = now;
+          beatData.peaks = [...beatData.peaks.filter(t => now - t < 6000), now];
+
+          if (beatData.peaks.length >= 4) {
+            const intervals = beatData.peaks.slice(1).map((t, i) => t - beatData.peaks[i]);
+            const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+            const detectedBpm = Math.round(60000 / avgInterval);
+            if (detectedBpm >= 40 && detectedBpm <= 300) {
+              setBpmState(prev => ({ ...prev, bpm: detectedBpm, isSynced: true }));
+            }
+          }
+        }
+        beatData.lastVol = vol;
+      } catch { /* device unreachable */ }
+    };
+
+    // Poll at ~50ms for responsive beat detection
+    wledPollRef.current = setInterval(poll, 50);
+    return () => { if (wledPollRef.current) clearInterval(wledPollRef.current); };
+  }, [audioConfig.source, audioConfig.wledIp, audioConfig.squelch]);
 
   const toggleBpmWidgetLink = (widgetId: string) => {
     setBpmState(prev => ({
@@ -2129,17 +2180,25 @@ export function LiveDJ() {
                   </div>
                 )}
                 {audioConfig.source === 'wled-udp-sync' && (
-                  <div>
-                    <label className="text-[7px] uppercase text-muted-foreground">UDP Port</label>
-                    <Input type="number" value={audioConfig.udpPort}
-                      onChange={e => setAudioConfig(prev => ({ ...prev, udpPort: Number(e.target.value) }))}
-                      className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
-                  </div>
+                  <>
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">WLED Device IP</label>
+                      <Input type="text" placeholder="192.168.1.x" value={audioConfig.wledIp}
+                        onChange={e => setAudioConfig(prev => ({ ...prev, wledIp: e.target.value }))}
+                        className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
+                    </div>
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">UDP Port</label>
+                      <Input type="number" value={audioConfig.udpPort}
+                        onChange={e => setAudioConfig(prev => ({ ...prev, udpPort: Number(e.target.value) }))}
+                        className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
+                    </div>
+                  </>
                 )}
               </div>
 
-              {/* BPM / Tap Tempo — only visible when TAP-TEMPO source is selected */}
-              {audioConfig.source === 'tap-tempo' && <div className="p-3 border-b border-border/20 space-y-2">
+              {/* BPM / Tap Tempo — visible for TAP-TEMPO and WLED UDP Sync */}
+              {(audioConfig.source === 'tap-tempo' || audioConfig.source === 'wled-udp-sync') && <div className="p-3 border-b border-border/20 space-y-2">
                 <span className="text-[9px] uppercase tracking-widest text-stokio-pink font-semibold flex items-center gap-1">
                   <Activity size={10} /> BPM / Tap Tempo
                 </span>
