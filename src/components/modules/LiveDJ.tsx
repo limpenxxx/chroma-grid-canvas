@@ -768,6 +768,17 @@ function ControlWidget({
                           boxShadow: `0 0 20px 6px ${dotColor}` }} />
                     </div>
                   )}
+                  {/* Per-fixture delayed/mirrored dots */}
+                  {Object.entries(perFixturePos).map(([fid, fpos]) => {
+                    const fxColors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6fff', '#ff9f43'];
+                    const fIdx = widget.linkedFixtureIds.indexOf(fid);
+                    const fColor = fxColors[fIdx % fxColors.length];
+                    return (
+                      <div key={fid} className="absolute w-2.5 h-2.5 rounded-full border border-foreground/50 -translate-x-1/2 -translate-y-1/2 transition-none pointer-events-none"
+                        style={{ left: `${(fpos.x / 255) * 100}%`, top: `${(fpos.y / 255) * 100}%`,
+                          backgroundColor: fColor, boxShadow: `0 0 6px ${fColor}`, opacity: 0.8 }} />
+                    );
+                  })}
                 </>
               );
             })()}
