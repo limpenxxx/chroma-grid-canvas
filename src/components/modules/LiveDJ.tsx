@@ -5,7 +5,7 @@ import {
   Zap, ChevronDown, ChevronRight, Monitor, Hand, Layers,
   Speaker, X, Save, Mic, Activity,
   ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users,
-  Bookmark, Settings2, CircleDot
+  Bookmark, Settings2, CircleDot, Maximize2, Minimize2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -826,6 +826,9 @@ function persistLayouts(layouts: SavedLayout[]) {
 export function LiveDJ() {
   const store = useFixtureStore();
   const [tab, setTab] = useState<Tab>('controller');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [editingPageId, setEditingPageId] = useState<string | null>(null);
+  const [editingPageName, setEditingPageName] = useState('');
 
   // ── Pages ──
   const [pages, setPages] = useState<LayoutPage[]>([
@@ -1120,8 +1123,10 @@ export function LiveDJ() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      className={`${isFullscreen ? 'fixed inset-0 z-[100] bg-background' : 'h-full'} flex flex-col`}>
       {/* Header */}
+      {!isFullscreen && (
       <div className="flex items-center justify-between p-3 border-b border-border/30">
         <div className="flex items-center gap-2">
           <Speaker size={16} className="text-stokio-pink" />
@@ -1161,10 +1166,25 @@ export function LiveDJ() {
               </button>
             ))}
           </div>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setIsFullscreen(true)}>
+            <Maximize2 size={14} />
+          </Button>
         </div>
       </div>
+      )}
 
-      {/* ── Save Dialog ── */}
+      {/* Fullscreen minimal header */}
+      {isFullscreen && (
+        <div className="flex items-center justify-between px-3 py-2 border-b border-border/30 bg-background">
+          <div className="flex items-center gap-2">
+            <Speaker size={14} className="text-stokio-pink" />
+            <span className="text-xs font-semibold tracking-wider text-muted-foreground">LIVE DJ</span>
+          </div>
+          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setIsFullscreen(false)}>
+            <Minimize2 size={14} />
+          </Button>
+        </div>
+      )}
       <AnimatePresence>
         {showSaveDialog && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -1234,27 +1254,38 @@ export function LiveDJ() {
       </AnimatePresence>
 
       {/* ── CONTROLLER TAB ── */}
-      {tab === 'controller' && (
+      {(tab === 'controller' || isFullscreen) && (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Page tabs */}
           <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border/20 bg-card/30">
             <span className="text-[8px] uppercase tracking-widest text-muted-foreground/50 mr-1">Pages:</span>
             {pages.map((page, idx) => (
               <div key={page.id} className="flex items-center">
-                <button
-                  onClick={() => setActivePageId(page.id)}
-                  onDoubleClick={() => {
-                    const name = prompt('Rename page:', page.name);
-                    if (name) renamePage(page.id, name);
-                  }}
-                  className={`px-3 py-1 text-[10px] font-semibold rounded-t transition-all ${
-                    activePageId === page.id
-                      ? 'bg-primary/10 text-primary border border-primary/30 border-b-0'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
-                  }`}
-                >
-                  {page.name}
-                </button>
+                {editingPageId === page.id ? (
+                  <input
+                    autoFocus
+                    value={editingPageName}
+                    onChange={e => setEditingPageName(e.target.value)}
+                    onBlur={() => { if (editingPageName.trim()) renamePage(page.id, editingPageName.trim()); setEditingPageId(null); }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') { if (editingPageName.trim()) renamePage(page.id, editingPageName.trim()); setEditingPageId(null); }
+                      if (e.key === 'Escape') setEditingPageId(null);
+                    }}
+                    className="px-2 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary border border-primary/30 rounded-t outline-none w-20"
+                  />
+                ) : (
+                  <button
+                    onClick={() => setActivePageId(page.id)}
+                    onDoubleClick={() => { setEditingPageId(page.id); setEditingPageName(page.name); }}
+                    className={`px-3 py-1 text-[10px] font-semibold rounded-t transition-all ${
+                      activePageId === page.id
+                        ? 'bg-primary/10 text-primary border border-primary/30 border-b-0'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
+                    }`}
+                  >
+                    {page.name}
+                  </button>
+                )}
                 {pages.length > 1 && activePageId === page.id && (
                   <button onClick={() => deletePage(page.id)} className="ml-0.5 text-muted-foreground/40 hover:text-destructive">
                     <X size={10} />
@@ -1306,7 +1337,8 @@ export function LiveDJ() {
               )}
             </div>
 
-            {/* Right panel */}
+            {/* Right panel — hidden in fullscreen */}
+            {!isFullscreen && (
             <div className="w-72 border-l border-border/30 flex flex-col overflow-y-auto">
               <input ref={imgInputRef} type="file" accept="image/*" className="hidden" onChange={handleWidgetBgUpload} />
 
@@ -1947,6 +1979,7 @@ export function LiveDJ() {
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
       )}
