@@ -512,67 +512,68 @@ function ControlWidget({
               </div>
             )}
 
-            {/* Color Wheel Visual */}
+            {/* Color Wheel Visual — matches fixture controller */}
             {slots.length > 0 && (
-              <div className="relative flex-shrink-0" style={{ width: wheelSize, height: wheelSize }}>
-                <svg viewBox="0 0 100 100" className="w-full h-full" style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))' }}>
-                  {slots.map((slot, i) => {
-                    const startAngle = (i * slotAngle - 90) * (Math.PI / 180);
-                    const endAngle = ((i + 1) * slotAngle - 90) * (Math.PI / 180);
-                    const r = 45;
-                    const x1 = 50 + r * Math.cos(startAngle);
-                    const y1 = 50 + r * Math.sin(startAngle);
-                    const x2 = 50 + r * Math.cos(endAngle);
-                    const y2 = 50 + r * Math.sin(endAngle);
-                    const largeArc = slotAngle > 180 ? 1 : 0;
-                    const isActive = activeSlotValue === slot.dmxValue;
-                    return (
-                      <path key={`${slot.dmxValue}-${slot.color}`}
-                        d={`M 50 50 L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`}
-                        fill={slot.color}
-                        stroke={isActive ? '#fff' : 'rgba(0,0,0,0.3)'}
-                        strokeWidth={isActive ? 2 : 0.5}
-                        className="cursor-pointer transition-all"
-                        style={{ filter: isActive ? `drop-shadow(0 0 6px ${slot.color})` : undefined }}
-                        onClick={() => onUpdate({ fixedColorSlotValue: slot.dmxValue })}
-                      />
-                    );
-                  })}
-                  {/* Center dot */}
-                  <circle cx="50" cy="50" r="10" fill="#111" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
+              <div className="relative flex-shrink-0 rounded-full control-glossy border border-border/20 overflow-hidden"
+                style={{ width: wheelSize, height: wheelSize }}>
+                {slots.map((slot, i) => {
+                  const startAngle = i * slotAngle - 90;
+                  const isActive = activeSlotValue === slot.dmxValue;
+                  return (
+                    <button key={`wheel-${slot.dmxValue}-${slot.color}`}
+                      className="absolute inset-0 w-full h-full"
+                      onClick={() => onUpdate({ fixedColorSlotValue: slot.dmxValue })}
+                      style={{
+                        clipPath: `polygon(50% 50%, ${50 + 50 * Math.cos((startAngle) * Math.PI / 180)}% ${50 + 50 * Math.sin((startAngle) * Math.PI / 180)}%, ${50 + 50 * Math.cos((startAngle + slotAngle) * Math.PI / 180)}% ${50 + 50 * Math.sin((startAngle + slotAngle) * Math.PI / 180)}%)`,
+                      }}>
+                      <div className="w-full h-full transition-all" style={{
+                        backgroundColor: slot.color,
+                        opacity: isActive ? 1 : 0.6,
+                        boxShadow: isActive ? 'inset 0 0 20px rgba(255,255,255,0.4)' : 'none',
+                      }} />
+                    </button>
+                  );
+                })}
+                {/* Center dot */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#0a0a0a] border border-border/30 flex items-center justify-center"
+                  style={{ width: wheelSize * 0.22, height: wheelSize * 0.22 }}>
                   {activeSlotValue !== undefined && (() => {
                     const activeSlot = slots.find(s => s.dmxValue === activeSlotValue);
-                    return activeSlot ? <circle cx="50" cy="50" r="8" fill={activeSlot.color} opacity="0.6" /> : null;
+                    return activeSlot ? (
+                      <div className="rounded-full" style={{
+                        width: wheelSize * 0.14, height: wheelSize * 0.14,
+                        backgroundColor: activeSlot.color,
+                        boxShadow: `0 0 12px ${activeSlot.color}`,
+                      }} />
+                    ) : null;
                   })()}
-                </svg>
+                </div>
               </div>
             )}
 
-            {/* Color slot buttons with labels */}
+            {/* Color grid — 4 columns like fixture controller */}
             {slots.length > 0 && (
-              <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 overflow-y-auto px-1" style={{ maxHeight: widget.height * 0.35 }}>
+              <div className="grid gap-1 overflow-y-auto px-1" style={{ gridTemplateColumns: `repeat(${Math.min(4, slots.length)}, 1fr)`, maxHeight: widget.height * 0.38 }}>
                 {slots.map(slot => {
                   const isActive = activeSlotValue === slot.dmxValue;
-                  const btnSize = Math.max(18, Math.min(28, widget.width / (Math.min(slots.length, 4) + 1)));
+                  const btnSize = Math.max(16, Math.min(28, (widget.width - 24) / Math.min(4, slots.length) - 8));
                   return (
-                    <div key={`btn-${slot.dmxValue}-${slot.color}`} className="flex flex-col items-center gap-0.5">
-                      <button
-                        onClick={() => onUpdate({ fixedColorSlotValue: slot.dmxValue })}
-                        className={`rounded-full border-2 transition-all ${isActive ? 'scale-110' : 'hover:scale-105'}`}
-                        style={{
-                          width: btnSize, height: btnSize,
-                          backgroundColor: slot.color,
-                          borderColor: isActive ? '#fff' : 'rgba(255,255,255,0.15)',
-                          boxShadow: isActive ? `0 0 10px ${slot.color}, 0 0 3px #fff` : `inset 0 -2px 4px rgba(0,0,0,0.3)`,
-                        }}
-                      />
-                      <span className="text-muted-foreground truncate text-center" style={{ fontSize: Math.max(6, Math.min(9, widget.width * 0.06)), maxWidth: btnSize + 10 }}>
+                    <button key={`btn-${slot.dmxValue}-${slot.color}`}
+                      onClick={() => onUpdate({ fixedColorSlotValue: slot.dmxValue })}
+                      className={`flex flex-col items-center gap-0.5 p-0.5 rounded transition-all ${isActive ? 'bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-muted/30'}`}>
+                      <div className="rounded-full border-2 transition-all" style={{
+                        width: btnSize, height: btnSize,
+                        backgroundColor: slot.color,
+                        borderColor: isActive ? 'hsl(var(--primary))' : 'transparent',
+                        boxShadow: isActive ? `0 0 10px ${slot.color}` : 'none',
+                      }} />
+                      <span className="text-muted-foreground truncate w-full text-center" style={{ fontSize: Math.max(6, Math.min(8, widget.width * 0.055)) }}>
                         {slot.name}
                       </span>
-                      <span className="text-muted-foreground/40 font-mono" style={{ fontSize: Math.max(5, Math.min(7, widget.width * 0.04)) }}>
-                        DMX {slot.dmxValue}
+                      <span className="text-muted-foreground/50 font-mono" style={{ fontSize: Math.max(5, Math.min(7, widget.width * 0.04)) }}>
+                        DMX:{slot.dmxValue}
                       </span>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
