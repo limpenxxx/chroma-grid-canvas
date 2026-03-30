@@ -392,7 +392,7 @@ function ControlWidget({
     };
     patternAnimRef.current = requestAnimationFrame(animate);
     return () => { if (patternAnimRef.current) cancelAnimationFrame(patternAnimRef.current); };
-  }, [widget.type, widget.mhProgram?.running, widget.mhProgram?.pattern, widget.mhProgram?.speed, widget.mhProgram?.size]);
+  }, [widget.type, widget.mhProgram?.running, widget.mhProgram?.pattern, widget.mhProgram?.speed, widget.mhProgram?.size, widget.mhProgram?.bpmSync, bpm]);
 
   // Color program animation
   const colorProgAnimRef = useRef<number | null>(null);
