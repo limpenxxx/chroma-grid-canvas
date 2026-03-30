@@ -572,8 +572,8 @@ function ControlWidget({
           }
         }
         const sliderBg = widget.bgColor || undefined;
-        const sliderBgStyle = sliderBg
-          ? { ...bgStyle, backgroundColor: sliderBg }
+        const sliderBgStyle: React.CSSProperties = sliderBg
+          ? { ...bgStyle, background: sliderBg }
           : bgStyle;
         return (
         <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-3 gap-1 overflow-hidden" style={sliderBgStyle}>
