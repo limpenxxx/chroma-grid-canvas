@@ -376,16 +376,16 @@ function ControlWidget({
         case 'sweep-v': return { x: cx, y: cy + Math.sin(phase) * range };
         case 'random': return { x: cx + (Math.sin(phase * 3.7) * 0.6 + Math.sin(phase * 1.3) * 0.4) * range, y: cy + (Math.cos(phase * 2.9) * 0.6 + Math.cos(phase * 1.7) * 0.4) * range };
         case 'square': {
-          const p = ((phase / (Math.PI * 2)) % 1);
-          const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
-          const c2 = corners[Math.floor(p * 4) % 4];
-          return { x: cx + c2[0] * range * 0.7, y: cy + c2[1] * range * 0.7 };
+          const p = ((phase / (Math.PI * 2)) % 1 + 1) % 1;
+          const corners: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+          const idx = Math.min(Math.floor(p * 4), 3);
+          return { x: cx + corners[idx][0] * range * 0.7, y: cy + corners[idx][1] * range * 0.7 };
         }
         case 'triangle': {
-          const p = ((phase / (Math.PI * 2)) % 1);
-          const pts = [[0, -1], [0.87, 0.5], [-0.87, 0.5]];
-          const pt = pts[Math.floor(p * 3) % 3];
-          return { x: cx + pt[0] * range, y: cy + pt[1] * range };
+          const p = ((phase / (Math.PI * 2)) % 1 + 1) % 1;
+          const pts: [number, number][] = [[0, -1], [0.87, 0.5], [-0.87, 0.5]];
+          const idx = Math.min(Math.floor(p * 3), 2);
+          return { x: cx + pts[idx][0] * range, y: cy + pts[idx][1] * range };
         }
         case 'bounce': return { x: cx, y: cy + Math.abs(Math.sin(phase)) * range - range * 0.5 };
         default: return { x: cx, y: cy };
