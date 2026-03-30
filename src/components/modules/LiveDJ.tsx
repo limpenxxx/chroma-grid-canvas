@@ -1239,6 +1239,13 @@ export function LiveDJ() {
   };
 
   const updateWidget = (id: string, updates: Partial<DJWidget>) => {
+    if (snapToGrid) {
+      const gridSize = 20;
+      if (updates.x !== undefined) updates.x = Math.round(updates.x / gridSize) * gridSize;
+      if (updates.y !== undefined) updates.y = Math.round(updates.y / gridSize) * gridSize;
+      if (updates.width !== undefined) updates.width = Math.round(updates.width / gridSize) * gridSize;
+      if (updates.height !== undefined) updates.height = Math.round(updates.height / gridSize) * gridSize;
+    }
     setWidgets(prev => prev.map(w => w.id === id ? { ...w, ...updates } : w));
   };
 
