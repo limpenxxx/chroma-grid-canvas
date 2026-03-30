@@ -2128,9 +2128,9 @@ export function LiveDJ() {
                         💡 Click this widget during a show to play the linked video or playlist.
                       </div>
                     </div>
-                  )
-
-              {!selectedWidgetData && (
+                  )}
+                </div>
+              )}
                 <div className="flex-1 flex items-center justify-center text-[10px] text-muted-foreground/40 p-4 text-center">
                   Select a widget to edit its properties
                 </div>
