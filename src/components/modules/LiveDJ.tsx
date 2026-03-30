@@ -2032,12 +2032,16 @@ export function LiveDJ() {
                           <label className="text-[7px] uppercase text-muted-foreground">Scene Values</label>
                           {(selectedWidgetData.presetEntries || []).map((entry, idx) => {
                             const isFixture = entry.targetType === 'fixture';
+                            const isWled = entry.targetType === 'wled';
+                            const wledDef = isWled ? fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.def : null;
                             const name = isFixture
                               ? fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.inst.name || entry.targetId
-                              : groups.find(g => g.id === entry.targetId)?.name || entry.targetId;
+                              : isWled
+                                ? fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.inst.name || entry.targetId
+                                : groups.find(g => g.id === entry.targetId)?.name || entry.targetId;
                             const icon = isFixture
                               ? getFixtureTypeIcon(fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.def.type || 'other')
-                              : '👥';
+                              : isWled ? '💡' : '👥';
                             const updateEntry = (updates: Partial<PresetSceneEntry>) => {
                               const entries = [...(selectedWidgetData.presetEntries || [])];
                               entries[idx] = { ...entries[idx], ...updates };
