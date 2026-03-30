@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   useFixtureStore, type FixtureDefinition, type FixtureInstance, type FixtureMode,
-  type FixtureChannel, type ChannelFunction, CHANNEL_FUNCTION_LABELS,
-  getChannelColor, getFixtureTypeIcon,
+  type FixtureChannel, type ChannelFunction, type ColorSystem, type ColorWheelSlot,
+  CHANNEL_FUNCTION_LABELS, getChannelColor, getFixtureTypeIcon,
 } from '@/store/fixtureStore';
 
 type Tab = 'instances' | 'library' | 'editor';
