@@ -141,8 +141,43 @@ interface DJWidget {
   wledIp?: string;
   wledPresets?: { id: number; name: string }[];
   // DMX Reset widget
-  resetUniverse?: number; // 1-based universe number
+  resetUniverse?: number;
+  // Color program (color-wheel)
+  colorProgram?: ColorProgram;
 }
+
+type ColorProgramMode = 'static' | 'switch' | 'fade';
+
+interface ColorProgram {
+  mode: ColorProgramMode;
+  colors: { r: number; g: number; b: number }[];
+  speed: number; // 0-255
+  bpmSync: boolean;
+  running: boolean;
+}
+
+const COLOR_PROGRAM_PRESETS: { label: string; mode: ColorProgramMode; colors: { r: number; g: number; b: number }[] }[] = [
+  { label: 'R/B Switch', mode: 'switch', colors: [{ r: 255, g: 0, b: 0 }, { r: 0, g: 0, b: 255 }] },
+  { label: 'R/G/B', mode: 'switch', colors: [{ r: 255, g: 0, b: 0 }, { r: 0, g: 255, b: 0 }, { r: 0, g: 0, b: 255 }] },
+  { label: 'Rainbow Fade', mode: 'fade', colors: [{ r: 255, g: 0, b: 0 }, { r: 255, g: 255, b: 0 }, { r: 0, g: 255, b: 0 }, { r: 0, g: 255, b: 255 }] },
+  { label: 'Warm Fade', mode: 'fade', colors: [{ r: 255, g: 60, b: 0 }, { r: 255, g: 180, b: 50 }, { r: 255, g: 100, b: 20 }] },
+  { label: 'Cool Fade', mode: 'fade', colors: [{ r: 0, g: 100, b: 255 }, { r: 0, g: 255, b: 255 }, { r: 100, g: 0, b: 255 }] },
+  { label: 'Police', mode: 'switch', colors: [{ r: 255, g: 0, b: 0 }, { r: 0, g: 0, b: 255 }, { r: 255, g: 0, b: 0 }, { r: 255, g: 255, b: 255 }] },
+  { label: 'Purple/Pink', mode: 'fade', colors: [{ r: 128, g: 0, b: 255 }, { r: 255, g: 50, b: 150 }] },
+  { label: 'Fire', mode: 'fade', colors: [{ r: 255, g: 60, b: 0 }, { r: 255, g: 0, b: 0 }, { r: 255, g: 160, b: 0 }] },
+];
+
+const QUICK_COLORS: { label: string; color: { r: number; g: number; b: number } }[] = [
+  { label: 'R', color: { r: 255, g: 0, b: 0 } },
+  { label: 'G', color: { r: 0, g: 255, b: 0 } },
+  { label: 'B', color: { r: 0, g: 0, b: 255 } },
+  { label: 'W', color: { r: 255, g: 255, b: 255 } },
+  { label: 'CY', color: { r: 0, g: 255, b: 255 } },
+  { label: 'PU', color: { r: 128, g: 0, b: 255 } },
+  { label: 'AM', color: { r: 255, g: 160, b: 0 } },
+  { label: 'PK', color: { r: 255, g: 50, b: 150 } },
+  { label: '⬛', color: { r: 0, g: 0, b: 0 } },
+];
 
 interface ScriptStep {
   id: string;
@@ -194,7 +229,7 @@ type Tab = 'controller' | 'assignments' | 'scripts' | 'groups';
 const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: number; h: number }[] = [
   { type: 'button', label: 'Flash Button', icon: Zap, w: 100, h: 100 },
   { type: 'slider', label: 'Fader', icon: SlidersHorizontal, w: 70, h: 200 },
-  { type: 'color-wheel', label: 'Color Pick', icon: Palette, w: 140, h: 140 },
+  { type: 'color-wheel', label: 'Color Pick', icon: Palette, w: 160, h: 180 },
   { type: 'xy-pad', label: 'XY Pad', icon: Plus, w: 200, h: 260 },
   { type: 'preset', label: 'Pre Set', icon: Bookmark, w: 120, h: 120 },
   { type: 'fixed-color', label: 'Fixed Color', icon: CircleDot, w: 150, h: 150 },
@@ -355,6 +390,45 @@ function ControlWidget({
     return () => { if (patternAnimRef.current) cancelAnimationFrame(patternAnimRef.current); };
   }, [widget.type, widget.mhProgram?.running, widget.mhProgram?.pattern, widget.mhProgram?.speed, widget.mhProgram?.size]);
 
+  // Color program animation
+  const colorProgAnimRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (widget.type !== 'color-wheel' || !widget.colorProgram?.running || widget.colorProgram.colors.length < 2) {
+      if (colorProgAnimRef.current) cancelAnimationFrame(colorProgAnimRef.current);
+      return;
+    }
+    const prog = widget.colorProgram;
+    const speedMs = Math.max(200, 300 + (255 - (prog.speed || 128)) * 40);
+    const startTime = performance.now();
+    const colors = prog.colors;
+    const n = colors.length;
+
+    const animate = (t: number) => {
+      const elapsed = t - startTime;
+      const totalCycle = speedMs * n;
+      const pos = (elapsed % totalCycle) / speedMs;
+      const idx = Math.floor(pos) % n;
+
+      if (prog.mode === 'switch') {
+        onUpdate({ colorValue: colors[idx] });
+      } else if (prog.mode === 'fade') {
+        const frac = pos - idx;
+        const next = (idx + 1) % n;
+        const c = colors[idx], cn = colors[next];
+        onUpdate({
+          colorValue: {
+            r: Math.round(c.r + (cn.r - c.r) * frac),
+            g: Math.round(c.g + (cn.g - c.g) * frac),
+            b: Math.round(c.b + (cn.b - c.b) * frac),
+          },
+        });
+      }
+      colorProgAnimRef.current = requestAnimationFrame(animate);
+    };
+    colorProgAnimRef.current = requestAnimationFrame(animate);
+    return () => { if (colorProgAnimRef.current) cancelAnimationFrame(colorProgAnimRef.current); };
+  }, [widget.type, widget.colorProgram?.running, widget.colorProgram?.mode, widget.colorProgram?.speed, widget.colorProgram?.colors?.length]);
+
   const startInteraction = useCallback((e: React.MouseEvent, mode: DragMode) => {
     e.stopPropagation();
     e.preventDefault();
@@ -486,11 +560,17 @@ function ControlWidget({
 
       {/* COLOR WHEEL */}
       {widget.type === 'color-wheel' && (
-        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-3 gap-1 overflow-hidden" style={bgStyle}>
-          <span className="text-muted-foreground font-semibold truncate" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.1)) }}>{widget.label}</span>
-          <div className="flex-1 flex items-center justify-center">
+        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-2 gap-0.5 overflow-hidden" style={bgStyle}>
+          <span className="text-muted-foreground font-semibold truncate shrink-0" style={{ fontSize: Math.max(8, Math.min(11, widget.width * 0.08)) }}>{widget.label}</span>
+          {/* Color program indicator */}
+          {widget.colorProgram?.running && (
+            <div className="absolute top-1 right-1 text-[6px] px-1 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 animate-pulse font-semibold z-20">
+              {widget.colorProgram.mode === 'fade' ? '🌈 FADE' : '⚡ SWITCH'}
+            </div>
+          )}
+          <div className="flex-1 flex items-center justify-center min-h-0">
             <div className="rounded-full border-2 border-border/30 cursor-pointer"
-              style={{ width: Math.min(widget.width, widget.height) - 40, height: Math.min(widget.width, widget.height) - 40,
+              style={{ width: Math.min(widget.width, widget.height) - 60, height: Math.min(widget.width, widget.height) - 60,
                 background: `conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)` }}
               onClick={(e) => {
                 onSelect();
@@ -506,13 +586,45 @@ function ControlWidget({
               }}>
               {widget.colorValue && (
                 <div className="w-full h-full rounded-full flex items-center justify-center">
-                  <div className="w-6 h-6 rounded-full border border-foreground/50"
-                    style={{ backgroundColor: `rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})`,
-                      boxShadow: `0 0 10px rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})` }} />
+                  <div className="rounded-full border border-foreground/50"
+                    style={{ width: Math.max(12, (Math.min(widget.width, widget.height) - 60) * 0.3),
+                      height: Math.max(12, (Math.min(widget.width, widget.height) - 60) * 0.3),
+                      backgroundColor: `rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})`,
+                      boxShadow: `0 0 12px rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})` }} />
                 </div>
               )}
             </div>
           </div>
+          {/* Quick color buttons */}
+          {(() => {
+            const s = Math.min(widget.width, widget.height);
+            const btnSize = Math.max(14, Math.min(24, s * 0.1));
+            const fs = Math.max(6, Math.min(10, s * 0.045));
+            return (
+              <div className="w-full shrink-0 flex flex-wrap justify-center gap-0.5">
+                {QUICK_COLORS.map(qc => {
+                  const isActive = widget.colorValue && widget.colorValue.r === qc.color.r && widget.colorValue.g === qc.color.g && widget.colorValue.b === qc.color.b;
+                  const isBlack = qc.color.r === 0 && qc.color.g === 0 && qc.color.b === 0;
+                  return (
+                    <button key={qc.label}
+                      onClick={e => { e.stopPropagation(); onSelect(); onUpdate({ colorValue: qc.color }); }}
+                      className={`rounded border transition-all font-bold ${
+                        isActive ? 'border-foreground/60 ring-1 ring-primary/50 scale-110' : 'border-border/30 hover:border-border/60'
+                      }`}
+                      style={{
+                        width: btnSize, height: btnSize, fontSize: fs,
+                        backgroundColor: isBlack ? '#111' : `rgb(${qc.color.r},${qc.color.g},${qc.color.b})`,
+                        color: (qc.color.r + qc.color.g + qc.color.b) > 400 ? '#000' : '#fff',
+                        textShadow: (qc.color.r + qc.color.g + qc.color.b) > 400 ? 'none' : '0 1px 2px rgba(0,0,0,0.8)',
+                      }}
+                      title={qc.label}>
+                      {qc.label}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -2562,6 +2674,125 @@ export function LiveDJ() {
                         <label className="text-[8px] uppercase tracking-widest text-stokio-pink font-semibold">Fixed Color Sync</label>
                         <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
                           💡 Linked fixtures with fixed color wheels will auto-match to the closest color slot when you pick an RGB color.
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Color Program settings for color-wheel */}
+                  {selectedWidgetData.type === 'color-wheel' && (() => {
+                    const prog = selectedWidgetData.colorProgram || { mode: 'static' as ColorProgramMode, colors: [], speed: 128, bpmSync: false, running: false };
+                    const defaultProg: ColorProgram = { mode: 'static', colors: [], speed: 128, bpmSync: false, running: false };
+                    return (
+                      <div className="space-y-2 border-t border-border/20 pt-2">
+                        <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
+                          <Sparkles size={10} /> Color Program
+                        </label>
+
+                        {/* Mode selector */}
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Mode</label>
+                          <div className="flex gap-1 mt-1">
+                            {([['static', 'Static'], ['switch', 'Switch'], ['fade', 'Fade']] as [ColorProgramMode, string][]).map(([m, lbl]) => (
+                              <button key={m}
+                                onClick={() => updateWidget(selectedWidgetData.id, {
+                                  colorProgram: { ...prog, mode: m, running: m !== 'static' && prog.running },
+                                })}
+                                className={`flex-1 h-6 rounded text-[9px] font-semibold border transition-all ${
+                                  prog.mode === m ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border/20 text-muted-foreground hover:border-border/40'
+                                }`}>{lbl}</button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Color slots */}
+                        {prog.mode !== 'static' && (
+                          <>
+                            <div>
+                              <label className="text-[7px] uppercase text-muted-foreground">Colors ({prog.colors.length}/4)</label>
+                              <div className="flex gap-1 mt-1 flex-wrap">
+                                {prog.colors.map((c, i) => (
+                                  <div key={i} className="relative group">
+                                    <div className="w-7 h-7 rounded border border-border/30 cursor-pointer"
+                                      style={{ backgroundColor: `rgb(${c.r},${c.g},${c.b})` }}
+                                      onClick={() => {
+                                        const newColors = prog.colors.filter((_, j) => j !== i);
+                                        updateWidget(selectedWidgetData.id, { colorProgram: { ...prog, colors: newColors } });
+                                      }} />
+                                    <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-destructive text-[6px] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">×</span>
+                                  </div>
+                                ))}
+                                {prog.colors.length < 4 && (
+                                  <button onClick={() => {
+                                    const cv = selectedWidgetData.colorValue || { r: 255, g: 0, b: 0 };
+                                    updateWidget(selectedWidgetData.id, { colorProgram: { ...prog, colors: [...prog.colors, cv] } });
+                                  }}
+                                    className="w-7 h-7 rounded border border-dashed border-border/30 text-muted-foreground/40 hover:border-primary/30 hover:text-primary transition-all flex items-center justify-center text-lg">+</button>
+                                )}
+                              </div>
+                              <div className="text-[7px] text-muted-foreground/40 mt-0.5">Click color to remove. + adds current wheel color.</div>
+                            </div>
+
+                            {/* Presets */}
+                            <div>
+                              <label className="text-[7px] uppercase text-muted-foreground">Presets</label>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {COLOR_PROGRAM_PRESETS.filter(p => p.mode === prog.mode || prog.mode === 'fade' || prog.mode === 'switch').map((preset, i) => (
+                                  <button key={i}
+                                    onClick={() => updateWidget(selectedWidgetData.id, {
+                                      colorProgram: { ...prog, mode: preset.mode, colors: preset.colors },
+                                    })}
+                                    className="text-[7px] px-1.5 py-0.5 rounded border border-border/20 text-muted-foreground hover:border-primary/30 hover:bg-primary/5 transition-all flex items-center gap-0.5">
+                                    {preset.colors.map((c, j) => (
+                                      <div key={j} className="w-2 h-2 rounded-full" style={{ backgroundColor: `rgb(${c.r},${c.g},${c.b})` }} />
+                                    ))}
+                                    <span className="ml-0.5">{preset.label}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Speed */}
+                            <div>
+                              <label className="text-[7px] uppercase text-muted-foreground">Speed</label>
+                              <Slider value={[prog.speed]}
+                                onValueChange={([v]) => updateWidget(selectedWidgetData.id, {
+                                  colorProgram: { ...prog, speed: v },
+                                })} max={255} className="mt-1" />
+                              <span className="text-[7px] font-mono text-muted-foreground/50">{prog.speed}</span>
+                            </div>
+
+                            {/* BPM Sync */}
+                            <button
+                              onClick={() => updateWidget(selectedWidgetData.id, {
+                                colorProgram: { ...prog, bpmSync: !prog.bpmSync },
+                              })}
+                              className={`w-full h-6 rounded text-[9px] font-semibold border transition-all flex items-center justify-center gap-1 ${
+                                prog.bpmSync ? 'bg-stokio-pink/10 border-stokio-pink/30 text-stokio-pink' : 'border-border/20 text-muted-foreground hover:border-border/40'
+                              }`}>
+                              {prog.bpmSync ? '🎵 BPM Sync ON' : '🎵 BPM Sync'}
+                            </button>
+
+                            {/* Run/Stop */}
+                            <Button
+                              size="sm"
+                              variant={prog.running ? 'destructive' : 'default'}
+                              className="h-7 text-[9px] gap-1 w-full"
+                              disabled={prog.colors.length < 2}
+                              onClick={() => updateWidget(selectedWidgetData.id, {
+                                colorProgram: { ...prog, running: !prog.running },
+                              })}>
+                              {prog.running ? <><Square size={9} /> Stop</> : <><Play size={9} /> Run</>}
+                            </Button>
+
+                            {prog.colors.length < 2 && (
+                              <div className="text-[7px] text-muted-foreground/40">Add at least 2 colors to run</div>
+                            )}
+                          </>
+                        )}
+
+                        <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                          💡 Switch: hard cuts between colors. Fade: smooth transitions. Use BPM Sync to lock changes to the beat.
                         </div>
                       </div>
                     );
