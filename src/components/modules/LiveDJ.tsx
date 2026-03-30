@@ -427,7 +427,7 @@ function ControlWidget({
           <div className="absolute inset-0 rounded-lg opacity-15" style={{ backgroundColor: widget.color }} />
           {widget.bgImage && <div className="absolute inset-0 rounded-lg z-[1]" style={{ background: `linear-gradient(to top, rgba(0,0,0,${(widget.bgOpacity ?? 70) / 100}), rgba(0,0,0,${(widget.bgOpacity ?? 70) / 300}), transparent)` }} />}
           {isButtonActive && <div className="absolute inset-0 rounded-lg z-[2]" style={{ background: `radial-gradient(circle at center, ${widget.color}30, transparent)` }} />}
-          <Bookmark size={Math.min(widget.width, widget.height) * 0.2} style={{ color: widget.color }} className="relative z-10 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" />
+          <Bookmark size={Math.min(widget.width, widget.height) * 0.15} style={{ color: widget.color }} className="absolute top-1.5 left-1.5 z-10 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" />
           <span className="text-muted-foreground font-semibold truncate px-1 relative z-10"
             style={{ fontSize: Math.max(8, Math.min(14, widget.width * 0.12)), textShadow: '0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6)' }}>{widget.label}</span>
           <div className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full transition-all z-10 ${widget.toggled ? 'bg-primary shadow-[0_0_6px_hsl(var(--primary))]' : 'bg-muted-foreground/20'}`} />
