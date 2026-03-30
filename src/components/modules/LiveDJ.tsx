@@ -1979,6 +1979,7 @@ export function LiveDJ() {
                 </div>
               )}
             </div>
+            )}
           </div>
         </div>
       )}
