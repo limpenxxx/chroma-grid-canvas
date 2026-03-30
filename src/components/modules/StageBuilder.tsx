@@ -971,13 +971,27 @@ export function StageBuilder() {
                         <div>
                           <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Pixels X</label>
                           <Input type="number" min={1} max={256} value={selectedNode.pixelsX}
-                            onChange={e => { const v = Math.max(1, Number(e.target.value)); updateNode(selectedNode.id, { pixelsX: v, totalPixels: v * selectedNode.pixelsY }); }}
+                            onChange={e => {
+                              const v = Math.max(1, Number(e.target.value));
+                              const newTotal = v * selectedNode.pixelsY;
+                              updateNode(selectedNode.id, {
+                                pixelsX: v, totalPixels: newTotal,
+                                segments: [{ ...selectedNode.segments[0] || createDefaultSegment(0, 0, newTotal), pixelEnd: newTotal - 1 }, ...selectedNode.segments.slice(1)],
+                              });
+                            }}
                             className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
                         </div>
                         <div>
                           <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Pixels Y</label>
                           <Input type="number" min={1} max={256} value={selectedNode.pixelsY}
-                            onChange={e => { const v = Math.max(1, Number(e.target.value)); updateNode(selectedNode.id, { pixelsY: v, totalPixels: selectedNode.pixelsX * v }); }}
+                            onChange={e => {
+                              const v = Math.max(1, Number(e.target.value));
+                              const newTotal = selectedNode.pixelsX * v;
+                              updateNode(selectedNode.id, {
+                                pixelsY: v, totalPixels: newTotal,
+                                segments: [{ ...selectedNode.segments[0] || createDefaultSegment(0, 0, newTotal), pixelEnd: newTotal - 1 }, ...selectedNode.segments.slice(1)],
+                              });
+                            }}
                             className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
                         </div>
                       </div>
