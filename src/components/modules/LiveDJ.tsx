@@ -201,7 +201,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'button', label: 'Flash Button', icon: Zap, w: 100, h: 100 },
   { type: 'slider', label: 'Fader', icon: SlidersHorizontal, w: 70, h: 200 },
   { type: 'color-wheel', label: 'Color Pick', icon: Palette, w: 140, h: 140 },
-  { type: 'xy-pad', label: 'XY Pad', icon: Plus, w: 180, h: 180 },
+  { type: 'xy-pad', label: 'XY Pad', icon: Plus, w: 200, h: 260 },
   { type: 'preset', label: 'Pre Set', icon: Bookmark, w: 120, h: 120 },
   { type: 'fixed-color', label: 'Fixed Color', icon: CircleDot, w: 150, h: 150 },
   { type: 'media-trigger', label: 'Media', icon: Film, w: 120, h: 120 },
@@ -523,14 +523,11 @@ function ControlWidget({
 
       {/* XY PAD */}
       {widget.type === 'xy-pad' && (
-        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-3 gap-1 overflow-hidden" style={bgStyle}>
-          <span className="text-muted-foreground font-semibold truncate" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.08)) }}>{widget.label}</span>
-          {widget.mhProgram?.running && (
-            <div className="absolute top-1 right-1 text-[6px] px-1 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 animate-pulse font-semibold z-20">
-              {MH_PATTERNS.find(p => p.value === widget.mhProgram?.pattern)?.label}
-            </div>
-          )}
-          <div className="flex-1 w-full relative border border-border/20 rounded cursor-crosshair"
+        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-2 gap-0.5 overflow-hidden" style={bgStyle}>
+          <span className="text-muted-foreground font-semibold truncate shrink-0" style={{ fontSize: Math.max(8, Math.min(11, widget.width * 0.07)) }}>{widget.label}</span>
+
+          {/* XY area */}
+          <div className="flex-1 w-full relative border border-border/20 rounded cursor-crosshair min-h-0"
             onClick={e => {
               onSelect();
               const rect = e.currentTarget.getBoundingClientRect();
@@ -562,8 +559,65 @@ function ControlWidget({
                 </>
               );
             })()}
-            <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[8px] text-muted-foreground/40">PAN</span>
-            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] text-muted-foreground/40 -rotate-90">TILT</span>
+            <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[7px] text-muted-foreground/40">PAN</span>
+            <span className="absolute left-0.5 top-1/2 -translate-y-1/2 text-[7px] text-muted-foreground/40 -rotate-90">TILT</span>
+          </div>
+
+          {/* On-widget MH controls */}
+          <div className="w-full shrink-0 flex flex-col gap-0.5 mt-0.5">
+            {/* Pattern quick-select row */}
+            <div className="flex gap-0.5 flex-wrap justify-center">
+              {MH_PATTERNS.map(p => {
+                const isActive = widget.mhProgram?.pattern === p.value && widget.mhProgram?.running;
+                const isSelected2 = widget.mhProgram?.pattern === p.value;
+                return (
+                  <button key={p.value}
+                    onClick={e => {
+                      e.stopPropagation();
+                      onSelect();
+                      const base = widget.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] };
+                      if (isSelected2 && base.running) {
+                        // clicking active pattern stops it
+                        onUpdate({ mhProgram: { ...base, running: false } });
+                      } else {
+                        // select and start
+                        onUpdate({ mhProgram: { ...base, pattern: p.value, running: true } });
+                      }
+                    }}
+                    className={`rounded px-1 py-0.5 transition-all border ${
+                      isActive
+                        ? 'bg-primary/20 border-primary/50 text-primary shadow-[0_0_6px_hsl(var(--primary)/0.3)]'
+                        : isSelected2
+                          ? 'bg-muted/30 border-border/40 text-foreground'
+                          : 'bg-muted/10 border-border/20 text-muted-foreground/60 hover:border-border/40 hover:text-muted-foreground'
+                    }`}
+                    title={p.label}
+                    style={{ fontSize: Math.max(7, Math.min(10, widget.width * 0.045)) }}>
+                    {p.label.split(' ')[0]}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Speed slider on widget */}
+            <div className="flex items-center gap-1 px-1">
+              <span className="text-[7px] text-muted-foreground/50 uppercase shrink-0">Spd</span>
+              <input
+                type="range"
+                min={1} max={100}
+                value={widget.mhProgram?.speed ?? 50}
+                onClick={e => e.stopPropagation()}
+                onChange={e => {
+                  e.stopPropagation();
+                  onSelect();
+                  const base = widget.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] };
+                  onUpdate({ mhProgram: { ...base, speed: Number(e.target.value) } });
+                }}
+                className="flex-1 h-1 accent-primary cursor-pointer"
+                style={{ minWidth: 0 }}
+              />
+              <span className="text-[7px] font-mono text-muted-foreground/50 w-5 text-right">{widget.mhProgram?.speed ?? 50}</span>
+            </div>
           </div>
         </div>
       )}
