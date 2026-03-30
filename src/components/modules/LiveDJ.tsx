@@ -2081,6 +2081,7 @@ export function LiveDJ() {
                   allWidgets={widgets}
                   fixtureData={fixturesWithDefs}
                   isFullscreen={isFullscreen}
+                  bpm={bpmState.bpm}
                 />
               ))}
 
