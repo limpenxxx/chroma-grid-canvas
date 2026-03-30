@@ -163,6 +163,37 @@ export function StageBuilder() {
       }
     }
 
+    // Sample background image data for color-picking
+    let bgImageData: ImageData | null = null;
+    try {
+      bgImageData = ctx.getImageData(0, 0, w * 2, h * 2);
+    } catch (_) { /* security error with cross-origin video */ }
+
+    const sampleBgColor = (canvasX: number, canvasY: number, sampleRad: number, blurAmt: number): [number, number, number] => {
+      if (!bgImageData) return [40, 40, 40];
+      // Convert to pixel coords (canvas is 2x)
+      const cx = Math.round(canvasX * 2);
+      const cy = Math.round(canvasY * 2);
+      const rad = Math.max(1, Math.round(sampleRad * 2));
+      let rSum = 0, gSum = 0, bSum = 0, count = 0;
+      const stride = bgImageData.width * 4;
+      const step = blurAmt > 30 ? 2 : 1; // skip pixels for large blur for perf
+      for (let dy = -rad; dy <= rad; dy += step) {
+        for (let dx = -rad; dx <= rad; dx += step) {
+          const px = cx + dx;
+          const py = cy + dy;
+          if (px < 0 || py < 0 || px >= bgImageData.width || py >= bgImageData.height) continue;
+          const idx = py * stride + px * 4;
+          rSum += bgImageData.data[idx];
+          gSum += bgImageData.data[idx + 1];
+          bSum += bgImageData.data[idx + 2];
+          count++;
+        }
+      }
+      if (count === 0) return [40, 40, 40];
+      return [Math.round(rSum / count), Math.round(gSum / count), Math.round(bSum / count)];
+    };
+
     // Draw WLED nodes
     nodes.forEach((node) => {
       ctx.save();
@@ -173,8 +204,8 @@ export function StageBuilder() {
       const hw = node.width / 2;
       const hh = node.height / 2;
 
-      // Node background
-      ctx.fillStyle = 'rgba(10,10,10,0.6)';
+      // Node background (semi-transparent so grid lines show)
+      ctx.fillStyle = 'rgba(10,10,10,0.3)';
       ctx.fillRect(-hw, -hh, node.width, node.height);
 
       // Border
@@ -182,11 +213,17 @@ export function StageBuilder() {
       ctx.lineWidth = isSelected ? 2 : 1;
       ctx.strokeRect(-hw, -hh, node.width, node.height);
 
-      // Draw pixel grid
+      // Draw pixel grid — each cell samples its color from the video/background
       const pxW = node.width / node.pixelsX;
       const pxH = node.height / node.pixelsY;
       let segColorIndex = 0;
       const segColors = ['#00e5ff', '#ff2d78', '#00ff66', '#ffaa00', '#aa66ff', '#ff6644'];
+
+      // Pre-compute node center in canvas coords (before rotation, but we need world coords)
+      const cosR = Math.cos((node.rotation * Math.PI) / 180);
+      const sinR = Math.sin((node.rotation * Math.PI) / 180);
+      const nodeCX = node.x + node.width / 2;
+      const nodeCY = node.y + node.height / 2;
 
       node.segments.forEach((seg) => {
         const segColor = segColors[segColorIndex % segColors.length];
@@ -214,25 +251,26 @@ export function StageBuilder() {
           if (seg.reversed) col = node.pixelsX - 1 - col;
 
           if (col >= 0 && col < node.pixelsX && row >= 0 && row < node.pixelsY) {
+            const localX = -hw + col * pxW + pxW / 2;
+            const localY = -hh + row * pxH + pxH / 2;
+            // Transform local pixel center to world canvas coords
+            const worldX = nodeCX + localX * cosR - localY * sinR;
+            const worldY = nodeCY + localX * sinR + localY * cosR;
+
+            // Sample color from background at this world position
+            const [r, g, b] = sampleBgColor(worldX, worldY, node.sampleRadius, node.blurAmount);
+
             const px = -hw + col * pxW;
             const py = -hh + row * pxH;
-            const hue = ((col + row) * 18 + Date.now() / 25) % 360;
-            ctx.fillStyle = `hsla(${hue}, 85%, 50%, 0.65)`;
+            ctx.fillStyle = `rgb(${r},${g},${b})`;
             ctx.fillRect(px + 0.5, py + 0.5, pxW - 1, pxH - 1);
+            // Grid line per segment
             ctx.strokeStyle = `${segColor}30`;
             ctx.lineWidth = 0.3;
             ctx.strokeRect(px + 0.5, py + 0.5, pxW - 1, pxH - 1);
           }
         }
       });
-
-      // Blur indicator
-      if (node.blurAmount > 0) {
-        ctx.fillStyle = `rgba(0,229,255,${Math.min(0.15, node.blurAmount / 500)})`;
-        ctx.filter = `blur(${node.blurAmount / 10}px)`;
-        ctx.fillRect(-hw, -hh, node.width, node.height);
-        ctx.filter = 'none';
-      }
 
       // Label
       ctx.fillStyle = isSelected ? '#00ff66' : 'rgba(255,255,255,0.6)';
@@ -348,11 +386,11 @@ export function StageBuilder() {
         ctx.fill();
       }
 
-      // Fixture circle
-      const hue = (Date.now() / 30 + mf.x * 2) % 360;
+      // Fixture circle — sample color from video/background
+      const [mr, mg, mb] = sampleBgColor(mf.x, mf.y, mf.sampleRadius, mf.blurAmount);
       ctx.fillStyle = isSelected2
-        ? `hsla(${hue}, 80%, 50%, 0.5)`
-        : `hsla(${hue}, 70%, 45%, 0.35)`;
+        ? `rgba(${mr},${mg},${mb},0.85)`
+        : `rgba(${mr},${mg},${mb},0.7)`;
       ctx.strokeStyle = isSelected2 ? '#00e5ff' : 'rgba(0,229,255,0.5)';
       ctx.lineWidth = isSelected2 ? 2 : 1;
       ctx.beginPath();
