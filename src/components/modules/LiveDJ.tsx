@@ -573,7 +573,7 @@ function ControlWidget({
         }
         const sliderBg = widget.bgColor || undefined;
         const sliderBgStyle: React.CSSProperties = sliderBg
-          ? { ...bgStyle, background: sliderBg }
+          ? { ...bgStyle, background: `radial-gradient(ellipse at 30% 20%, ${sliderBg}cc 0%, ${sliderBg}40 70%)` }
           : bgStyle;
         return (
         <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-3 gap-1 overflow-hidden" style={sliderBgStyle}>
