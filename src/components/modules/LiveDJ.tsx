@@ -294,7 +294,7 @@ function ModeBadge({ mode }: { mode: ControlMode }) {
 type DragMode = 'none' | 'move' | 'resize-br' | 'resize-bl' | 'resize-tr' | 'resize-tl';
 
 function ControlWidget({
-  widget, isSelected, onSelect, onUpdate, onPress, onRelease, allWidgets, fixtureData, isFullscreen = false,
+  widget, isSelected, onSelect, onUpdate, onPress, onRelease, allWidgets, fixtureData, isFullscreen = false, bpm = 120,
 }: {
   widget: DJWidget;
   isSelected: boolean;
@@ -305,6 +305,7 @@ function ControlWidget({
   allWidgets: DJWidget[];
   fixtureData: { inst: FixtureInstance; def: FixtureDefinition }[];
   isFullscreen?: boolean;
+  bpm?: number;
 }) {
   const dragRef = useRef<{
     mode: DragMode;
