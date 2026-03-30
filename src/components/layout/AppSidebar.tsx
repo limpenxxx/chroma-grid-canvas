@@ -18,17 +18,6 @@ const navItems: { id: ModuleId; icon: typeof Layout; label: string }[] = [
 
 export function AppSidebar() {
   const { activeModule, setActiveModule } = useAppStore();
-  const [venueLogo, setVenueLogo] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const handleVenueUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setVenueLogo(reader.result as string);
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
 
   return (
     <div className="w-[100px] h-full flex flex-col items-center py-4 border-r border-border/50 bg-[hsl(0_0%_3%)]">
