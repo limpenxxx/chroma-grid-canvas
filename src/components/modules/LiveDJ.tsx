@@ -1303,7 +1303,21 @@ export function LiveDJ() {
     e.target.value = '';
   };
 
-  // ── Page management ──
+  const handleTabBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPages(prev => prev.map(p => p.id === activePageId ? { ...p, bgImage: reader.result as string } : p));
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const updatePageBg = (updates: Partial<LayoutPage>) => {
+    setPages(prev => prev.map(p => p.id === activePageId ? { ...p, ...updates } : p));
+  };
+
   const addPage = () => {
     const newPage: LayoutPage = {
       id: `page-${Date.now()}`,
