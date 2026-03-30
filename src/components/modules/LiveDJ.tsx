@@ -1254,7 +1254,7 @@ export function LiveDJ() {
       </AnimatePresence>
 
       {/* ── CONTROLLER TAB ── */}
-      {tab === 'controller' && (
+      {(tab === 'controller' || isFullscreen) && (
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Page tabs */}
           <div className="flex items-center gap-1 px-3 py-1.5 border-b border-border/20 bg-card/30">
