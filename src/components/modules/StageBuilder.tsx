@@ -1,11 +1,12 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown, Film, Droplets } from 'lucide-react';
+import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown, Film, Droplets, Music, Mic, Volume2, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { useFixtureStore, getFixtureTypeIcon, getChannelColor } from '@/store/fixtureStore';
 import { useMediaStore, getEmbedUrl } from '@/store/mediaStore';
+import { AudioVisualizerEngine, PRESET_LABELS, INPUT_LABELS, type VisualizerPreset, type AudioInputSource } from '@/lib/audioVisualizer';
 
 type SegmentOrientation = 'horizontal' | 'vertical' | 'zigzag-h' | 'zigzag-v';
 
