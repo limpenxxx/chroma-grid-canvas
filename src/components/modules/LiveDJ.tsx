@@ -562,17 +562,31 @@ function ControlWidget({
       )}
 
       {/* SLIDER */}
-      {widget.type === 'slider' && (
-        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-3 gap-1 overflow-hidden" style={bgStyle}>
+      {widget.type === 'slider' && (() => {
+        // Determine fader fill color: sync with color widget or use widget.color
+        let faderColor = widget.color;
+        if (widget.faderColorSyncWidgetId) {
+          const syncW = allWidgets.find(w => w.id === widget.faderColorSyncWidgetId);
+          if (syncW?.colorValue) {
+            faderColor = `rgb(${syncW.colorValue.r},${syncW.colorValue.g},${syncW.colorValue.b})`;
+          }
+        }
+        const sliderBg = widget.bgColor || undefined;
+        const sliderBgStyle = sliderBg
+          ? { ...bgStyle, backgroundColor: sliderBg }
+          : bgStyle;
+        return (
+        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-3 gap-1 overflow-hidden" style={sliderBgStyle}>
           <span className="text-muted-foreground font-semibold truncate" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.14)) }}>{widget.label}</span>
           <div className="flex-1 w-10 rounded fader-track border border-border/20 relative">
-            <motion.div className="absolute bottom-0 left-0 w-full rounded-b" style={{ backgroundColor: widget.color + '60' }} animate={{ height: `${widget.value || 0}%` }} />
+            <motion.div className="absolute bottom-0 left-0 w-full rounded-b" style={{ backgroundColor: faderColor + (faderColor.startsWith('rgb') ? '' : '60') }} animate={{ height: `${widget.value || 0}%` }} />
             <input type="range" min={0} max={100} value={widget.value || 0} onChange={e => { onSelect(); onUpdate({ value: Number(e.target.value) }); }}
               className="absolute inset-0 w-full h-full opacity-0 cursor-ns-resize" style={{ writingMode: 'vertical-lr', direction: 'rtl' } as React.CSSProperties} />
           </div>
           <span className="font-mono text-muted-foreground" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.14)) }}>{widget.value || 0}%</span>
         </div>
-      )}
+        );
+      })()}
 
       {/* COLOR WHEEL */}
       {widget.type === 'color-wheel' && (() => {
