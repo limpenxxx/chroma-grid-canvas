@@ -396,15 +396,11 @@ function ControlWidget({
 
   const bgStyle: React.CSSProperties = widget.bgImage ? { backgroundImage: `url(${widget.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {};
 
-  // Button: short click = flash/toggle, long press in flash mode = lock toggle
+  // Button: flash = play while held, toggle = click to toggle on/off
   const handleButtonDown = () => {
     onSelect();
     if (widget.flash) {
       setIsPressed(true); onPress();
-      longPressTimer.current = setTimeout(() => {
-        onUpdate({ toggled: !widget.toggled });
-        longPressTimer.current = null;
-      }, LONG_PRESS_MS);
     } else {
       const ns = !widget.toggled;
       onUpdate({ toggled: ns }); setIsPressed(ns);
@@ -412,10 +408,9 @@ function ControlWidget({
     }
   };
   const handleButtonUp = () => {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
     if (widget.flash) { setIsPressed(false); onRelease(); }
   };
-  const isButtonActive = widget.flash ? (isPressed || !!widget.toggled) : !!widget.toggled;
+  const isButtonActive = widget.flash ? isPressed : !!widget.toggled;
 
   return (
     <div className={`absolute select-none group transition-shadow ${isSelected ? 'ring-1 ring-primary/60 z-30' : 'z-10'} ${interacting ? 'z-50' : ''}`}
@@ -455,7 +450,7 @@ function ControlWidget({
           <span className="text-muted-foreground font-semibold truncate px-1 relative z-10"
             style={{ fontSize: Math.max(8, Math.min(14, widget.width * 0.12)), textShadow: '0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.6)' }}>{widget.label}</span>
           {!widget.flash && <div className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full transition-all z-10 ${widget.toggled ? 'bg-primary shadow-[0_0_6px_hsl(var(--primary))]' : 'bg-muted-foreground/20'}`} />}
-          {widget.flash && widget.toggled && <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[7px] text-primary font-bold uppercase tracking-wider z-10" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>LOCKED</div>}
+          
         </div>
       )}
 
