@@ -320,6 +320,7 @@ function ControlWidget({
 
   // Button: short click = flash/toggle, long press in flash mode = lock toggle
   const handleButtonDown = () => {
+    onSelect();
     if (widget.flash) {
       setIsPressed(true); onPress();
       longPressTimer.current = setTimeout(() => {
