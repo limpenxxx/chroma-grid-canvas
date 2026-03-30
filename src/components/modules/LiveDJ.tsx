@@ -187,6 +187,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'xy-pad', label: 'XY Pad', icon: Plus, w: 180, h: 180 },
   { type: 'preset', label: 'Pre Set', icon: Bookmark, w: 120, h: 120 },
   { type: 'fixed-color', label: 'Fixed Color', icon: CircleDot, w: 150, h: 150 },
+  { type: 'media-trigger', label: 'Media', icon: Film, w: 120, h: 120 },
 ];
 
 // ── Color distance helper (Euclidean in RGB space) ──
