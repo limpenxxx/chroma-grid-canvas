@@ -205,10 +205,18 @@ export function StageBuilder() {
       }
     }
 
-    // Video background or animated texture
+    // Background source rendering
     const video = videoRef.current;
-    if (video && isVideoPlaying && video.readyState >= 2) {
+    if (bgSource === 'video' && video && isVideoPlaying && video.readyState >= 2) {
       ctx.drawImage(video, 0, 0, w, h);
+    } else if (bgSource === 'visualizer' && vizCanvasRef.current) {
+      // Render visualizer to offscreen canvas, then draw to main
+      const vizCanvas = vizCanvasRef.current;
+      const vizCtx = vizCanvas.getContext('2d');
+      if (vizCtx) {
+        vizEngineRef.current.render(vizCtx, vizCanvas.width, vizCanvas.height);
+        ctx.drawImage(vizCanvas, 0, 0, w, h);
+      }
     } else {
       // Animated background texture (fallback)
       const time = Date.now() / 2000;
