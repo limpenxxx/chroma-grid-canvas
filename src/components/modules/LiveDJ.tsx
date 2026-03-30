@@ -96,6 +96,7 @@ interface BPMState {
 
 const AUDIO_SOURCES: { value: AudioSource; label: string; description: string }[] = [
   { value: 'none', label: 'None', description: 'No audio input' },
+  { value: 'tap-tempo', label: 'TAP-TEMPO', description: 'Manual tap tempo for BPM sync' },
   { value: 'wled-analog', label: 'WLED Analog Mic', description: 'MAX4466 / MAX9814 analog microphone on WLED ESP32' },
   { value: 'wled-i2s-inmp441', label: 'WLED I2S INMP441', description: 'Digital I2S MEMS microphone (recommended)' },
   { value: 'wled-i2s-max98357', label: 'WLED I2S MAX98357', description: 'I2S line-in via MAX98357 amplifier' },
