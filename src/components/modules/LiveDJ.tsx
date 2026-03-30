@@ -137,6 +137,14 @@ interface DJWidget {
   mediaPlaylistId?: string | null;
   mediaPlayMode?: 'play-once' | 'loop' | 'loop-random'; // default: loop
   mediaFlash?: boolean; // true = flash (hold to play), false = toggle
+  // VFX
+  vfxPreset?: VisualizerPreset;
+  vfxRunning?: boolean;
+  // WLED Preset
+  wledPresetId?: number;
+  wledPresetName?: string;
+  wledIp?: string;
+  wledPresets?: { id: number; name: string }[];
 }
 
 interface ScriptStep {
