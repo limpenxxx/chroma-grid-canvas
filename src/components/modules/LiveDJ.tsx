@@ -89,7 +89,34 @@ interface DJScript {
   linkedFixtureIds: string[];
 }
 
-type Tab = 'controller' | 'assignments' | 'scripts';
+// ── Fixture Group ──
+interface FixtureGroup {
+  id: string;
+  name: string;
+  color: string;
+  fixtureIds: string[]; // instance IDs
+}
+
+// ── Layout Page ──
+interface LayoutPage {
+  id: string;
+  name: string;
+  widgets: DJWidget[];
+}
+
+// ── Saved Layout ──
+interface SavedLayout {
+  id: string;
+  name: string;
+  createdAt: string;
+  pages: LayoutPage[];
+  groups: FixtureGroup[];
+  assignments: FixtureAssignment[];
+  scripts: DJScript[];
+  audioConfig: AudioConfig;
+}
+
+type Tab = 'controller' | 'assignments' | 'scripts' | 'groups';
 
 const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: number; h: number }[] = [
   { type: 'button', label: 'Flash Button', icon: Zap, w: 100, h: 100 },
