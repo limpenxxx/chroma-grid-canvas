@@ -11,7 +11,9 @@ export type VisualizerPreset =
   | 'particle-nebula'
   | 'tunnel-flight'
   | 'kaleidoscope'
-  | 'ocean-pulse';
+  | 'ocean-pulse'
+  | 'emoji-rain'
+  | 'emoji-vortex';
 
 export type AudioInputSource = 'microphone' | 'system-audio' | 'audio-interface';
 
