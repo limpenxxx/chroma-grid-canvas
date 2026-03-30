@@ -1,10 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, Trash2, Play, Pause, Square, GripVertical, Palette, SlidersHorizontal,
-  Zap, Copy, Settings, ChevronDown, ChevronRight, Monitor, Hand, Layers,
-  Speaker, SkipForward, X, Save, Edit2, Mic, Radio, Activity, Music,
-  ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FilePlus, FileText, Users, ChevronLeft, ChevronRight as ChevronRightIcon
+  Plus, Trash2, Play, Square, GripVertical, Palette, SlidersHorizontal,
+  Zap, ChevronDown, ChevronRight, Monitor, Hand, Layers,
+  Speaker, X, Save, Mic, Activity,
+  ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
