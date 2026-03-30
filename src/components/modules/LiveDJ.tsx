@@ -1792,6 +1792,7 @@ export function LiveDJ() {
                   onRelease={() => { }}
                   allWidgets={widgets}
                   fixtureData={fixturesWithDefs}
+                  isFullscreen={isFullscreen}
                 />
               ))}
 
