@@ -134,6 +134,8 @@ interface DJWidget {
   // Media trigger
   mediaItemId?: string | null;
   mediaPlaylistId?: string | null;
+  mediaPlayMode?: 'play-once' | 'loop' | 'loop-random'; // default: loop
+  mediaFlash?: boolean; // true = flash (hold to play), false = toggle
 }
 
 interface ScriptStep {
@@ -703,25 +705,51 @@ function ControlWidget({
             ? mediaStore.activePlaylistId === linkedPlaylist.id && mediaStore.isPlaying
             : false;
         const displayName = linkedItem?.name || linkedPlaylist?.name || 'No media linked';
+        const playMode = widget.mediaPlayMode || 'loop';
+        const isFlash = widget.mediaFlash ?? false;
+        const modeLabel = playMode === 'play-once' ? '1×' : playMode === 'loop-random' ? '🔀' : '🔁';
+
+        const triggerPlay = () => {
+          const ms = useMediaStore.getState();
+          if (linkedPlaylist) {
+            if (playMode === 'loop-random') {
+              ms.updatePlaylist(linkedPlaylist.id, { loopMode: 'shuffle' });
+            } else if (playMode === 'loop') {
+              ms.updatePlaylist(linkedPlaylist.id, { loopMode: 'loop-all' });
+            } else {
+              ms.updatePlaylist(linkedPlaylist.id, { loopMode: 'none' });
+            }
+            ms.playPlaylist(linkedPlaylist.id);
+          } else if (linkedItem) {
+            ms.playItem(linkedItem.id);
+          }
+        };
+
+        const triggerStop = () => {
+          useMediaStore.getState().setIsPlaying(false);
+        };
 
         return (
           <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center gap-1 transition-all overflow-hidden relative cursor-pointer"
             style={{ ...bgStyle, borderColor: isActive ? '#00e5ff' : undefined,
               boxShadow: isActive ? '0 0 24px rgba(0,229,255,0.3), inset 0 0 20px rgba(0,229,255,0.15)' : undefined }}
-            onClick={() => {
+            onMouseDown={() => {
               onSelect();
-              if (linkedPlaylist) {
-                mediaStore.isPlaying && mediaStore.activePlaylistId === linkedPlaylist.id
-                  ? useMediaStore.getState().setIsPlaying(false)
-                  : useMediaStore.getState().playPlaylist(linkedPlaylist.id);
-              } else if (linkedItem) {
-                mediaStore.isPlaying && mediaStore.activeItemId === linkedItem.id
-                  ? useMediaStore.getState().setIsPlaying(false)
-                  : useMediaStore.getState().playItem(linkedItem.id);
+              if (isFlash) {
+                triggerPlay();
+              } else {
+                if (isActive) triggerStop(); else triggerPlay();
               }
-            }}>
+            }}
+            onMouseUp={() => { if (isFlash) triggerStop(); }}
+            onMouseLeave={() => { if (isFlash && isActive) triggerStop(); }}>
             <div className="absolute inset-0 rounded-lg opacity-15" style={{ backgroundColor: '#00e5ff' }} />
             {isActive && <div className="absolute inset-0 rounded-lg z-[2]" style={{ background: 'radial-gradient(circle at center, rgba(0,229,255,0.2), transparent)' }} />}
+            {/* Mode badge */}
+            <div className="absolute top-1 left-1 text-[7px] px-1 py-0.5 rounded bg-muted/40 text-muted-foreground z-10 font-mono">
+              {modeLabel}
+            </div>
+            {isFlash && <div className="absolute top-1 right-8 text-[6px] px-1 py-0.5 rounded bg-stokio-pink/20 text-stokio-pink border border-stokio-pink/30 z-10 font-semibold">FLASH</div>}
             <Film size={Math.min(widget.width, widget.height) * 0.2} className="text-stokio-cyan relative z-10 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" />
             <span className="text-muted-foreground font-semibold truncate px-2 relative z-10 text-center"
               style={{ fontSize: Math.max(7, Math.min(11, widget.width * 0.1)), textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}>
@@ -2122,8 +2150,31 @@ export function LiveDJ() {
                           ))}
                         </select>
                       </div>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Play Mode</label>
+                        <select value={selectedWidgetData.mediaPlayMode || 'loop'}
+                          onChange={e => updateWidget(selectedWidgetData.id, { mediaPlayMode: e.target.value as any })}
+                          className="w-full h-7 rounded bg-muted/30 border border-border/30 text-[10px] px-2 text-foreground mt-1">
+                          <option value="play-once">Play Once (1×)</option>
+                          <option value="loop">Loop (🔁)</option>
+                          <option value="loop-random">Loop Random (🔀)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Trigger Type</label>
+                        <div className="flex gap-1 mt-1">
+                          <button onClick={() => updateWidget(selectedWidgetData.id, { mediaFlash: false })}
+                            className={`flex-1 h-7 text-[9px] rounded border font-semibold transition-all ${
+                              !(selectedWidgetData.mediaFlash) ? 'bg-primary/10 text-primary border-primary/30' : 'text-muted-foreground border-border/30 hover:text-foreground'
+                            }`}>Toggle</button>
+                          <button onClick={() => updateWidget(selectedWidgetData.id, { mediaFlash: true })}
+                            className={`flex-1 h-7 text-[9px] rounded border font-semibold transition-all ${
+                              selectedWidgetData.mediaFlash ? 'bg-stokio-pink/10 text-stokio-pink border-stokio-pink/30' : 'text-muted-foreground border-border/30 hover:text-foreground'
+                            }`}>Flash (Hold)</button>
+                        </div>
+                      </div>
                       <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
-                        💡 Click this widget during a show to play the linked video or playlist.
+                        💡 Toggle: click to play/stop. Flash: hold to play, release to stop.
                       </div>
                     </div>
                   )}
