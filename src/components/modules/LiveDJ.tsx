@@ -25,7 +25,18 @@ interface FixtureAssignment {
   mode: ControlMode;
 }
 
-type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad';
+type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset';
+
+// ── Preset Scene Entry ──
+interface PresetSceneEntry {
+  targetId: string; // fixture instance ID or group ID
+  targetType: 'fixture' | 'group';
+  dimmer: number; // 0-255
+  color?: { r: number; g: number; b: number };
+  strobe?: number; // 0-255
+  pan?: number;
+  tilt?: number;
+}
 
 // ── MH Movement Programs ──
 type MHPattern = 'circle' | 'figure8' | 'zigzag' | 'sweep-h' | 'sweep-v' | 'random' | 'square' | 'triangle' | 'bounce';
