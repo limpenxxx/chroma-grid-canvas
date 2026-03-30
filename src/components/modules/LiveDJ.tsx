@@ -264,6 +264,18 @@ function ControlWidget({
   const MIN_SIZE = 40;
   const LONG_PRESS_MS = 500;
 
+  // Strobe sync: check if any active strobe widget shares linked fixtures with this widget
+  const isStrobeSynced = widget.type !== 'button' || widget.linkedFunction !== 'strobe' ? (() => {
+    const myFixtures = new Set(widget.linkedFixtureIds);
+    if (myFixtures.size === 0) return false;
+    return allWidgets.some(w =>
+      w.id !== widget.id &&
+      w.linkedFunction === 'strobe' &&
+      (w.toggled || false) &&
+      w.linkedFixtureIds.some(fid => myFixtures.has(fid))
+    );
+  })() : false;
+
   const startInteraction = useCallback((e: React.MouseEvent, mode: DragMode) => {
     e.stopPropagation();
     e.preventDefault();
@@ -342,6 +354,12 @@ function ControlWidget({
   return (
     <div className={`absolute select-none group transition-shadow ${isSelected ? 'ring-1 ring-primary/60 z-30' : 'z-10'} ${interacting ? 'z-50' : ''}`}
       style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height }}>
+
+      {/* Strobe sync flash overlay */}
+      {isStrobeSynced && (
+        <div className="absolute inset-0 rounded-lg z-[35] pointer-events-none animate-strobe-flash"
+          style={{ background: `radial-gradient(circle, ${widget.color || '#fff'}90, transparent)` }} />
+      )}
 
       {/* Top drag handle — larger, more visible */}
       <div className="absolute -top-3 left-0 right-0 h-6 z-40 cursor-grab active:cursor-grabbing flex items-center justify-center"
