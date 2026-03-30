@@ -5,7 +5,7 @@ import {
   Zap, ChevronDown, ChevronRight, Monitor, Hand, Layers,
   Speaker, X, Save, Mic, Activity, Sparkles, Wifi,
   ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users,
-  Bookmark, Settings2, CircleDot, Maximize2, Minimize2, Film
+  Bookmark, Settings2, CircleDot, Maximize2, Minimize2, Film, Copy, Grid3X3
 } from 'lucide-react';
 import { AudioVisualizerEngine, PRESET_LABELS, type VisualizerPreset } from '@/lib/audioVisualizer';
 import { Button } from '@/components/ui/button';
