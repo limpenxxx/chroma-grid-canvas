@@ -353,6 +353,91 @@ function WledFixturePanel({ instance, definition }: {
   );
 }
 
+// ── WLED Fixture Live Panel (for wledStore fixtures) ──
+function WledFixtureLivePanel({ fixture, state, updateState }: {
+  fixture: WledFixture;
+  state: FixtureState;
+  updateState: (u: Partial<FixtureState>) => void;
+}) {
+  const wledStore = useWledStore();
+  const dev = wledStore.devices.find(d => d.id === fixture.deviceId);
+  const [brightness, setBrightness] = useState(state.dimmer * 2.55 | 0);
+
+  const handleColorChange = async (c: { r: number; g: number; b: number }) => {
+    updateState({ color: { ...state.color, ...c } });
+    if (dev?.online) {
+      try {
+        await setWledColor(dev.ip, c.r, c.g, c.b);
+      } catch { /* offline */ }
+    }
+  };
+
+  const handleBrightness = async (bri: number) => {
+    setBrightness(bri);
+    updateState({ dimmer: Math.round(bri / 2.55) });
+    if (dev?.online) {
+      try {
+        await setWledBrightness(dev.ip, bri);
+      } catch { /* offline */ }
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap gap-8 items-start">
+      {/* Color */}
+      <div className="space-y-3">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground block text-center">COLOR</label>
+        <ColorWheel color={state.color} onChange={handleColorChange} />
+        {['r', 'g', 'b'].map(ch => (
+          <div key={ch} className="flex items-center gap-2">
+            <span className="text-[9px] text-muted-foreground w-4 uppercase font-semibold">{ch}</span>
+            <Slider
+              value={[state.color[ch as keyof typeof state.color]]}
+              onValueChange={([v]) => handleColorChange({ ...state.color, [ch]: v })}
+              max={255}
+              className="flex-1"
+            />
+            <span className="text-[9px] font-mono text-muted-foreground w-6">{state.color[ch as keyof typeof state.color]}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Brightness */}
+      <div className="space-y-3">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground block text-center">BRIGHTNESS</label>
+        <div className="h-44 w-12 rounded-lg fader-track border border-border/30 relative mx-auto">
+          <motion.div
+            className="absolute bottom-0 left-0 w-full rounded-b-lg bg-gradient-to-t from-[#ff6600]/60 to-[#ff6600]/20"
+            animate={{ height: `${(brightness / 255) * 100}%` }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          />
+          <input type="range" min={0} max={255} value={brightness}
+            onChange={(e) => handleBrightness(Number(e.target.value))}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-ns-resize"
+            style={{ writingMode: 'vertical-lr', direction: 'rtl' } as React.CSSProperties}
+          />
+        </div>
+        <div className="text-[9px] font-mono text-muted-foreground text-center">{brightness}/255</div>
+      </div>
+
+      {/* Info */}
+      <div className="space-y-3 min-w-[160px]">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground block">FIXTURE INFO</label>
+        <div className="space-y-1.5 text-[9px]">
+          <div className="flex justify-between"><span className="text-muted-foreground">Device:</span> <span>{fixture.deviceName}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">IP:</span> <span className="font-mono">{fixture.deviceIp}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Segment:</span> <span>{fixture.segmentId}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">LEDs:</span> <span>{fixture.ledStart}–{fixture.ledEnd} ({fixture.ledEnd - fixture.ledStart + 1}px)</span></div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Status:</span>
+            <span className={dev?.online ? 'text-green-500' : 'text-red-500'}>{dev?.online ? '● Online' : '○ Offline'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ──
 type FixtureTab = 'dmx' | 'wled';
 
