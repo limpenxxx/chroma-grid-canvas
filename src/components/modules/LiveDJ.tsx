@@ -2138,8 +2138,8 @@ export function LiveDJ() {
                 )}
               </div>
 
-              {/* BPM / Tap Tempo */}
-              <div className="p-3 border-b border-border/20 space-y-2">
+              {/* BPM / Tap Tempo — only visible when TAP-TEMPO source is selected */}
+              {audioConfig.source === 'tap-tempo' && <div className="p-3 border-b border-border/20 space-y-2">
                 <span className="text-[9px] uppercase tracking-widest text-stokio-pink font-semibold flex items-center gap-1">
                   <Activity size={10} /> BPM / Tap Tempo
                 </span>
