@@ -96,7 +96,8 @@ const ORIENTATION_LABELS: Record<SegmentOrientation, string> = {
 type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null;
 type SelectionType = 'node' | 'fixture' | 'mapping-fixture' | null;
 
-type BackgroundSource = 'video' | 'visualizer' | 'texture';
+type BackgroundSource = 'video' | 'visualizer' | 'texture' | 'none';
+type TestPattern = 'blobs' | 'scanlines' | 'test-picture' | 'rgb-scanline' | 'color-bars' | 'gradient-sweep';
 
 export function StageBuilder() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
