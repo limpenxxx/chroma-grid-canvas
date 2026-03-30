@@ -41,10 +41,10 @@ const Index = () => {
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-background">
       {/* Top Bar — STOKIO logo left, Venue logo center */}
-      <div className="w-full flex items-center bg-[hsl(0_0%_3%)] border-b border-border/30 px-6 shrink-0 h-32">
+      <div className="w-full flex items-center bg-[hsl(0_0%_3%)] border-b border-border/30 px-8 shrink-0 h-56">
         {/* STOKIO Logo — left */}
         <div className="shrink-0">
-          <img src={stokioLogo} alt="STOKIO FX" className="h-24 w-24 object-contain drop-shadow-[0_0_12px_rgba(0,229,255,0.3)]" />
+          <img src={stokioLogo} alt="STOKIO FX" className="h-48 w-48 object-contain drop-shadow-[0_0_16px_rgba(0,229,255,0.3)]" />
         </div>
 
         {/* Venue Logo — center */}
@@ -58,12 +58,12 @@ const Index = () => {
               <img
                 src={venueLogo}
                 alt="Venue Logo"
-                className="h-24 max-w-[900px] object-contain opacity-80 hover:opacity-100 transition-opacity"
+                className="h-48 max-w-[1200px] object-contain opacity-80 hover:opacity-100 transition-opacity"
               />
             ) : (
-              <div className="flex items-center gap-2 px-6 py-3 rounded-lg border border-dashed border-border/20 hover:border-primary/30 bg-muted/5 hover:bg-muted/10 transition-all">
-                <ImagePlus size={18} className="text-muted-foreground/30 group-hover:text-muted-foreground/50" />
-                <span className="text-xs text-muted-foreground/30 group-hover:text-muted-foreground/50 uppercase tracking-widest">
+              <div className="flex items-center gap-3 px-8 py-4 rounded-lg border border-dashed border-border/20 hover:border-primary/30 bg-muted/5 hover:bg-muted/10 transition-all">
+                <ImagePlus size={24} className="text-muted-foreground/30 group-hover:text-muted-foreground/50" />
+                <span className="text-sm text-muted-foreground/30 group-hover:text-muted-foreground/50 uppercase tracking-widest">
                   Upload Venue Logo · 1000×200px
                 </span>
               </div>
@@ -72,7 +72,7 @@ const Index = () => {
         </div>
 
         {/* Spacer to balance layout */}
-        <div className="w-24 shrink-0" />
+        <div className="w-48 shrink-0" />
       </div>
 
       <div className="flex-1 flex overflow-hidden">
