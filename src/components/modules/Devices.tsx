@@ -241,7 +241,7 @@ export function Devices() {
 
       {/* Tabs */}
       <div className="flex border-b border-border/30">
-        {(['instances', 'library', 'editor'] as Tab[]).map(t => (
+        {(['instances', 'library', 'editor', 'wled'] as Tab[]).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -249,7 +249,7 @@ export function Devices() {
               tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {t === 'instances' ? 'Patched Fixtures' : t === 'library' ? 'Fixture Library' : 'Fixture Editor'}
+            {t === 'instances' ? 'Patched Fixtures' : t === 'library' ? 'Fixture Library' : t === 'editor' ? 'Fixture Editor' : '📡 WLED Live'}
           </button>
         ))}
       </div>
