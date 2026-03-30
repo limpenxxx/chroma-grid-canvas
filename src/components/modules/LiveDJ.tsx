@@ -2092,6 +2092,44 @@ export function LiveDJ() {
                 </div>
               )}
 
+                  {/* Media Trigger properties */}
+                  {selectedWidgetData.type === 'media-trigger' && (
+                    <div className="p-3 border-t border-border/20 space-y-2">
+                      <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold">Media Link</label>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Trigger Video</label>
+                        <select value={selectedWidgetData.mediaItemId || ''}
+                          onChange={e => updateWidget(selectedWidgetData.id, {
+                            mediaItemId: e.target.value || null,
+                            mediaPlaylistId: e.target.value ? null : selectedWidgetData.mediaPlaylistId,
+                          })}
+                          className="w-full h-7 rounded bg-muted/30 border border-border/30 text-[10px] px-2 text-foreground mt-1">
+                          <option value="">— None —</option>
+                          {useMediaStore.getState().items.map(item => (
+                            <option key={item.id} value={item.id}>🎬 {item.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Trigger Playlist</label>
+                        <select value={selectedWidgetData.mediaPlaylistId || ''}
+                          onChange={e => updateWidget(selectedWidgetData.id, {
+                            mediaPlaylistId: e.target.value || null,
+                            mediaItemId: e.target.value ? null : selectedWidgetData.mediaItemId,
+                          })}
+                          className="w-full h-7 rounded bg-muted/30 border border-border/30 text-[10px] px-2 text-foreground mt-1">
+                          <option value="">— None —</option>
+                          {useMediaStore.getState().playlists.map(pl => (
+                            <option key={pl.id} value={pl.id}>📋 {pl.name} ({pl.itemIds.length} items)</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                        💡 Click this widget during a show to play the linked video or playlist.
+                      </div>
+                    </div>
+                  )
+
               {!selectedWidgetData && (
                 <div className="flex-1 flex items-center justify-center text-[10px] text-muted-foreground/40 p-4 text-center">
                   Select a widget to edit its properties
