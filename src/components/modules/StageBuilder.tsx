@@ -93,10 +93,14 @@ const ORIENTATION_LABELS: Record<SegmentOrientation, string> = {
 type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null;
 type SelectionType = 'node' | 'fixture' | 'mapping-fixture' | null;
 
+type BackgroundSource = 'video' | 'visualizer' | 'texture';
+
 export function StageBuilder() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const vizEngineRef = useRef<AudioVisualizerEngine>(new AudioVisualizerEngine());
+  const vizCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [nodes, setNodes] = useState<WLEDNode[]>(MOCK_NODES);
   const [mappingFixtures, setMappingFixtures] = useState<MappingFixture[]>([]);
   const [selectionType, setSelectionType] = useState<SelectionType>(null);
@@ -113,9 +117,64 @@ export function StageBuilder() {
   const mediaStore = useMediaStore();
   const stageFixtures = fixtureStore.instances.filter(i => i.onStage);
 
+  // Background source state
+  const [bgSource, setBgSource] = useState<BackgroundSource>('texture');
+  const [vizPreset, setVizPreset] = useState<VisualizerPreset>('plasma-wave');
+  const [vizAudioInput, setVizAudioInput] = useState<AudioInputSource>('microphone');
+  const [vizSensitivity, setVizSensitivity] = useState(1.0);
+  const [vizColorShift, setVizColorShift] = useState(0);
+  const [vizRunning, setVizRunning] = useState(false);
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+  const [showBgPanel, setShowBgPanel] = useState(false);
+
   // Get active media item for video background
   const activeItem = mediaStore.items.find(i => i.id === mediaStore.activeItemId);
   const isVideoPlaying = mediaStore.isPlaying && activeItem?.type === 'video';
+
+  // Auto-switch to video source when video starts playing
+  useEffect(() => {
+    if (isVideoPlaying) setBgSource('video');
+  }, [isVideoPlaying]);
+
+  // Load audio devices
+  useEffect(() => {
+    AudioVisualizerEngine.getInputDevices().then(setAudioDevices).catch(() => {});
+  }, []);
+
+  // Sync viz engine settings
+  useEffect(() => {
+    const engine = vizEngineRef.current;
+    engine.preset = vizPreset;
+    engine.sensitivity = vizSensitivity;
+    engine.colorShift = vizColorShift;
+  }, [vizPreset, vizSensitivity, vizColorShift]);
+
+  // Create offscreen canvas for visualizer
+  useEffect(() => {
+    if (!vizCanvasRef.current) {
+      vizCanvasRef.current = document.createElement('canvas');
+      vizCanvasRef.current.width = 640;
+      vizCanvasRef.current.height = 360;
+    }
+    return () => { vizEngineRef.current.destroy(); };
+  }, []);
+
+  const startVisualizer = async () => {
+    try {
+      await vizEngineRef.current.start(vizAudioInput, selectedDeviceId || undefined);
+      setVizRunning(true);
+      setBgSource('visualizer');
+    } catch (err) {
+      console.error('Failed to start visualizer:', err);
+    }
+  };
+
+  const stopVisualizer = () => {
+    vizEngineRef.current.stop();
+    setVizRunning(false);
+    if (bgSource === 'visualizer') setBgSource('texture');
+  };
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
