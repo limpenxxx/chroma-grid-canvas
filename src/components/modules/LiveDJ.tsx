@@ -691,6 +691,50 @@ function ControlWidget({
           </div>
         );
       })()}
+
+      {/* MEDIA TRIGGER */}
+      {widget.type === 'media-trigger' && (() => {
+        const mediaStore = useMediaStore.getState();
+        const linkedItem = widget.mediaItemId ? mediaStore.items.find(i => i.id === widget.mediaItemId) : null;
+        const linkedPlaylist = widget.mediaPlaylistId ? mediaStore.playlists.find(p => p.id === widget.mediaPlaylistId) : null;
+        const isActive = linkedItem
+          ? mediaStore.activeItemId === linkedItem.id && mediaStore.isPlaying
+          : linkedPlaylist
+            ? mediaStore.activePlaylistId === linkedPlaylist.id && mediaStore.isPlaying
+            : false;
+        const displayName = linkedItem?.name || linkedPlaylist?.name || 'No media linked';
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center gap-1 transition-all overflow-hidden relative cursor-pointer"
+            style={{ ...bgStyle, borderColor: isActive ? '#00e5ff' : undefined,
+              boxShadow: isActive ? '0 0 24px rgba(0,229,255,0.3), inset 0 0 20px rgba(0,229,255,0.15)' : undefined }}
+            onClick={() => {
+              onSelect();
+              if (linkedPlaylist) {
+                mediaStore.isPlaying && mediaStore.activePlaylistId === linkedPlaylist.id
+                  ? useMediaStore.getState().setIsPlaying(false)
+                  : useMediaStore.getState().playPlaylist(linkedPlaylist.id);
+              } else if (linkedItem) {
+                mediaStore.isPlaying && mediaStore.activeItemId === linkedItem.id
+                  ? useMediaStore.getState().setIsPlaying(false)
+                  : useMediaStore.getState().playItem(linkedItem.id);
+              }
+            }}>
+            <div className="absolute inset-0 rounded-lg opacity-15" style={{ backgroundColor: '#00e5ff' }} />
+            {isActive && <div className="absolute inset-0 rounded-lg z-[2]" style={{ background: 'radial-gradient(circle at center, rgba(0,229,255,0.2), transparent)' }} />}
+            <Film size={Math.min(widget.width, widget.height) * 0.2} className="text-stokio-cyan relative z-10 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" />
+            <span className="text-muted-foreground font-semibold truncate px-2 relative z-10 text-center"
+              style={{ fontSize: Math.max(7, Math.min(11, widget.width * 0.1)), textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}>
+              {widget.label}
+            </span>
+            <span className="text-muted-foreground/50 truncate px-2 relative z-10 text-center"
+              style={{ fontSize: Math.max(6, Math.min(9, widget.width * 0.07)) }}>
+              {displayName}
+            </span>
+            {isActive && <div className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary))] animate-pulse z-10" />}
+          </div>
+        );
+      })()}
     </div>
   );
 }
