@@ -2356,6 +2356,73 @@ export function LiveDJ() {
                       </div>
                     </div>
                   )}
+
+                  {/* VFX Widget Config */}
+                  {selectedWidgetData.type === 'vfx' && (
+                    <div className="space-y-2 border-t border-border/20 pt-2">
+                      <label className="text-[8px] uppercase tracking-widest font-semibold flex items-center gap-1" style={{ color: '#aa44ff' }}>
+                        <Sparkles size={10} /> Audio VFX Config
+                      </label>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Visualizer Preset</label>
+                        <select value={selectedWidgetData.vfxPreset || 'plasma-wave'}
+                          onChange={e => updateWidget(selectedWidgetData.id, { vfxPreset: e.target.value as VisualizerPreset })}
+                          className="w-full h-7 rounded bg-muted/30 border border-border/30 text-[10px] px-2 text-foreground mt-1">
+                          {(Object.entries(PRESET_LABELS) as [VisualizerPreset, string][]).map(([key, label]) => (
+                            <option key={key} value={key}>{label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant={selectedWidgetData.vfxRunning ? 'destructive' : 'default'}
+                          className="h-7 text-[10px] gap-1 flex-1"
+                          onClick={() => updateWidget(selectedWidgetData.id, { vfxRunning: !selectedWidgetData.vfxRunning })}>
+                          {selectedWidgetData.vfxRunning ? <><Square size={10} /> Stop</> : <><Play size={10} /> Start</>}
+                        </Button>
+                      </div>
+                      <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                        💡 Audio VFX renders Winamp-style visualizations driven by microphone input. Choose a preset and hit Start.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* WLED Preset Widget Config */}
+                  {selectedWidgetData.type === 'wled-preset' && (
+                    <div className="space-y-2 border-t border-border/20 pt-2">
+                      <label className="text-[8px] uppercase tracking-widest font-semibold flex items-center gap-1" style={{ color: '#ff6600' }}>
+                        <Wifi size={10} /> WLED Device Config
+                      </label>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">WLED IP Address</label>
+                        <Input value={selectedWidgetData.wledIp || ''}
+                          onChange={e => updateWidget(selectedWidgetData.id, { wledIp: e.target.value })}
+                          className="h-7 text-[10px] bg-muted/30 border-border/30 font-mono"
+                          placeholder="192.168.1.100" />
+                      </div>
+                      <Button variant="outline" size="sm" className="w-full h-7 text-[10px] gap-1"
+                        onClick={() => {
+                          const mockPresets = [
+                            { id: 1, name: 'Rainbow' }, { id: 2, name: 'Fire' }, { id: 3, name: 'Ocean' },
+                            { id: 4, name: 'Forest' }, { id: 5, name: 'Twinkle' }, { id: 6, name: 'Meteor' },
+                            { id: 7, name: 'Breathe' }, { id: 8, name: 'Scanner' }, { id: 9, name: 'Chase' },
+                            { id: 10, name: 'Fireworks' }, { id: 11, name: 'Sunrise' }, { id: 12, name: 'Party' },
+                          ];
+                          updateWidget(selectedWidgetData.id, { wledPresets: mockPresets });
+                        }}>
+                        <Wifi size={10} /> Fetch Presets from Device
+                      </Button>
+                      {(selectedWidgetData.wledPresets || []).length > 0 && (
+                        <div className="text-[8px] text-muted-foreground/50">
+                          {selectedWidgetData.wledPresets!.length} presets loaded
+                        </div>
+                      )}
+                      <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                        💡 Enter your WLED device IP and fetch presets. Click a preset on the widget to activate it via WLED JSON API.
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
