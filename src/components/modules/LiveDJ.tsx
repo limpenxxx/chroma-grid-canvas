@@ -19,6 +19,7 @@ import stokioLogo from '@/assets/stokio-logo-color.png';
 import { useMediaStore } from '@/store/mediaStore';
 import { useWledStore, type WledDevice, type WledFixture } from '@/store/wledStore';
 import { setWledPreset, setWledState } from '@/lib/wledApi';
+import { fetchWledPresets, isWledDeviceTargetId, wledDeviceToFixture } from '@/lib/wledUtils';
 
 // ── Types ──
 
@@ -1269,14 +1270,8 @@ function ControlWidget({
         const fetchPresetsFromDevice = async () => {
           if (!widget.wledIp) return;
           try {
-            // Mock presets — in production this would be: fetch(`http://${ip}/json/presets`)
-            const mockPresets = [
-              { id: 1, name: 'Rainbow' }, { id: 2, name: 'Fire' }, { id: 3, name: 'Ocean' },
-              { id: 4, name: 'Forest' }, { id: 5, name: 'Twinkle' }, { id: 6, name: 'Meteor' },
-              { id: 7, name: 'Breathe' }, { id: 8, name: 'Scanner' }, { id: 9, name: 'Chase' },
-              { id: 10, name: 'Fireworks' }, { id: 11, name: 'Sunrise' }, { id: 12, name: 'Party' },
-            ];
-            onUpdate({ wledPresets: mockPresets });
+            const presetsFromDevice = await fetchWledPresets(widget.wledIp);
+            onUpdate({ wledPresets: presetsFromDevice });
           } catch {}
         };
 
@@ -1568,22 +1563,35 @@ function wledFixtureToVirtual(fix: WledFixture): { inst: FixtureInstance; def: F
   };
 }
 
-function wledDeviceToFixture(dev: WledDevice): WledFixture {
-  const ledCount = Math.max(1, dev.info?.leds.count ?? dev.state?.seg?.[0]?.stop ?? 1);
+function wledDeviceToVirtual(dev: WledDevice): { inst: FixtureInstance; def: FixtureDefinition } {
+  return wledFixtureToVirtual(wledDeviceToFixture(dev));
+}
+
+function buildWledColorState(target: WledFixture, device: WledDevice | undefined, color: { r: number; g: number; b: number }) {
+  if (isWledDeviceTargetId(target.id)) {
+    return {
+      on: true,
+      seg: (device?.state?.seg?.length
+        ? device.state.seg.map(seg => ({ id: seg.id, on: true, col: [[color.r, color.g, color.b]] }))
+        : [{ id: 0, on: true, col: [[color.r, color.g, color.b]] }]),
+    };
+  }
+
   return {
-    id: `_wled_device_${dev.id}`,
-    deviceId: dev.id,
-    name: `${dev.name} · All LEDs`,
-    segmentId: 0,
-    ledStart: 0,
-    ledEnd: ledCount - 1,
-    deviceIp: dev.ip,
-    deviceName: dev.name,
+    on: true,
+    seg: [{ id: target.segmentId, on: true, col: [[color.r, color.g, color.b]] }],
   };
 }
 
-function wledDeviceToVirtual(dev: WledDevice): { inst: FixtureInstance; def: FixtureDefinition } {
-  return wledFixtureToVirtual(wledDeviceToFixture(dev));
+function buildWledBrightnessState(target: WledFixture, bri: number) {
+  if (isWledDeviceTargetId(target.id)) {
+    return { on: bri > 0, bri };
+  }
+
+  return {
+    on: bri > 0,
+    seg: [{ id: target.segmentId, on: bri > 0, bri }],
+  };
 }
 
 // ── Main LIVE DJ Component ──
@@ -2128,6 +2136,7 @@ export function LiveDJ() {
       ...wledStore.fixtures,
     ];
     const wledFixMap = new Map(wledOutputFixtures.map(f => [f.id, f]));
+    const wledDevMap = new Map(wledStore.devices.map(dev => [dev.id, dev]));
 
     widgets.forEach(w => {
       const linkedWled = w.linkedFixtureIds.map(id => wledFixMap.get(id)).filter((f): f is WledFixture => !!f);
@@ -2141,7 +2150,7 @@ export function LiveDJ() {
           const val = `${r},${g},${b}`;
           nextSent[key] = val;
           if (lastWledSentRef.current[key] === val) return;
-          void setWledState(fix.deviceIp, { on: true, seg: [{ id: fix.segmentId, col: [[r, g, b]] }] }).catch(() => {});
+          void setWledState(fix.deviceIp, buildWledColorState(fix, wledDevMap.get(fix.deviceId), { r, g, b })).catch(() => {});
         });
       }
 
@@ -2153,13 +2162,13 @@ export function LiveDJ() {
           const val = String(bri);
           nextSent[key] = val;
           if (lastWledSentRef.current[key] === val) return;
-          void setWledState(fix.deviceIp, { on: bri > 0, bri }).catch(() => {});
+          void setWledState(fix.deviceIp, buildWledBrightnessState(fix, bri)).catch(() => {});
         });
       }
 
       // WLED preset widget → activate preset
       if (w.type === 'wled-preset' && w.wledPresetId !== undefined && w.wledPresetId >= 0) {
-        const ips = [...new Set(linkedWled.map(f => f.deviceIp))];
+        const ips = [...new Set([...(w.wledIp ? [w.wledIp] : []), ...linkedWled.map(f => f.deviceIp)])];
         ips.forEach(ip => {
           const key = `preset-${ip}`;
           const val = String(w.wledPresetId);
@@ -2437,15 +2446,17 @@ export function LiveDJ() {
                         if (entry.targetType === 'wled') {
                           const wledInst = allFixturesWithDefs.find(f => f.inst.id === entry.targetId);
                           const wledIp = wledInst?.def.wledConfig?.ip;
+                          const wledTarget = [...wledStore.devices.map(wledDeviceToFixture), ...wledStore.fixtures].find(f => f.id === entry.targetId);
+                          const wledDevice = wledTarget ? wledStore.devices.find(dev => dev.id === wledTarget.deviceId) : undefined;
                           if (wledIp && entry.wledPresetId !== undefined) {
                             void setWledPreset(wledIp, entry.wledPresetId).catch(() => {});
                           }
                           // Also apply color if set
-                          if (wledIp && entry.color) {
-                            void setWledState(wledIp, { on: true, seg: [{ col: [[entry.color.r, entry.color.g, entry.color.b]] }] }).catch(() => {});
+                          if (wledIp && entry.color && wledTarget) {
+                            void setWledState(wledIp, buildWledColorState(wledTarget, wledDevice, entry.color)).catch(() => {});
                           }
-                          if (wledIp && !entry.color && entry.dimmer !== undefined) {
-                            void setWledState(wledIp, { on: entry.dimmer > 0, bri: entry.dimmer }).catch(() => {});
+                          if (wledIp && !entry.color && entry.dimmer !== undefined && wledTarget) {
+                            void setWledState(wledIp, buildWledBrightnessState(wledTarget, entry.dimmer)).catch(() => {});
                           }
                           // Apply to WLED preset widgets linked to this fixture
                           widgets.forEach(ow => {
@@ -3522,14 +3533,14 @@ export function LiveDJ() {
                           placeholder="192.168.1.100" />
                       </div>
                       <Button variant="outline" size="sm" className="w-full h-7 text-[10px] gap-1"
-                        onClick={() => {
-                          const mockPresets = [
-                            { id: 1, name: 'Rainbow' }, { id: 2, name: 'Fire' }, { id: 3, name: 'Ocean' },
-                            { id: 4, name: 'Forest' }, { id: 5, name: 'Twinkle' }, { id: 6, name: 'Meteor' },
-                            { id: 7, name: 'Breathe' }, { id: 8, name: 'Scanner' }, { id: 9, name: 'Chase' },
-                            { id: 10, name: 'Fireworks' }, { id: 11, name: 'Sunrise' }, { id: 12, name: 'Party' },
-                          ];
-                          updateWidget(selectedWidgetData.id, { wledPresets: mockPresets });
+                        onClick={async () => {
+                          if (!selectedWidgetData.wledIp) return;
+                          try {
+                            const presetsFromDevice = await fetchWledPresets(selectedWidgetData.wledIp);
+                            updateWidget(selectedWidgetData.id, { wledPresets: presetsFromDevice });
+                          } catch {
+                            updateWidget(selectedWidgetData.id, { wledPresets: [] });
+                          }
                         }}>
                         <Wifi size={10} /> Fetch Presets from Device
                       </Button>

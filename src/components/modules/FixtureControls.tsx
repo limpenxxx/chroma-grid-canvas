@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Home, Crosshair, Wifi, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -473,11 +473,11 @@ export function FixtureControls() {
     return def?.category === 'wled';
   });
 
-  useState(() => {
+  useEffect(() => {
     if (fixtureTab === 'wled' && !selectedId && (wledStoreFixtures[0] || legacyWledInstances[0])) {
       setSelectedId(wledStoreFixtures[0]?.id || legacyWledInstances[0]?.id || '');
     }
-  });
+  }, [fixtureTab, selectedId, wledStoreFixtures, legacyWledInstances]);
 
   const currentInstances = fixtureTab === 'dmx' ? dmxInstances : legacyWledInstances;
   const selected = fixtureTab === 'wled' 
