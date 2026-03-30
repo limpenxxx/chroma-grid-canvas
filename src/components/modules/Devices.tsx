@@ -10,8 +10,9 @@ import {
   type FixtureChannel, type ChannelFunction, type ColorSystem, type ColorWheelSlot,
   CHANNEL_FUNCTION_LABELS, getChannelColor, getFixtureTypeIcon,
 } from '@/store/fixtureStore';
+import { WledPanel } from './WledPanel';
 
-type Tab = 'instances' | 'library' | 'editor';
+type Tab = 'instances' | 'library' | 'editor' | 'wled';
 
 const FIXTURE_TYPES: FixtureDefinition['type'][] = [
   'moving-head', 'par', 'strip', 'wash', 'spot', 'beam', 'strobe', 'laser', 'effect', 'dimmer', 'other',
