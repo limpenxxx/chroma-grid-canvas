@@ -243,9 +243,9 @@ const Index = () => {
         <div className="w-48 shrink-0" />
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-x-hidden">
         <AppSidebar />
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-auto touch-pan-y touch-pinch-zoom">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeModule}
