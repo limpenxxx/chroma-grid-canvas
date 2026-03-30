@@ -546,6 +546,51 @@ export function LiveDJ() {
   const [selectedWidget, setSelectedWidget] = useState<string | null>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
 
+  // ── Audio & BPM ──
+  const [audioConfig, setAudioConfig] = useState<AudioConfig>({
+    source: 'none', squelch: 10, gain: 128, udpPort: 11988,
+  });
+  const [bpmState, setBpmState] = useState<BPMState>({
+    bpm: 120, tapTimes: [], isSynced: false, linkedWidgetIds: [], flashOn: false,
+  });
+  const bpmFlashRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const handleTap = () => {
+    const now = Date.now();
+    setBpmState(prev => {
+      const taps = [...prev.tapTimes, now].filter(t => now - t < 5000); // keep last 5s of taps
+      if (taps.length >= 2) {
+        const intervals = taps.slice(1).map((t, i) => t - taps[i]);
+        const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+        const bpm = Math.round(60000 / avgInterval);
+        return { ...prev, tapTimes: taps, bpm: Math.max(20, Math.min(300, bpm)), isSynced: true };
+      }
+      return { ...prev, tapTimes: taps };
+    });
+  };
+
+  // BPM flash indicator
+  useEffect(() => {
+    if (bpmFlashRef.current) clearInterval(bpmFlashRef.current);
+    if (bpmState.bpm > 0 && bpmState.isSynced) {
+      const interval = 60000 / bpmState.bpm;
+      bpmFlashRef.current = setInterval(() => {
+        setBpmState(prev => ({ ...prev, flashOn: true }));
+        setTimeout(() => setBpmState(prev => ({ ...prev, flashOn: false })), Math.min(100, interval / 3));
+      }, interval);
+    }
+    return () => { if (bpmFlashRef.current) clearInterval(bpmFlashRef.current); };
+  }, [bpmState.bpm, bpmState.isSynced]);
+
+  const toggleBpmWidgetLink = (widgetId: string) => {
+    setBpmState(prev => ({
+      ...prev,
+      linkedWidgetIds: prev.linkedWidgetIds.includes(widgetId)
+        ? prev.linkedWidgetIds.filter(id => id !== widgetId)
+        : [...prev.linkedWidgetIds, widgetId],
+    }));
+  };
+
   const getAssignment = (instId: string) => assignments.find(a => a.instanceId === instId);
   const setAssignmentMode = (instId: string, mode: ControlMode) => {
     setAssignments(prev => {
