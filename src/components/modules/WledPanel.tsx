@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, Trash2, Power, Wifi, WifiOff, RefreshCw, Palette, Zap, SunDim, Layers,
+  Plus, Trash2, Power, Wifi, WifiOff, RefreshCw, Palette, Zap, SunDim, Layers, Radar,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,11 +29,63 @@ export function WledPanel() {
   const [newFixLedStart, setNewFixLedStart] = useState(0);
   const [newFixLedEnd, setNewFixLedEnd] = useState(59);
 
+  const [scanning, setScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState('');
+
   // Refresh on mount
   useEffect(() => {
     if (store.devices.length > 0) store.refreshAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Network scan: try common IPs in 192.168.x.x ranges
+  const scanNetwork = async () => {
+    setScanning(true);
+    const existingIps = new Set(store.devices.map(d => d.ip));
+    const found: string[] = [];
+
+    // Try common subnets and typical WLED IPs
+    const subnets = ['192.168.0', '192.168.1', '192.168.4', '192.168.178', '10.0.0', '10.0.1'];
+    const batch = 15; // concurrent requests per round
+
+    for (const subnet of subnets) {
+      setScanProgress(`Scanning ${subnet}.x ...`);
+      const ips = Array.from({ length: 255 }, (_, i) => `${subnet}.${i + 1}`);
+      
+      for (let i = 0; i < ips.length; i += batch) {
+        const chunk = ips.slice(i, i + batch);
+        const results = await Promise.allSettled(
+          chunk.map(async (ip) => {
+            if (existingIps.has(ip)) return null;
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 1500);
+            try {
+              const res = await fetch(`http://${ip}/json/info`, { signal: controller.signal });
+              clearTimeout(timer);
+              if (res.ok) {
+                const info = await res.json();
+                if (info.ver && info.name) return { ip, name: info.name };
+              }
+            } catch {
+              clearTimeout(timer);
+            }
+            return null;
+          })
+        );
+        for (const r of results) {
+          if (r.status === 'fulfilled' && r.value) {
+            found.push(r.value.ip);
+            existingIps.add(r.value.ip);
+            await store.addDevice(r.value.ip, r.value.name);
+          }
+        }
+      }
+    }
+
+    setScanProgress(found.length > 0 ? `Found ${found.length} device(s)` : 'No new devices found');
+    setScanning(false);
+    setTimeout(() => setScanProgress(''), 4000);
+  };
 
   const addDevice = async () => {
     const ip = addingIp.trim();
@@ -147,16 +199,27 @@ export function WledPanel() {
                 </div>
               </motion.div>
             ) : (
-              <div className="flex gap-2">
+              <>
+              <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 flex-1"
                   onClick={() => setShowAdd(true)}>
-                  <Plus size={12} /> Add WLED Device
+                  <Plus size={12} /> Add Device
+                </Button>
+                <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 flex-1"
+                  onClick={scanNetwork} disabled={scanning}>
+                  <Radar size={12} className={scanning ? 'animate-spin' : ''} /> Scan Network
                 </Button>
                 <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1"
                   onClick={() => store.refreshAll()} disabled={store._polling}>
-                  <RefreshCw size={12} className={store._polling ? 'animate-spin' : ''} /> Refresh
+                  <RefreshCw size={12} className={store._polling ? 'animate-spin' : ''} />
                 </Button>
               </div>
+              {scanProgress && (
+                <div className="text-[9px] text-primary/80 text-center mt-1 animate-pulse">
+                  {scanProgress}
+                </div>
+              )}
+              </>
             )}
           </div>
 
@@ -383,7 +446,7 @@ export function WledPanel() {
                 {selectedDeviceForFixture?.state?.seg && (
                   <div>
                     <label className="text-[8px] uppercase text-muted-foreground">Segment</label>
-                    <select value={newFixSegment} onChange={e => {
+                <select value={String(newFixSegment)} onChange={e => {
                       const segIdx = Number(e.target.value);
                       setNewFixSegment(segIdx);
                       const seg = selectedDeviceForFixture.state?.seg?.[segIdx];
@@ -394,7 +457,7 @@ export function WledPanel() {
                     }}
                       className="w-full h-7 rounded bg-muted/30 border border-border/30 text-xs px-2 text-foreground">
                       {selectedDeviceForFixture.state.seg.map((seg, i) => (
-                        <option key={i} value={i}>
+                        <option key={i} value={String(i)}>
                           Seg {i}: LED {seg.start}–{seg.stop} ({seg.len} px)
                         </option>
                       ))}

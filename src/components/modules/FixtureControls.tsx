@@ -6,8 +6,10 @@ import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import {
   useFixtureStore, type FixtureDefinition, type FixtureInstance,
-  type ColorSystem, type ColorWheelSlot, getFixtureTypeIcon,
+  type ColorSystem, type ColorWheelSlot, getFixtureTypeIcon, getFixtureIconEmoji,
 } from '@/store/fixtureStore';
+import { useWledStore, type WledFixture } from '@/store/wledStore';
+import { setWledColor, setWledBrightness, setWledPower } from '@/lib/wledApi';
 
 // ── Live channel values per instance ──
 interface FixtureState {
@@ -351,11 +353,97 @@ function WledFixturePanel({ instance, definition }: {
   );
 }
 
+// ── WLED Fixture Live Panel (for wledStore fixtures) ──
+function WledFixtureLivePanel({ fixture, state, updateState }: {
+  fixture: WledFixture;
+  state: FixtureState;
+  updateState: (u: Partial<FixtureState>) => void;
+}) {
+  const wledStore = useWledStore();
+  const dev = wledStore.devices.find(d => d.id === fixture.deviceId);
+  const [brightness, setBrightness] = useState(state.dimmer * 2.55 | 0);
+
+  const handleColorChange = async (c: { r: number; g: number; b: number }) => {
+    updateState({ color: { ...state.color, ...c } });
+    if (dev?.online) {
+      try {
+        await setWledColor(dev.ip, c.r, c.g, c.b);
+      } catch { /* offline */ }
+    }
+  };
+
+  const handleBrightness = async (bri: number) => {
+    setBrightness(bri);
+    updateState({ dimmer: Math.round(bri / 2.55) });
+    if (dev?.online) {
+      try {
+        await setWledBrightness(dev.ip, bri);
+      } catch { /* offline */ }
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap gap-8 items-start">
+      {/* Color */}
+      <div className="space-y-3">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground block text-center">COLOR</label>
+        <ColorWheel color={state.color} onChange={handleColorChange} />
+        {['r', 'g', 'b'].map(ch => (
+          <div key={ch} className="flex items-center gap-2">
+            <span className="text-[9px] text-muted-foreground w-4 uppercase font-semibold">{ch}</span>
+            <Slider
+              value={[state.color[ch as keyof typeof state.color]]}
+              onValueChange={([v]) => handleColorChange({ ...state.color, [ch]: v })}
+              max={255}
+              className="flex-1"
+            />
+            <span className="text-[9px] font-mono text-muted-foreground w-6">{state.color[ch as keyof typeof state.color]}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Brightness */}
+      <div className="space-y-3">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground block text-center">BRIGHTNESS</label>
+        <div className="h-44 w-12 rounded-lg fader-track border border-border/30 relative mx-auto">
+          <motion.div
+            className="absolute bottom-0 left-0 w-full rounded-b-lg bg-gradient-to-t from-[#ff6600]/60 to-[#ff6600]/20"
+            animate={{ height: `${(brightness / 255) * 100}%` }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          />
+          <input type="range" min={0} max={255} value={brightness}
+            onChange={(e) => handleBrightness(Number(e.target.value))}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-ns-resize"
+            style={{ writingMode: 'vertical-lr', direction: 'rtl' } as React.CSSProperties}
+          />
+        </div>
+        <div className="text-[9px] font-mono text-muted-foreground text-center">{brightness}/255</div>
+      </div>
+
+      {/* Info */}
+      <div className="space-y-3 min-w-[160px]">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground block">FIXTURE INFO</label>
+        <div className="space-y-1.5 text-[9px]">
+          <div className="flex justify-between"><span className="text-muted-foreground">Device:</span> <span>{fixture.deviceName}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">IP:</span> <span className="font-mono">{fixture.deviceIp}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Segment:</span> <span>{fixture.segmentId}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">LEDs:</span> <span>{fixture.ledStart}–{fixture.ledEnd} ({fixture.ledEnd - fixture.ledStart + 1}px)</span></div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Status:</span>
+            <span className={dev?.online ? 'text-green-500' : 'text-red-500'}>{dev?.online ? '● Online' : '○ Offline'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ──
 type FixtureTab = 'dmx' | 'wled';
 
 export function FixtureControls() {
   const store = useFixtureStore();
+  const wledStore = useWledStore();
   const [states, setStates] = useState<Record<string, FixtureState>>({});
   const [selectedId, setSelectedId] = useState<string>(store.instances[0]?.id || '');
   const [fixtureTab, setFixtureTab] = useState<FixtureTab>('dmx');
@@ -364,13 +452,18 @@ export function FixtureControls() {
     const def = store.definitions.find(d => d.id === i.definitionId);
     return def?.category === 'dmx';
   });
-  const wledInstances = store.instances.filter(i => {
+  // Legacy fixtureStore WLED instances + real wledStore fixtures
+  const wledStoreFixtures = wledStore.fixtures;
+  const legacyWledInstances = store.instances.filter(i => {
     const def = store.definitions.find(d => d.id === i.definitionId);
     return def?.category === 'wled';
   });
 
-  const currentInstances = fixtureTab === 'dmx' ? dmxInstances : wledInstances;
-  const selected = currentInstances.find(i => i.id === selectedId) || currentInstances[0];
+  const currentInstances = fixtureTab === 'dmx' ? dmxInstances : legacyWledInstances;
+  const selected = fixtureTab === 'wled' 
+    ? (wledStoreFixtures.find(f => f.id === selectedId) ? null : currentInstances.find(i => i.id === selectedId) || currentInstances[0])
+    : (currentInstances.find(i => i.id === selectedId) || currentInstances[0]);
+  const selectedWledFixture = fixtureTab === 'wled' ? wledStoreFixtures.find(f => f.id === selectedId) : undefined;
   const selectedDef = selected ? store.definitions.find(d => d.id === selected.definitionId) : undefined;
   const selectedMode = selected && selectedDef ? selectedDef.modes.find(m => m.id === selected.modeId) : undefined;
 
@@ -403,18 +496,22 @@ export function FixtureControls() {
       <div className="flex flex-1 overflow-hidden">
         {/* Fixture List */}
         <div className="w-44 border-r border-border/30 p-2 space-y-1 overflow-y-auto">
-          {currentInstances.length === 0 && (
+          {fixtureTab === 'dmx' && currentInstances.length === 0 && (
             <div className="text-[10px] text-muted-foreground text-center py-4">
-              No {fixtureTab === 'wled' ? 'WLED' : 'DMX'} fixtures patched.<br />Go to Devices to add fixtures.
+              No DMX fixtures patched.<br />Go to Devices to add fixtures.
             </div>
           )}
-          {currentInstances.map(inst => {
+          {fixtureTab === 'wled' && wledStoreFixtures.length === 0 && legacyWledInstances.length === 0 && (
+            <div className="text-[10px] text-muted-foreground text-center py-4">
+              No WLED fixtures.<br />Go to Devices → WLED tab to create fixtures.
+            </div>
+          )}
+          {/* DMX fixtures list */}
+          {fixtureTab === 'dmx' && currentInstances.map(inst => {
             const def = store.definitions.find(d => d.id === inst.definitionId);
             if (!def) return null;
             const s = getState(inst.id);
-            const previewColor = def.category === 'wled'
-              ? '#ff6600'
-              : def.colorSystem === 'color-wheel'
+            const previewColor = def.colorSystem === 'color-wheel'
                 ? (def.colorWheelSlots?.find(sl => sl.id === s.colorWheelSlotId)?.color || '#888')
                 : `rgb(${s.color.r},${s.color.g},${s.color.b})`;
             return (
@@ -429,8 +526,33 @@ export function FixtureControls() {
                 <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: previewColor, boxShadow: `0 0 6px ${previewColor}` }} />
                 <div className="flex-1 text-left min-w-0">
                   <div className="truncate text-[10px] font-semibold">{inst.name}</div>
+                  <div className="text-[8px] text-muted-foreground/60">{def.colorSystem.toUpperCase()}</div>
+                </div>
+              </button>
+            );
+          })}
+          {/* WLED fixtures from wledStore */}
+          {fixtureTab === 'wled' && wledStoreFixtures.map(fix => {
+            const dev = wledStore.devices.find(d => d.id === fix.deviceId);
+            const s = getState(fix.id);
+            const previewColor = `rgb(${s.color.r},${s.color.g},${s.color.b})`;
+            return (
+              <button
+                key={fix.id}
+                onClick={() => setSelectedId(fix.id)}
+                className={`w-full flex items-center gap-2 p-2 rounded text-xs transition-all ${
+                  selectedId === fix.id ? 'bg-[#ff6600]/10 border border-[#ff6600]/30 text-[#ff6600]' : 'hover:bg-muted/50 text-muted-foreground'
+                }`}
+              >
+                <span className="text-sm">{fix.icon ? getFixtureIconEmoji(fix.icon) : '💡'}</span>
+                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: previewColor, boxShadow: `0 0 6px ${previewColor}` }} />
+                <div className="flex-1 text-left min-w-0">
+                  <div className="truncate text-[10px] font-semibold">{fix.name}</div>
                   <div className="text-[8px] text-muted-foreground/60">
-                    {def.category === 'wled' ? `WLED · ${def.wledConfig?.ledCount || '?'} LEDs` : def.colorSystem.toUpperCase()}
+                    {fix.deviceName} · Seg {fix.segmentId}
+                  </div>
+                  <div className={`text-[7px] ${dev?.online ? 'text-green-500' : 'text-red-500'}`}>
+                    {dev?.online ? '● Online' : '○ Offline'}
                   </div>
                 </div>
               </button>
@@ -440,7 +562,9 @@ export function FixtureControls() {
 
         {/* Controls */}
         <div className="flex-1 p-6 overflow-y-auto">
-          {!selected || !selectedDef ? (
+          {selectedWledFixture ? (
+            <WledFixtureLivePanel fixture={selectedWledFixture} state={getState(selectedWledFixture.id)} updateState={(u) => updateState(selectedWledFixture.id, u)} />
+          ) : !selected || !selectedDef ? (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Select a fixture</div>
           ) : selectedDef.category === 'wled' ? (
             <WledFixturePanel instance={selected} definition={selectedDef} />
