@@ -380,7 +380,7 @@ function ControlWidget({
           <span className="text-muted-foreground font-semibold truncate" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.14)) }}>{widget.label}</span>
           <div className="flex-1 w-10 rounded fader-track border border-border/20 relative">
             <motion.div className="absolute bottom-0 left-0 w-full rounded-b" style={{ backgroundColor: widget.color + '60' }} animate={{ height: `${widget.value || 0}%` }} />
-            <input type="range" min={0} max={100} value={widget.value || 0} onChange={e => onUpdate({ value: Number(e.target.value) })}
+            <input type="range" min={0} max={100} value={widget.value || 0} onChange={e => { onSelect(); onUpdate({ value: Number(e.target.value) }); }}
               className="absolute inset-0 w-full h-full opacity-0 cursor-ns-resize" style={{ writingMode: 'vertical-lr', direction: 'rtl' } as React.CSSProperties} />
           </div>
           <span className="font-mono text-muted-foreground" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.14)) }}>{widget.value || 0}%</span>
