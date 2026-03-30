@@ -199,6 +199,8 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'preset', label: 'Pre Set', icon: Bookmark, w: 120, h: 120 },
   { type: 'fixed-color', label: 'Fixed Color', icon: CircleDot, w: 150, h: 150 },
   { type: 'media-trigger', label: 'Media', icon: Film, w: 120, h: 120 },
+  { type: 'vfx', label: 'Audio VFX', icon: Sparkles, w: 200, h: 200 },
+  { type: 'wled-preset', label: 'WLED Preset', icon: Wifi, w: 120, h: 120 },
 ];
 
 // ── Color distance helper (Euclidean in RGB space) ──
