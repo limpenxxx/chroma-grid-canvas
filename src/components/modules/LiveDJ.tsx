@@ -449,10 +449,12 @@ function ControlWidget({
       </div>
       )}
 
+      {!isFullscreen && <>
       <ResizeHandle corner="resize-br" cursor="cursor-se-resize" />
       <ResizeHandle corner="resize-bl" cursor="cursor-sw-resize" />
       <ResizeHandle corner="resize-tr" cursor="cursor-ne-resize" />
       <ResizeHandle corner="resize-tl" cursor="cursor-nw-resize" />
+      </>}
 
       {/* BUTTON */}
       {widget.type === 'button' && (
