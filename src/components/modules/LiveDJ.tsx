@@ -264,7 +264,7 @@ function ModeBadge({ mode }: { mode: ControlMode }) {
 type DragMode = 'none' | 'move' | 'resize-br' | 'resize-bl' | 'resize-tr' | 'resize-tl';
 
 function ControlWidget({
-  widget, isSelected, onSelect, onUpdate, onPress, onRelease, allWidgets, fixtureData,
+  widget, isSelected, onSelect, onUpdate, onPress, onRelease, allWidgets, fixtureData, isFullscreen = false,
 }: {
   widget: DJWidget;
   isSelected: boolean;
@@ -274,6 +274,7 @@ function ControlWidget({
   onRelease: () => void;
   allWidgets: DJWidget[];
   fixtureData: { inst: FixtureInstance; def: FixtureDefinition }[];
+  isFullscreen?: boolean;
 }) {
   const dragRef = useRef<{
     mode: DragMode;
@@ -439,18 +440,22 @@ function ControlWidget({
           style={{ background: `radial-gradient(circle, ${widget.color || '#fff'}90, transparent)` }} />
       )}
 
-      {/* Top drag handle — larger, more visible */}
+      {/* Top drag handle — larger, more visible (hidden in fullscreen) */}
+      {!isFullscreen && (
       <div className="absolute -top-3 left-0 right-0 h-6 z-40 cursor-grab active:cursor-grabbing flex items-center justify-center"
         onMouseDown={e => startInteraction(e, 'move')}>
         <div className="bg-muted/40 group-hover:bg-muted/70 rounded-t px-3 py-0.5 transition-colors">
           <GripVertical size={12} className="text-muted-foreground/40 group-hover:text-muted-foreground/80 transition-colors" />
         </div>
       </div>
+      )}
 
+      {!isFullscreen && <>
       <ResizeHandle corner="resize-br" cursor="cursor-se-resize" />
       <ResizeHandle corner="resize-bl" cursor="cursor-sw-resize" />
       <ResizeHandle corner="resize-tr" cursor="cursor-ne-resize" />
       <ResizeHandle corner="resize-tl" cursor="cursor-nw-resize" />
+      </>}
 
       {/* BUTTON */}
       {widget.type === 'button' && (
@@ -1528,13 +1533,14 @@ export function LiveDJ() {
 
       {/* Fullscreen minimal header */}
       {isFullscreen && (
-        <div className="flex items-center justify-between px-3 py-2 border-b border-border/30 bg-background">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border/30 bg-background">
           <div className="flex items-center gap-2">
             <Speaker size={14} className="text-stokio-pink" />
             <span className="text-xs font-semibold tracking-wider text-muted-foreground">LIVE DJ</span>
           </div>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setIsFullscreen(false)}>
-            <Minimize2 size={14} />
+          <Button variant="outline" size="lg" className="h-12 px-6 gap-2 text-sm font-semibold border-border/50 hover:bg-muted/30" onClick={() => setIsFullscreen(false)}>
+            <Minimize2 size={18} />
+            EXIT FULLSCREEN
           </Button>
         </div>
       )}
@@ -1787,6 +1793,7 @@ export function LiveDJ() {
                   onRelease={() => { }}
                   allWidgets={widgets}
                   fixtureData={fixturesWithDefs}
+                  isFullscreen={isFullscreen}
                 />
               ))}
 
