@@ -2102,6 +2102,26 @@ export function LiveDJ() {
                                       className="h-5 text-[9px] bg-muted/20 border-border/20 font-mono px-1 flex-1" />
                                   </div>
                                 </div>
+                                {/* WLED Preset selector */}
+                                {isWled && wledDef?.wledConfig && (
+                                  <div className="space-y-1 border-t border-border/10 pt-1.5 mt-1">
+                                    <label className="text-[7px] text-[#ff6600] font-semibold uppercase">WLED Preset</label>
+                                    <select
+                                      value={entry.wledPresetId ?? ''}
+                                      onChange={e => updateEntry({ wledPresetId: e.target.value ? Number(e.target.value) : undefined, wledPresetName: wledDef.wledConfig?.presets.find(p => p.id === Number(e.target.value))?.name })}
+                                      className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[9px] px-1 text-foreground">
+                                      <option value="">Color only (no preset)</option>
+                                      {(wledDef.wledConfig.presets || []).map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                      ))}
+                                    </select>
+                                    {(wledDef.wledConfig.presets || []).length === 0 && (
+                                      <div className="text-[7px] text-muted-foreground/40">
+                                        No presets loaded. Fetch them in Fixtures → WLED tab first.
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
