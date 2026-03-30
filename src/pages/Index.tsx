@@ -44,13 +44,13 @@ const Index = () => {
         <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleVenueUpload} />
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="h-14 flex items-center justify-center transition-all overflow-hidden group"
+          className="h-24 flex items-center justify-center transition-all overflow-hidden group py-2"
         >
           {venueLogo ? (
             <img
               src={venueLogo}
               alt="Venue Logo"
-              className="h-10 max-w-[500px] object-contain opacity-80 hover:opacity-100 transition-opacity"
+              className="h-20 max-w-[800px] object-contain opacity-80 hover:opacity-100 transition-opacity"
             />
           ) : (
             <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-border/20 hover:border-primary/30 bg-muted/5 hover:bg-muted/10 transition-all">
