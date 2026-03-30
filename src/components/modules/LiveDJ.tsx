@@ -1621,6 +1621,26 @@ export function LiveDJ() {
                     // Preset recall: apply stored scene values to all other widgets
                     if (w.type === 'preset' && w.presetEntries && w.presetEntries.length > 0) {
                       w.presetEntries.forEach(entry => {
+                        // WLED preset: trigger device preset via API
+                        if (entry.targetType === 'wled') {
+                          const wledInst = fixturesWithDefs.find(f => f.inst.id === entry.targetId);
+                          const wledIp = wledInst?.def.wledConfig?.ip;
+                          if (wledIp && entry.wledPresetId !== undefined) {
+                            // In production: fetch(`http://${wledIp}/json/state`, { method: 'POST', body: JSON.stringify({ ps: entry.wledPresetId }) });
+                          }
+                          // Also apply color if set
+                          if (wledIp && entry.color) {
+                            // In production: fetch(`http://${wledIp}/json/state`, { method: 'POST', body: JSON.stringify({ seg: [{ col: [[entry.color.r, entry.color.g, entry.color.b]] }] }) });
+                          }
+                          // Apply to WLED preset widgets linked to this fixture
+                          widgets.forEach(ow => {
+                            if (ow.type === 'wled-preset' && ow.linkedFixtureIds.includes(entry.targetId) && entry.wledPresetId !== undefined) {
+                              updateWidget(ow.id, { wledPresetId: entry.wledPresetId });
+                            }
+                          });
+                          return;
+                        }
+
                         // Find matching widgets linked to this fixture/group and apply values
                         const targetFixtureIds = entry.targetType === 'group'
                           ? (groups.find(g => g.id === entry.targetId)?.fixtureIds || [])
