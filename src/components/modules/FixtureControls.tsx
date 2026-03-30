@@ -247,11 +247,11 @@ function colorSystemLabel(cs: ColorSystem): string {
 }
 
 // ── WLED Fixture Panel ──
-function WledFixturePanel({ instance, definition, store }: {
+function WledFixturePanel({ instance, definition }: {
   instance: FixtureInstance;
   definition: FixtureDefinition;
-  store: ReturnType<typeof useFixtureStore>;
 }) {
+  const store = useFixtureStore();
   const wled = definition.wledConfig;
   const [ip, setIp] = useState(wled?.ip || '');
   const [presets, setPresets] = useState(wled?.presets || []);
