@@ -2150,8 +2150,31 @@ export function LiveDJ() {
                           ))}
                         </select>
                       </div>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Play Mode</label>
+                        <select value={selectedWidgetData.mediaPlayMode || 'loop'}
+                          onChange={e => updateWidget(selectedWidgetData.id, { mediaPlayMode: e.target.value as any })}
+                          className="w-full h-7 rounded bg-muted/30 border border-border/30 text-[10px] px-2 text-foreground mt-1">
+                          <option value="play-once">Play Once (1×)</option>
+                          <option value="loop">Loop (🔁)</option>
+                          <option value="loop-random">Loop Random (🔀)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Trigger Type</label>
+                        <div className="flex gap-1 mt-1">
+                          <button onClick={() => updateWidget(selectedWidgetData.id, { mediaFlash: false })}
+                            className={`flex-1 h-7 text-[9px] rounded border font-semibold transition-all ${
+                              !(selectedWidgetData.mediaFlash) ? 'bg-primary/10 text-primary border-primary/30' : 'text-muted-foreground border-border/30 hover:text-foreground'
+                            }`}>Toggle</button>
+                          <button onClick={() => updateWidget(selectedWidgetData.id, { mediaFlash: true })}
+                            className={`flex-1 h-7 text-[9px] rounded border font-semibold transition-all ${
+                              selectedWidgetData.mediaFlash ? 'bg-stokio-pink/10 text-stokio-pink border-stokio-pink/30' : 'text-muted-foreground border-border/30 hover:text-foreground'
+                            }`}>Flash (Hold)</button>
+                        </div>
+                      </div>
                       <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
-                        💡 Click this widget during a show to play the linked video or playlist.
+                        💡 Toggle: click to play/stop. Flash: hold to play, release to stop.
                       </div>
                     </div>
                   )}
