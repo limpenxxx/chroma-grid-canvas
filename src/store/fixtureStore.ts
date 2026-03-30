@@ -154,6 +154,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     model: 'Dimmer',
     type: 'dimmer',
     colorSystem: 'rgb',
+    createdAt: 0,
     modes: [{
       id: 'm1', name: '1 Channel', channelCount: 1,
       channels: [
