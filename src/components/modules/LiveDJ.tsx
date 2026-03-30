@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Play, Square, GripVertical, Palette, SlidersHorizontal,
   Zap, ChevronDown, ChevronRight, Monitor, Hand, Layers,
-  Speaker, X, Save, Mic, Activity,
+  Speaker, X, Save, Mic, Activity, Sparkles, Wifi,
   ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users,
   Bookmark, Settings2, CircleDot, Maximize2, Minimize2, Film
 } from 'lucide-react';
+import { AudioVisualizerEngine, PRESET_LABELS, type VisualizerPreset } from '@/lib/audioVisualizer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
@@ -26,7 +27,7 @@ interface FixtureAssignment {
   mode: ControlMode;
 }
 
-type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger';
+type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset';
 
 // ── Preset Scene Entry ──
 interface PresetSceneEntry {
@@ -136,6 +137,14 @@ interface DJWidget {
   mediaPlaylistId?: string | null;
   mediaPlayMode?: 'play-once' | 'loop' | 'loop-random'; // default: loop
   mediaFlash?: boolean; // true = flash (hold to play), false = toggle
+  // VFX
+  vfxPreset?: VisualizerPreset;
+  vfxRunning?: boolean;
+  // WLED Preset
+  wledPresetId?: number;
+  wledPresetName?: string;
+  wledIp?: string;
+  wledPresets?: { id: number; name: string }[];
 }
 
 interface ScriptStep {
@@ -190,6 +199,8 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'preset', label: 'Pre Set', icon: Bookmark, w: 120, h: 120 },
   { type: 'fixed-color', label: 'Fixed Color', icon: CircleDot, w: 150, h: 150 },
   { type: 'media-trigger', label: 'Media', icon: Film, w: 120, h: 120 },
+  { type: 'vfx', label: 'Audio VFX', icon: Sparkles, w: 200, h: 200 },
+  { type: 'wled-preset', label: 'WLED Preset', icon: Wifi, w: 120, h: 120 },
 ];
 
 // ── Color distance helper (Euclidean in RGB space) ──
@@ -758,6 +769,140 @@ function ControlWidget({
           </div>
         );
       })()}
+
+      {/* VFX AUDIO VISUALIZER */}
+      {widget.type === 'vfx' && (() => {
+        const canvasRef = useRef<HTMLCanvasElement>(null);
+        const engineRef = useRef<AudioVisualizerEngine | null>(null);
+        const animRef = useRef<number | null>(null);
+
+        useEffect(() => {
+          const engine = new AudioVisualizerEngine();
+          engineRef.current = engine;
+          engine.preset = widget.vfxPreset || 'plasma-wave';
+
+          if (widget.vfxRunning) {
+            engine.start('microphone').catch(() => {});
+          }
+
+          const animate = () => {
+            if (canvasRef.current && engineRef.current) {
+              const ctx = canvasRef.current.getContext('2d');
+              if (ctx) engineRef.current.render(ctx, canvasRef.current.width, canvasRef.current.height);
+            }
+            animRef.current = requestAnimationFrame(animate);
+          };
+          animRef.current = requestAnimationFrame(animate);
+
+          return () => {
+            engine.stop();
+            if (animRef.current) cancelAnimationFrame(animRef.current);
+          };
+        }, []);
+
+        useEffect(() => {
+          if (engineRef.current) engineRef.current.preset = widget.vfxPreset || 'plasma-wave';
+        }, [widget.vfxPreset]);
+
+        useEffect(() => {
+          if (!engineRef.current) return;
+          if (widget.vfxRunning && !engineRef.current.isRunning) {
+            engineRef.current.start('microphone').catch(() => {});
+          } else if (!widget.vfxRunning && engineRef.current.isRunning) {
+            engineRef.current.stop();
+          }
+        }, [widget.vfxRunning]);
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col overflow-hidden relative"
+            style={bgStyle} onClick={onSelect}>
+            <div className="absolute top-1 left-1 z-10 flex items-center gap-1">
+              <span className="text-[7px] px-1 py-0.5 rounded bg-muted/60 text-muted-foreground backdrop-blur-sm">
+                {PRESET_LABELS[widget.vfxPreset || 'plasma-wave']}
+              </span>
+            </div>
+            <div className="absolute top-1 right-1 z-10">
+              <button
+                onClick={(e) => { e.stopPropagation(); onUpdate({ vfxRunning: !widget.vfxRunning }); }}
+                className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                  widget.vfxRunning ? 'bg-primary/20 text-primary shadow-[0_0_8px_hsl(var(--primary)/0.4)]' : 'bg-muted/40 text-muted-foreground'
+                }`}>
+                {widget.vfxRunning ? <Square size={10} /> : <Play size={10} />}
+              </button>
+            </div>
+            <canvas ref={canvasRef} className="w-full h-full rounded-lg" width={widget.width} height={widget.height} />
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 flex items-end justify-center">
+              <span className="text-muted-foreground font-semibold truncate"
+                style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.08)), textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}>
+                {widget.label}
+              </span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* WLED PRESET */}
+      {widget.type === 'wled-preset' && (() => {
+        const presets = widget.wledPresets || [];
+        const isActive = widget.wledPresetId !== undefined && widget.wledPresetId >= 0;
+
+        const activatePreset = (presetId: number) => {
+          onSelect();
+          onUpdate({ wledPresetId: presetId });
+          // In real mode: fetch(`http://${widget.wledIp}/json/state`, { method: 'POST', body: JSON.stringify({ ps: presetId }) });
+        };
+
+        const fetchPresetsFromDevice = async () => {
+          if (!widget.wledIp) return;
+          try {
+            // Mock presets — in production this would be: fetch(`http://${ip}/json/presets`)
+            const mockPresets = [
+              { id: 1, name: 'Rainbow' }, { id: 2, name: 'Fire' }, { id: 3, name: 'Ocean' },
+              { id: 4, name: 'Forest' }, { id: 5, name: 'Twinkle' }, { id: 6, name: 'Meteor' },
+              { id: 7, name: 'Breathe' }, { id: 8, name: 'Scanner' }, { id: 9, name: 'Chase' },
+              { id: 10, name: 'Fireworks' }, { id: 11, name: 'Sunrise' }, { id: 12, name: 'Party' },
+            ];
+            onUpdate({ wledPresets: mockPresets });
+          } catch {}
+        };
+
+        useEffect(() => {
+          if (widget.wledIp && presets.length === 0) fetchPresetsFromDevice();
+        }, [widget.wledIp]);
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col overflow-hidden relative"
+            style={{ ...bgStyle, borderColor: isActive ? '#ff6600' : undefined,
+              boxShadow: isActive ? '0 0 20px rgba(255,102,0,0.3)' : undefined }}
+            onClick={onSelect}>
+            <div className="px-2 py-1.5 flex items-center gap-1.5 border-b border-border/20" style={{ background: 'rgba(255,102,0,0.08)' }}>
+              <Wifi size={10} className="text-[#ff6600]" />
+              <span className="text-[9px] font-semibold truncate" style={{ color: '#ff6600' }}>{widget.label}</span>
+              {widget.wledIp && <span className="text-[7px] text-muted-foreground/50 ml-auto font-mono">{widget.wledIp}</span>}
+            </div>
+            <div className="flex-1 overflow-y-auto p-1.5 grid gap-1"
+              style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.floor(widget.width / 65))}, 1fr)` }}>
+              {presets.map(p => (
+                <button key={p.id}
+                  onClick={(e) => { e.stopPropagation(); activatePreset(p.id); }}
+                  className={`px-1.5 py-1 rounded text-[8px] font-medium border transition-all truncate ${
+                    widget.wledPresetId === p.id
+                      ? 'bg-[#ff6600]/20 border-[#ff6600]/40 text-[#ff6600] shadow-[0_0_8px_rgba(255,102,0,0.3)]'
+                      : 'border-border/20 text-muted-foreground hover:border-[#ff6600]/30 hover:bg-[#ff6600]/5'
+                  }`}>
+                  {p.name}
+                </button>
+              ))}
+              {presets.length === 0 && (
+                <div className="col-span-full flex flex-col items-center justify-center py-4 gap-1">
+                  <Wifi size={16} className="text-muted-foreground/20" />
+                  <span className="text-[8px] text-muted-foreground/40">Set WLED IP in properties</span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1107,6 +1252,11 @@ export function LiveDJ() {
       presetEntries: type === 'preset' ? [] : undefined,
       fixedColorSlotValue: type === 'fixed-color' ? undefined : undefined,
       rgbSyncEnabled: type === 'fixed-color' ? false : undefined,
+      vfxPreset: type === 'vfx' ? 'plasma-wave' : undefined,
+      vfxRunning: type === 'vfx' ? false : undefined,
+      wledIp: type === 'wled-preset' ? '' : undefined,
+      wledPresets: type === 'wled-preset' ? [] : undefined,
+      wledPresetId: type === 'wled-preset' ? -1 : undefined,
     }]);
   };
 
@@ -1464,7 +1614,40 @@ export function LiveDJ() {
                   isSelected={selectedWidget === w.id}
                   onSelect={() => setSelectedWidget(w.id)}
                   onUpdate={(updates) => updateWidget(w.id, updates)}
-                  onPress={() => { }}
+                  onPress={() => {
+                    // Preset recall: apply stored scene values to all other widgets
+                    if (w.type === 'preset' && w.presetEntries && w.presetEntries.length > 0) {
+                      w.presetEntries.forEach(entry => {
+                        // Find matching widgets linked to this fixture/group and apply values
+                        const targetFixtureIds = entry.targetType === 'group'
+                          ? (groups.find(g => g.id === entry.targetId)?.fixtureIds || [])
+                          : [entry.targetId];
+
+                        widgets.forEach(ow => {
+                          if (ow.id === w.id) return;
+                          const hasLink = ow.linkedFixtureIds.some(fid => targetFixtureIds.includes(fid));
+                          if (!hasLink && ow.linkedFixtureIds.length > 0) return;
+
+                          // Apply dimmer to linked sliders
+                          if (ow.type === 'slider' && (ow.linkedFunction === 'dimmer' || !ow.linkedFunction)) {
+                            updateWidget(ow.id, { value: Math.round(entry.dimmer / 255 * 100) });
+                          }
+                          // Apply color to linked color wheels
+                          if (ow.type === 'color-wheel' && entry.color) {
+                            updateWidget(ow.id, { colorValue: entry.color });
+                          }
+                          // Apply pan/tilt to XY pads
+                          if (ow.type === 'xy-pad' && (entry.pan !== undefined || entry.tilt !== undefined)) {
+                            updateWidget(ow.id, { colorValue: { r: entry.pan ?? 128, g: entry.tilt ?? 128, b: 128 } });
+                          }
+                          // Apply strobe to strobe buttons
+                          if (ow.type === 'button' && ow.linkedFunction === 'strobe' && entry.strobe) {
+                            updateWidget(ow.id, { toggled: entry.strobe > 0 });
+                          }
+                        });
+                      });
+                    }
+                  }}
                   onRelease={() => { }}
                   allWidgets={widgets}
                   fixtureData={fixturesWithDefs}
@@ -2170,6 +2353,73 @@ export function LiveDJ() {
                       </div>
                       <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
                         💡 Toggle: click to play/stop. Flash: hold to play, release to stop.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* VFX Widget Config */}
+                  {selectedWidgetData.type === 'vfx' && (
+                    <div className="space-y-2 border-t border-border/20 pt-2">
+                      <label className="text-[8px] uppercase tracking-widest font-semibold flex items-center gap-1" style={{ color: '#aa44ff' }}>
+                        <Sparkles size={10} /> Audio VFX Config
+                      </label>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Visualizer Preset</label>
+                        <select value={selectedWidgetData.vfxPreset || 'plasma-wave'}
+                          onChange={e => updateWidget(selectedWidgetData.id, { vfxPreset: e.target.value as VisualizerPreset })}
+                          className="w-full h-7 rounded bg-muted/30 border border-border/30 text-[10px] px-2 text-foreground mt-1">
+                          {(Object.entries(PRESET_LABELS) as [VisualizerPreset, string][]).map(([key, label]) => (
+                            <option key={key} value={key}>{label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant={selectedWidgetData.vfxRunning ? 'destructive' : 'default'}
+                          className="h-7 text-[10px] gap-1 flex-1"
+                          onClick={() => updateWidget(selectedWidgetData.id, { vfxRunning: !selectedWidgetData.vfxRunning })}>
+                          {selectedWidgetData.vfxRunning ? <><Square size={10} /> Stop</> : <><Play size={10} /> Start</>}
+                        </Button>
+                      </div>
+                      <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                        💡 Audio VFX renders Winamp-style visualizations driven by microphone input. Choose a preset and hit Start.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* WLED Preset Widget Config */}
+                  {selectedWidgetData.type === 'wled-preset' && (
+                    <div className="space-y-2 border-t border-border/20 pt-2">
+                      <label className="text-[8px] uppercase tracking-widest font-semibold flex items-center gap-1" style={{ color: '#ff6600' }}>
+                        <Wifi size={10} /> WLED Device Config
+                      </label>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">WLED IP Address</label>
+                        <Input value={selectedWidgetData.wledIp || ''}
+                          onChange={e => updateWidget(selectedWidgetData.id, { wledIp: e.target.value })}
+                          className="h-7 text-[10px] bg-muted/30 border-border/30 font-mono"
+                          placeholder="192.168.1.100" />
+                      </div>
+                      <Button variant="outline" size="sm" className="w-full h-7 text-[10px] gap-1"
+                        onClick={() => {
+                          const mockPresets = [
+                            { id: 1, name: 'Rainbow' }, { id: 2, name: 'Fire' }, { id: 3, name: 'Ocean' },
+                            { id: 4, name: 'Forest' }, { id: 5, name: 'Twinkle' }, { id: 6, name: 'Meteor' },
+                            { id: 7, name: 'Breathe' }, { id: 8, name: 'Scanner' }, { id: 9, name: 'Chase' },
+                            { id: 10, name: 'Fireworks' }, { id: 11, name: 'Sunrise' }, { id: 12, name: 'Party' },
+                          ];
+                          updateWidget(selectedWidgetData.id, { wledPresets: mockPresets });
+                        }}>
+                        <Wifi size={10} /> Fetch Presets from Device
+                      </Button>
+                      {(selectedWidgetData.wledPresets || []).length > 0 && (
+                        <div className="text-[8px] text-muted-foreground/50">
+                          {selectedWidgetData.wledPresets!.length} presets loaded
+                        </div>
+                      )}
+                      <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                        💡 Enter your WLED device IP and fetch presets. Click a preset on the widget to activate it via WLED JSON API.
                       </div>
                     </div>
                   )}
