@@ -399,23 +399,28 @@ function ControlWidget({
       return;
     }
     const prog = widget.colorProgram;
-    const speedMs = Math.max(200, 300 + (255 - (prog.speed || 128)) * 40);
-    const startTime = performance.now();
-    const colors = prog.colors;
+    const colors = [...prog.colors]; // snapshot to avoid stale refs
     const n = colors.length;
+    // BPM sync: use beat interval; otherwise use speed slider
+    const speedMs = prog.bpmSync && bpm > 0
+      ? (60000 / bpm) // one color per beat
+      : Math.max(200, 300 + (255 - (prog.speed || 128)) * 40);
+    const startTime = performance.now();
 
     const animate = (t: number) => {
       const elapsed = t - startTime;
       const totalCycle = speedMs * n;
       const pos = (elapsed % totalCycle) / speedMs;
       const idx = Math.floor(pos) % n;
+      const c = colors[idx];
+      if (!c) { colorProgAnimRef.current = requestAnimationFrame(animate); return; }
 
       if (prog.mode === 'switch') {
-        onUpdate({ colorValue: colors[idx] });
+        onUpdate({ colorValue: { r: c.r, g: c.g, b: c.b } });
       } else if (prog.mode === 'fade') {
         const frac = pos - idx;
-        const next = (idx + 1) % n;
-        const c = colors[idx], cn = colors[next];
+        const cn = colors[(idx + 1) % n];
+        if (!cn) { colorProgAnimRef.current = requestAnimationFrame(animate); return; }
         onUpdate({
           colorValue: {
             r: Math.round(c.r + (cn.r - c.r) * frac),
@@ -428,7 +433,7 @@ function ControlWidget({
     };
     colorProgAnimRef.current = requestAnimationFrame(animate);
     return () => { if (colorProgAnimRef.current) cancelAnimationFrame(colorProgAnimRef.current); };
-  }, [widget.type, widget.colorProgram?.running, widget.colorProgram?.mode, widget.colorProgram?.speed, widget.colorProgram?.colors?.length]);
+  }, [widget.type, widget.colorProgram?.running, widget.colorProgram?.mode, widget.colorProgram?.speed, widget.colorProgram?.bpmSync, widget.colorProgram?.colors?.length, bpm]);
 
   const startInteraction = useCallback((e: React.MouseEvent, mode: DragMode) => {
     e.stopPropagation();
