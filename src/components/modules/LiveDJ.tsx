@@ -2419,8 +2419,8 @@ export function LiveDJ() {
                           <Slider value={[selectedWidgetData.mhProgram?.speed || 128]}
                             onValueChange={([v]) => updateWidget(selectedWidgetData.id, {
                               mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 128, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }), speed: v },
-                            })} max={100} className="mt-1" />
-                          <span className="text-[7px] font-mono text-muted-foreground/50">{selectedWidgetData.mhProgram?.speed || 128}%</span>
+                            })} max={255} className="mt-1" />
+                          <span className="text-[7px] font-mono text-muted-foreground/50">{selectedWidgetData.mhProgram?.speed || 128}</span>
                         </div>
                         <div>
                           <label className="text-[7px] uppercase text-muted-foreground">Size</label>
