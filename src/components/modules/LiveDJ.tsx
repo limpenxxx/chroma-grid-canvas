@@ -650,12 +650,18 @@ function ControlWidget({
                   onChange={e => {
                     e.stopPropagation();
                     onSelect();
-                    const idx = Number(e.target.value);
+                    const val = e.target.value;
+                    if (val === 'stop') {
+                      if (widget.colorProgram) onUpdate({ colorProgram: { ...widget.colorProgram, running: false } });
+                      return;
+                    }
+                    const idx = Number(val);
                     if (isNaN(idx)) return;
                     const preset = allPresets[idx];
                     if (preset) {
-                      onUpdate({ colorProgram: { mode: preset.mode, colors: preset.colors, speed: widget.colorProgram?.speed ?? 128, bpmSync: widget.colorProgram?.bpmSync ?? false, running: true } });
+                      onUpdate({ colorProgram: { mode: preset.mode, colors: [...preset.colors], speed: widget.colorProgram?.speed ?? 128, bpmSync: widget.colorProgram?.bpmSync ?? false, running: true } });
                     }
+                  }
                   }}
                   className="w-full rounded bg-muted/20 border border-border/20 text-muted-foreground cursor-pointer px-1"
                   style={{ fontSize: dropFs, height: Math.max(18, s * 0.09) }}>
