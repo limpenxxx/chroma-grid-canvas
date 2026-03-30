@@ -1,16 +1,51 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { AnimatePresence, motion } from 'framer-motion';
+import { useAppStore } from '@/store/appStore';
+import { AppSidebar } from '@/components/layout/AppSidebar';
+import { BottomBar } from '@/components/layout/BottomBar';
+import { StageBuilder } from '@/components/modules/StageBuilder';
+import { MediaServer } from '@/components/modules/MediaServer';
+import { TextOverlays } from '@/components/modules/TextOverlays';
+import { FixtureControls } from '@/components/modules/FixtureControls';
+import { NodeLogic } from '@/components/modules/NodeLogic';
+import { Devices } from '@/components/modules/Devices';
+import { ShowRunner } from '@/components/modules/ShowRunner';
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const moduleComponents = {
+  stage: StageBuilder,
+  media: MediaServer,
+  text: TextOverlays,
+  fixtures: FixtureControls,
+  nodes: NodeLogic,
+  devices: Devices,
+  showrunner: ShowRunner,
+};
+
+const Index = () => {
+  const activeModule = useAppStore((s) => s.activeModule);
+  const ActiveComponent = moduleComponents[activeModule];
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-background">
+      <div className="flex-1 flex overflow-hidden">
+        <AppSidebar />
+        <main className="flex-1 overflow-hidden">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeModule}
+              initial={{ opacity: 0, x: 8 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -8 }}
+              transition={{ duration: 0.15 }}
+              className="h-full"
+            >
+              <ActiveComponent />
+            </motion.div>
+          </AnimatePresence>
+        </main>
+      </div>
+      <BottomBar />
     </div>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
