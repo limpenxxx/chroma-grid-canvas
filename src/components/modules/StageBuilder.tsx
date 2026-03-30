@@ -164,6 +164,41 @@ export function StageBuilder() {
     return () => { vizEngineRef.current.destroy(); };
   }, []);
 
+  // Arrow key movement for selected items
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedId) return;
+      const step = e.shiftKey ? 10 : 1;
+      const arrows: Record<string, { x: number; y: number }> = {
+        ArrowUp: { x: 0, y: -step },
+        ArrowDown: { x: 0, y: step },
+        ArrowLeft: { x: -step, y: 0 },
+        ArrowRight: { x: step, y: 0 },
+      };
+      const delta = arrows[e.key];
+      if (!delta) return;
+      e.preventDefault();
+
+      if (selectionType === 'node') {
+        setNodes(prev => prev.map(n =>
+          n.id === selectedId ? { ...n, x: Math.max(0, n.x + delta.x), y: Math.max(0, n.y + delta.y) } : n
+        ));
+      } else if (selectionType === 'fixture') {
+        const f = fixtureStore.instances.find(i => i.id === selectedId);
+        if (f) fixtureStore.updateInstance(selectedId, {
+          stageX: Math.max(0, f.stageX + delta.x),
+          stageY: Math.max(0, f.stageY + delta.y),
+        });
+      } else if (selectionType === 'mapping-fixture') {
+        setMappingFixtures(prev => prev.map(mf =>
+          mf.id === selectedId ? { ...mf, x: Math.max(0, mf.x + delta.x), y: Math.max(0, mf.y + delta.y) } : mf
+        ));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedId, selectionType, fixtureStore]);
+
   const startVisualizer = async () => {
     try {
       await vizEngineRef.current.start(vizAudioInput, selectedDeviceId || undefined);
