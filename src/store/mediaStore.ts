@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { broadcastState, isSyncingFromRemote, onSyncState } from '@/lib/wsSync';
 
 export type MediaSourceType = 'file' | 'youtube' | 'vimeo' | 'url';
 export type LoopMode = 'none' | 'loop-all' | 'loop-one' | 'shuffle';
@@ -138,6 +139,33 @@ export const useMediaStore = create<MediaStore>()(
     }
   )
 );
+
+// Sync: broadcast media changes
+useMediaStore.subscribe((state) => {
+  if (!isSyncingFromRemote()) {
+    broadcastState('media', {
+      items: state.items.filter(i => i.sourceType !== 'file'),
+      playlists: state.playlists,
+      activePlaylistId: state.activePlaylistId,
+      activeItemId: state.activeItemId,
+      isPlaying: state.isPlaying,
+    });
+  }
+});
+
+// Sync: receive remote media updates
+onSyncState((incoming) => {
+  const m = incoming.media as Record<string, unknown> | undefined;
+  if (m) {
+    useMediaStore.setState({
+      ...(m.items !== undefined && { items: m.items as MediaItem[] }),
+      ...(m.playlists !== undefined && { playlists: m.playlists as Playlist[] }),
+      ...(m.activePlaylistId !== undefined && { activePlaylistId: m.activePlaylistId as string | null }),
+      ...(m.activeItemId !== undefined && { activeItemId: m.activeItemId as string | null }),
+      ...(m.isPlaying !== undefined && { isPlaying: m.isPlaying as boolean }),
+    });
+  }
+});
 
 // Helpers
 export function parseYouTubeId(url: string): string | null {

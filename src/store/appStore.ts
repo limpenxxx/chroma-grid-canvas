@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { broadcastState, isSyncingFromRemote, onSyncState } from '@/lib/wsSync';
 
 export type ModuleId = 'stage' | 'media' | 'text' | 'fixtures' | 'nodes' | 'devices' | 'livedj';
 export type UserRole = 'admin' | 'user';
@@ -52,3 +53,26 @@ export const useAppStore = create<AppState>()(
     }
   )
 );
+
+// Sync: broadcast changes
+useAppStore.subscribe((state) => {
+  if (!isSyncingFromRemote()) {
+    const { activeModule, masterDimmer, blackout, userRole, userName, adminName } = state;
+    broadcastState('app', { activeModule, masterDimmer, blackout, userRole, userName, adminName });
+  }
+});
+
+// Sync: receive remote updates
+onSyncState((incoming) => {
+  const appState = incoming.app as Record<string, unknown> | undefined;
+  if (appState) {
+    useAppStore.setState({
+      ...(appState.activeModule !== undefined && { activeModule: appState.activeModule as ModuleId }),
+      ...(appState.masterDimmer !== undefined && { masterDimmer: appState.masterDimmer as number }),
+      ...(appState.blackout !== undefined && { blackout: appState.blackout as boolean }),
+      ...(appState.userRole !== undefined && { userRole: appState.userRole as UserRole | null }),
+      ...(appState.userName !== undefined && { userName: appState.userName as string }),
+      ...(appState.adminName !== undefined && { adminName: appState.adminName as string }),
+    });
+  }
+});
