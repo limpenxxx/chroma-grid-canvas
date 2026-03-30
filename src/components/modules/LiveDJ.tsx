@@ -120,6 +120,9 @@ interface DJWidget {
   lockAxis?: 'none' | 'x' | 'y';
   // MH program (xy-pad only)
   mhProgram?: MHProgram;
+  // Preset scene entries (preset only)
+  presetEntries?: PresetSceneEntry[];
+  presetShowSubmenu?: boolean;
 }
 
 interface ScriptStep {
