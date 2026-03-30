@@ -425,7 +425,7 @@ function ControlWidget({
           onMouseDown={handleButtonDown} onMouseUp={handleButtonUp}
           onMouseLeave={() => { if (widget.flash && isPressed) handleButtonUp(); }}>
           <div className="absolute inset-0 rounded-lg opacity-15" style={{ backgroundColor: widget.color }} />
-          {widget.bgImage && <div className="absolute inset-0 rounded-lg bg-gradient-to-t from-black/70 via-black/30 to-transparent z-[1]" />}
+          {widget.bgImage && <div className="absolute inset-0 rounded-lg z-[1]" style={{ background: `linear-gradient(to top, rgba(0,0,0,${(widget.bgOpacity ?? 70) / 100}), rgba(0,0,0,${(widget.bgOpacity ?? 70) / 300}), transparent)` }} />}
           {isButtonActive && <div className="absolute inset-0 rounded-lg z-[2]" style={{ background: `radial-gradient(circle at center, ${widget.color}30, transparent)` }} />}
           <Bookmark size={Math.min(widget.width, widget.height) * 0.2} style={{ color: widget.color }} className="relative z-10 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" />
           <span className="text-muted-foreground font-semibold truncate px-1 relative z-10"
