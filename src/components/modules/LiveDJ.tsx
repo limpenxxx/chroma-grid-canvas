@@ -430,6 +430,7 @@ function ControlWidget({
           )}
           <div className="flex-1 w-full relative border border-border/20 rounded cursor-crosshair"
             onClick={e => {
+              onSelect();
               const rect = e.currentTarget.getBoundingClientRect();
               const x = Math.round(((e.clientX - rect.left) / rect.width) * 255);
               const y = Math.round(((e.clientY - rect.top) / rect.height) * 255);
