@@ -17,6 +17,8 @@ import {
 } from '@/store/fixtureStore';
 import stokioLogo from '@/assets/stokio-logo-color.png';
 import { useMediaStore } from '@/store/mediaStore';
+import { useWledStore, type WledFixture } from '@/store/wledStore';
+import { setWledPreset, setWledState } from '@/lib/wledApi';
 
 // ── Types ──
 
