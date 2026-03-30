@@ -207,7 +207,7 @@ const Index = () => {
   if (!userRole) return <StartScreen />;
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-background">
+    <div className="min-h-screen w-screen flex flex-col bg-background overflow-x-hidden">
       {/* Top Bar — STOKIO logo left, Venue logo center */}
       <div className="w-full flex items-center bg-[hsl(0_0%_3%)] border-b border-border/30 px-8 shrink-0 h-56">
         {/* STOKIO Logo — left */}
