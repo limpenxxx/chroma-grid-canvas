@@ -21,13 +21,6 @@ export function AppSidebar() {
 
   return (
     <div className="w-[100px] h-full flex flex-col items-center py-4 border-r border-border/50 bg-[hsl(0_0%_3%)]">
-      {/* STOKIO Logo */}
-      <div className="mb-3 px-2">
-        <img src={stokioLogo} alt="STOKIO FX" className="w-[72px] h-[72px] object-contain drop-shadow-[0_0_12px_rgba(0,229,255,0.3)]" />
-      </div>
-
-      {/* Divider */}
-      <div className="w-10 h-px bg-border/20 mb-3" />
 
       {/* Nav Items */}
       <nav className="flex-1 flex flex-col gap-1 w-full px-2">
