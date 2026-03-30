@@ -559,15 +559,27 @@ function ControlWidget({
       )}
 
       {/* COLOR WHEEL */}
-      {widget.type === 'color-wheel' && (
-        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-2 gap-0.5 overflow-hidden" style={bgStyle}>
+      {widget.type === 'color-wheel' && (() => {
+        const cv = widget.colorValue || { r: 0, g: 0, b: 0 };
+        const s = Math.min(widget.width, widget.height);
+        const previewSize = Math.max(16, Math.min(32, s * 0.15));
+        return (
+        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-2 gap-0.5 overflow-hidden relative" style={bgStyle}>
           <span className="text-muted-foreground font-semibold truncate shrink-0" style={{ fontSize: Math.max(8, Math.min(11, widget.width * 0.08)) }}>{widget.label}</span>
+
+          {/* Live color preview square — top right */}
+          <div className="absolute top-1.5 right-1.5 z-20 rounded border border-foreground/30"
+            style={{ width: previewSize, height: previewSize,
+              backgroundColor: `rgb(${cv.r},${cv.g},${cv.b})`,
+              boxShadow: `0 0 8px rgb(${cv.r},${cv.g},${cv.b}), inset 0 0 4px rgba(255,255,255,0.1)` }} />
+
           {/* Color program indicator */}
           {widget.colorProgram?.running && (
-            <div className="absolute top-1 right-1 text-[6px] px-1 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 animate-pulse font-semibold z-20">
-              {widget.colorProgram.mode === 'fade' ? '🌈 FADE' : '⚡ SWITCH'}
+            <div className="absolute top-1 left-1 text-[6px] px-1 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 animate-pulse font-semibold z-20">
+              {widget.colorProgram.mode === 'fade' ? '🌈' : '⚡'}
             </div>
           )}
+
           <div className="flex-1 flex items-center justify-center min-h-0">
             <div className="rounded-full border-2 border-border/30 cursor-pointer"
               style={{ width: Math.min(widget.width, widget.height) - 60, height: Math.min(widget.width, widget.height) - 60,
@@ -589,21 +601,21 @@ function ControlWidget({
                   <div className="rounded-full border border-foreground/50"
                     style={{ width: Math.max(12, (Math.min(widget.width, widget.height) - 60) * 0.3),
                       height: Math.max(12, (Math.min(widget.width, widget.height) - 60) * 0.3),
-                      backgroundColor: `rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})`,
-                      boxShadow: `0 0 12px rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})` }} />
+                      backgroundColor: `rgb(${cv.r},${cv.g},${cv.b})`,
+                      boxShadow: `0 0 12px rgb(${cv.r},${cv.g},${cv.b})` }} />
                 </div>
               )}
             </div>
           </div>
+
           {/* Quick color buttons */}
           {(() => {
-            const s = Math.min(widget.width, widget.height);
             const btnSize = Math.max(14, Math.min(24, s * 0.1));
             const fs = Math.max(6, Math.min(10, s * 0.045));
             return (
               <div className="w-full shrink-0 flex flex-wrap justify-center gap-0.5">
                 {QUICK_COLORS.map(qc => {
-                  const isActive = widget.colorValue && widget.colorValue.r === qc.color.r && widget.colorValue.g === qc.color.g && widget.colorValue.b === qc.color.b;
+                  const isActive = cv.r === qc.color.r && cv.g === qc.color.g && cv.b === qc.color.b;
                   const isBlack = qc.color.r === 0 && qc.color.g === 0 && qc.color.b === 0;
                   return (
                     <button key={qc.label}
@@ -625,8 +637,41 @@ function ControlWidget({
               </div>
             );
           })()}
+
+          {/* Color program quick dropdown on widget */}
+          {(() => {
+            const dropFs = Math.max(7, Math.min(10, s * 0.045));
+            const allPresets = [...COLOR_PROGRAM_PRESETS];
+            return (
+              <div className="w-full shrink-0">
+                <select
+                  value=""
+                  onClick={e => e.stopPropagation()}
+                  onChange={e => {
+                    e.stopPropagation();
+                    onSelect();
+                    const idx = Number(e.target.value);
+                    if (isNaN(idx)) return;
+                    const preset = allPresets[idx];
+                    if (preset) {
+                      onUpdate({ colorProgram: { mode: preset.mode, colors: preset.colors, speed: widget.colorProgram?.speed ?? 128, bpmSync: widget.colorProgram?.bpmSync ?? false, running: true } });
+                    }
+                  }}
+                  className="w-full rounded bg-muted/20 border border-border/20 text-muted-foreground cursor-pointer px-1"
+                  style={{ fontSize: dropFs, height: Math.max(18, s * 0.09) }}>
+                  <option value="">🎨 Color Program...</option>
+                  {allPresets.map((p, i) => (
+                    <option key={i} value={i}>{p.mode === 'fade' ? '🌈' : '⚡'} {p.label}</option>
+                  ))}
+                  <option value="" disabled>───</option>
+                  <option value="stop">⬛ Stop Program</option>
+                </select>
+              </div>
+            );
+          })()}
         </div>
-      )}
+        );
+      })()}
 
       {/* XY PAD */}
       {widget.type === 'xy-pad' && (
