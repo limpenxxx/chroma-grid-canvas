@@ -207,7 +207,7 @@ const Index = () => {
   if (!userRole) return <StartScreen />;
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-background">
+    <div className="min-h-screen w-screen flex flex-col bg-background overflow-x-hidden">
       {/* Top Bar — STOKIO logo left, Venue logo center */}
       <div className="w-full flex items-center bg-[hsl(0_0%_3%)] border-b border-border/30 px-8 shrink-0 h-56">
         {/* STOKIO Logo — left */}
@@ -243,9 +243,9 @@ const Index = () => {
         <div className="w-48 shrink-0" />
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-x-hidden">
         <AppSidebar />
-        <main className="flex-1 overflow-hidden">
+        <main className="flex-1 overflow-auto touch-pan-y touch-pinch-zoom">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeModule}
