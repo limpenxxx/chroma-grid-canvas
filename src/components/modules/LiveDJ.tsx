@@ -1252,6 +1252,11 @@ export function LiveDJ() {
       presetEntries: type === 'preset' ? [] : undefined,
       fixedColorSlotValue: type === 'fixed-color' ? undefined : undefined,
       rgbSyncEnabled: type === 'fixed-color' ? false : undefined,
+      vfxPreset: type === 'vfx' ? 'plasma-wave' : undefined,
+      vfxRunning: type === 'vfx' ? false : undefined,
+      wledIp: type === 'wled-preset' ? '' : undefined,
+      wledPresets: type === 'wled-preset' ? [] : undefined,
+      wledPresetId: type === 'wled-preset' ? -1 : undefined,
     }]);
   };
 
