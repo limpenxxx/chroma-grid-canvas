@@ -989,9 +989,27 @@ export function StageBuilder() {
                           className="h-7 text-xs bg-muted/30 border-border/30" />
                       </div>
                       <div>
-                        <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">IP Address</label>
-                        <Input value={selectedNode.ip} onChange={e => updateNode(selectedNode.id, { ip: e.target.value })}
-                          className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
+                        <label className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1 block">WLED Fixture</label>
+                        <select
+                          value={selectedNode.ip}
+                          onChange={e => {
+                            const fix = wledStore.fixtures.find(f => f.deviceIp === e.target.value);
+                            if (fix) {
+                              updateNode(selectedNode.id, { ip: fix.deviceIp, name: fix.name });
+                            }
+                          }}
+                          className="w-full h-7 rounded bg-muted/30 border border-border/30 text-xs px-2 text-foreground"
+                        >
+                          <option value="">Select WLED fixture...</option>
+                          {wledStore.fixtures.map(fix => {
+                            const device = wledStore.devices.find(d => d.id === fix.deviceId);
+                            return (
+                              <option key={fix.id} value={fix.deviceIp}>
+                                {getFixtureIconEmoji(fix.icon)} {fix.name} — {fix.deviceIp} (Seg {fix.segmentId}, LED {fix.ledStart}–{fix.ledEnd})
+                              </option>
+                            );
+                          })}
+                        </select>
                       </div>
                     </div>
 
