@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { broadcastState, isSyncingFromRemote, onSyncState } from '@/lib/wsSync';
 
 export type ModuleId = 'stage' | 'media' | 'text' | 'fixtures' | 'nodes' | 'devices' | 'livedj';
 export type UserRole = 'admin' | 'user';
