@@ -1337,7 +1337,8 @@ export function LiveDJ() {
               )}
             </div>
 
-            {/* Right panel */}
+            {/* Right panel — hidden in fullscreen */}
+            {!isFullscreen && (
             <div className="w-72 border-l border-border/30 flex flex-col overflow-y-auto">
               <input ref={imgInputRef} type="file" accept="image/*" className="hidden" onChange={handleWidgetBgUpload} />
 
