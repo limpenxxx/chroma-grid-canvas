@@ -885,6 +885,8 @@ export function LiveDJ() {
       linkedFixtureIds: [],
       lockAxis: 'none',
       presetEntries: type === 'preset' ? [] : undefined,
+      fixedColorSlotValue: type === 'fixed-color' ? undefined : undefined,
+      rgbSyncEnabled: type === 'fixed-color' ? false : undefined,
     }]);
   };
 
