@@ -107,7 +107,7 @@ export class AudioVisualizerEngine {
   /** Get current average energy (0-1) */
   private getEnergy(): number {
     if (!this.analyser) return 0;
-    this.analyser.getByteFrequencyData(this.freqData);
+    this.analyser.getByteFrequencyData(this.freqData as any);
     let sum = 0;
     for (let i = 0; i < this.freqData.length; i++) sum += this.freqData[i];
     return (sum / this.freqData.length / 255) * this._sensitivity;
