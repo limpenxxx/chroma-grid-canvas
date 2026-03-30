@@ -403,29 +403,35 @@ export function FixtureControls() {
       <div className="flex flex-1 overflow-hidden">
         {/* Fixture List */}
         <div className="w-44 border-r border-border/30 p-2 space-y-1 overflow-y-auto">
-          {store.instances.length === 0 && (
-            <div className="text-[10px] text-muted-foreground text-center py-4">No fixtures patched.<br />Go to Devices to add fixtures.</div>
+          {currentInstances.length === 0 && (
+            <div className="text-[10px] text-muted-foreground text-center py-4">
+              No {fixtureTab === 'wled' ? 'WLED' : 'DMX'} fixtures patched.<br />Go to Devices to add fixtures.
+            </div>
           )}
-          {store.instances.map(inst => {
+          {currentInstances.map(inst => {
             const def = store.definitions.find(d => d.id === inst.definitionId);
             if (!def) return null;
             const s = getState(inst.id);
-            const previewColor = def.colorSystem === 'color-wheel'
-              ? (def.colorWheelSlots?.find(sl => sl.id === s.colorWheelSlotId)?.color || '#888')
-              : `rgb(${s.color.r},${s.color.g},${s.color.b})`;
+            const previewColor = def.category === 'wled'
+              ? '#ff6600'
+              : def.colorSystem === 'color-wheel'
+                ? (def.colorWheelSlots?.find(sl => sl.id === s.colorWheelSlotId)?.color || '#888')
+                : `rgb(${s.color.r},${s.color.g},${s.color.b})`;
             return (
               <button
                 key={inst.id}
                 onClick={() => setSelectedId(inst.id)}
                 className={`w-full flex items-center gap-2 p-2 rounded text-xs transition-all ${
-                  selectedId === inst.id ? 'bg-primary/10 border border-primary/30 text-primary' : 'hover:bg-muted/50 text-muted-foreground'
+                  selected?.id === inst.id ? 'bg-primary/10 border border-primary/30 text-primary' : 'hover:bg-muted/50 text-muted-foreground'
                 }`}
               >
                 <span className="text-sm">{getFixtureTypeIcon(def.type)}</span>
                 <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: previewColor, boxShadow: `0 0 6px ${previewColor}` }} />
                 <div className="flex-1 text-left min-w-0">
                   <div className="truncate text-[10px] font-semibold">{inst.name}</div>
-                  <div className="text-[8px] text-muted-foreground/60">{def.colorSystem.toUpperCase()}</div>
+                  <div className="text-[8px] text-muted-foreground/60">
+                    {def.category === 'wled' ? `WLED · ${def.wledConfig?.ledCount || '?'} LEDs` : def.colorSystem.toUpperCase()}
+                  </div>
                 </div>
               </button>
             );
@@ -436,6 +442,8 @@ export function FixtureControls() {
         <div className="flex-1 p-6 overflow-y-auto">
           {!selected || !selectedDef ? (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Select a fixture</div>
+          ) : selectedDef.category === 'wled' ? (
+            <WledFixturePanel instance={selected} definition={selectedDef} />
           ) : (
             <div className="flex flex-wrap gap-8 items-start">
               {/* Color Controls */}
