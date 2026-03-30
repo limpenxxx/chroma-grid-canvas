@@ -27,7 +27,7 @@ export function BottomBar() {
     const dataArray = dataArrayRef.current;
 
     if (analyser && dataArray) {
-      analyser.getByteTimeDomainData(dataArray);
+      analyser.getByteTimeDomainData(dataArray as Uint8Array);
       ctx.beginPath();
       ctx.strokeStyle = 'hsl(155, 100%, 50%)';
       ctx.lineWidth = 1.5;
