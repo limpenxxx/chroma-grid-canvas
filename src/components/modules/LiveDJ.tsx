@@ -151,6 +151,9 @@ interface DJWidget {
   // Fader-specific
   bgColor?: string;              // separate background color for fader widget
   faderColorSyncWidgetId?: string | null; // sync fader color with a color-wheel widget
+  // XY pad: per-fixture positions and selected fixture for individual control
+  selectedFixtureId?: string | null;
+  fixturePositions?: Record<string, { x: number; y: number }>;
 }
 
 type ColorProgramMode = 'static' | 'switch' | 'fade';
@@ -745,7 +748,14 @@ function ControlWidget({
               const rect = e.currentTarget.getBoundingClientRect();
               const x = Math.round(((e.clientX - rect.left) / rect.width) * 255);
               const y = Math.round(((e.clientY - rect.top) / rect.height) * 255);
-              onUpdate({ colorValue: { r: x, g: y, b: 128 } });
+              if (widget.selectedFixtureId && widget.linkedFixtureIds.includes(widget.selectedFixtureId)) {
+                // Only update the selected fixture's position
+                const newPositions = { ...(widget.fixturePositions || {}), [widget.selectedFixtureId]: { x, y } };
+                onUpdate({ fixturePositions: newPositions });
+              } else {
+                // Update all (global position)
+                onUpdate({ colorValue: { r: x, g: y, b: 128 } });
+              }
             }}>
             <div className="absolute left-1/2 top-0 w-px h-full bg-border/20" />
             <div className="absolute top-1/2 left-0 w-full h-px bg-border/20" />
@@ -768,7 +778,7 @@ function ControlWidget({
                           boxShadow: `0 0 20px 6px ${dotColor}` }} />
                     </div>
                   )}
-                  {/* Per-fixture delayed/mirrored dots */}
+                  {/* Per-fixture delayed/mirrored dots (pattern mode) */}
                   {Object.entries(perFixturePos).map(([fid, fpos]) => {
                     const fxColors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6fff', '#ff9f43'];
                     const fIdx = widget.linkedFixtureIds.indexOf(fid);
@@ -777,6 +787,19 @@ function ControlWidget({
                       <div key={fid} className="absolute w-2.5 h-2.5 rounded-full border border-foreground/50 -translate-x-1/2 -translate-y-1/2 transition-none pointer-events-none"
                         style={{ left: `${(fpos.x / 255) * 100}%`, top: `${(fpos.y / 255) * 100}%`,
                           backgroundColor: fColor, boxShadow: `0 0 6px ${fColor}`, opacity: 0.8 }} />
+                    );
+                  })}
+                  {/* Per-fixture manual position dots (non-pattern mode) */}
+                  {!patternPos && widget.fixturePositions && Object.entries(widget.fixturePositions).map(([fid, fpos]) => {
+                    const fxColors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6fff', '#ff9f43'];
+                    const fIdx = widget.linkedFixtureIds.indexOf(fid);
+                    if (fIdx < 0) return null;
+                    const fColor = fxColors[fIdx % fxColors.length];
+                    const isSelected = widget.selectedFixtureId === fid;
+                    return (
+                      <div key={`manual-${fid}`} className={`absolute rounded-full border -translate-x-1/2 -translate-y-1/2 transition-none pointer-events-none ${isSelected ? 'w-4 h-4 border-2 border-foreground' : 'w-2.5 h-2.5 border border-foreground/50'}`}
+                        style={{ left: `${(fpos.x / 255) * 100}%`, top: `${(fpos.y / 255) * 100}%`,
+                          backgroundColor: fColor, boxShadow: `0 0 ${isSelected ? 12 : 6}px ${fColor}`, opacity: isSelected ? 1 : 0.7 }} />
                     );
                   })}
                 </>
@@ -798,6 +821,44 @@ function ControlWidget({
             const gap = Math.max(2, Math.min(6, s * 0.015));
             return (
               <div className="w-full shrink-0 flex flex-col mt-1" style={{ gap }}>
+                {/* Fixture selector — pick which fixture to control individually */}
+                {widget.linkedFixtureIds.length > 1 && (
+                  <div className="flex flex-wrap justify-center" style={{ gap: Math.max(2, gap) }}>
+                    <button
+                      onClick={e => { e.stopPropagation(); onSelect(); onUpdate({ selectedFixtureId: null }); }}
+                      className={`rounded transition-all border font-semibold ${
+                        !widget.selectedFixtureId
+                          ? 'bg-primary/20 border-primary/50 text-primary'
+                          : 'bg-muted/10 border-border/20 text-muted-foreground/60 hover:border-border/40'
+                      }`}
+                      style={{ fontSize: btnFs * 0.8, paddingLeft: btnPx, paddingRight: btnPx, paddingTop: btnPy, paddingBottom: btnPy }}>
+                      ALL
+                    </button>
+                    {widget.linkedFixtureIds.map((fid, i) => {
+                      const fxColors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6fff', '#ff9f43'];
+                      const fColor = fxColors[i % fxColors.length];
+                      const inst = fixtureData.find(f => f.inst.id === fid);
+                      const isActive = widget.selectedFixtureId === fid;
+                      return (
+                        <button key={fid}
+                          onClick={e => { e.stopPropagation(); onSelect(); onUpdate({ selectedFixtureId: isActive ? null : fid }); }}
+                          className={`rounded transition-all border font-semibold ${
+                            isActive
+                              ? 'border-foreground/60 text-foreground'
+                              : 'border-border/20 text-muted-foreground/60 hover:border-border/40'
+                          }`}
+                          style={{
+                            fontSize: btnFs * 0.75, paddingLeft: btnPx, paddingRight: btnPx, paddingTop: btnPy, paddingBottom: btnPy,
+                            backgroundColor: isActive ? fColor + '30' : fColor + '10',
+                            borderColor: isActive ? fColor : undefined,
+                            color: isActive ? fColor : undefined,
+                          }}>
+                          {inst?.inst.name?.slice(0, 6) || `F${i + 1}`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 {/* Zero all channels button */}
                 <div className="flex justify-center">
                   <button
