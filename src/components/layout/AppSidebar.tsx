@@ -73,10 +73,10 @@ export function AppSidebar() {
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="w-full h-8 text-[8px] gap-1 text-muted-foreground hover:text-foreground"
-              onClick={() => {
+              onClick={async () => {
                 const json = exportFullBackup();
                 const ts = new Date().toISOString().slice(0, 10);
-                downloadJson(json, `stokio-backup-${ts}.json`);
+                await downloadJson(json, `stokio-backup-${ts}.json`);
                 toast.success('Full project backup saved');
               }}>
               <Download size={12} /> Backup
