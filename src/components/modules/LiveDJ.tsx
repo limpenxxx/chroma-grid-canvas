@@ -1173,8 +1173,10 @@ export function LiveDJ() {
   ]);
 
   const [selectedWidget, setSelectedWidget] = useState<string | null>(null);
+  const [snapToGrid, setSnapToGrid] = useState(false);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
+  const tabBgInputRef = useRef<HTMLInputElement>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   // ── Saved Layouts ──
