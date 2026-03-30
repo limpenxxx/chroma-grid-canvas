@@ -6,8 +6,10 @@ import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import {
   useFixtureStore, type FixtureDefinition, type FixtureInstance,
-  type ColorSystem, type ColorWheelSlot, getFixtureTypeIcon,
+  type ColorSystem, type ColorWheelSlot, getFixtureTypeIcon, getFixtureIconEmoji,
 } from '@/store/fixtureStore';
+import { useWledStore, type WledFixture } from '@/store/wledStore';
+import { setWledColor, setWledBrightness, setWledPower } from '@/lib/wledApi';
 
 // ── Live channel values per instance ──
 interface FixtureState {
