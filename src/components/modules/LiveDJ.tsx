@@ -1514,6 +1514,56 @@ export function LiveDJ() {
     return () => { if (bpmFlashRef.current) clearInterval(bpmFlashRef.current); };
   }, [bpmState.bpm, bpmState.isSynced]);
 
+  // ── WLED UDP Sound Sync → BPM detection via polling ──
+  const wledBeatRef = useRef<{ peaks: number[]; lastVol: number; lastPeakTime: number }>({ peaks: [], lastVol: 0, lastPeakTime: 0 });
+  const wledPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (wledPollRef.current) { clearInterval(wledPollRef.current); wledPollRef.current = null; }
+    if (audioConfig.source !== 'wled-udp-sync' || !audioConfig.wledIp) return;
+
+    const ip = audioConfig.wledIp;
+    const beatData = wledBeatRef.current;
+    beatData.peaks = [];
+    beatData.lastVol = 0;
+    beatData.lastPeakTime = 0;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`http://${ip}/json/si`, { signal: AbortSignal.timeout(1500) });
+        if (!res.ok) return;
+        const data = await res.json();
+        // WLED sound-reactive info: data.leds.lx = volume/loudness estimate
+        // or data.um?.AudioReactive?.volumeSmth or similar
+        const um = data?.um;
+        const ar = um?.['AudioReactive'] || um?.['audioreactive'] || {};
+        const vol = ar?.volumeSmth ?? ar?.volume ?? ar?.inputLevel ?? data?.leds?.lx ?? 0;
+        const now = Date.now();
+        const threshold = audioConfig.squelch * 0.5 + 20;
+
+        // Simple beat detection: rising edge above threshold
+        if (vol > threshold && beatData.lastVol <= threshold && now - beatData.lastPeakTime > 200) {
+          beatData.lastPeakTime = now;
+          beatData.peaks = [...beatData.peaks.filter(t => now - t < 6000), now];
+
+          if (beatData.peaks.length >= 4) {
+            const intervals = beatData.peaks.slice(1).map((t, i) => t - beatData.peaks[i]);
+            const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+            const detectedBpm = Math.round(60000 / avgInterval);
+            if (detectedBpm >= 40 && detectedBpm <= 300) {
+              setBpmState(prev => ({ ...prev, bpm: detectedBpm, isSynced: true }));
+            }
+          }
+        }
+        beatData.lastVol = vol;
+      } catch { /* device unreachable */ }
+    };
+
+    // Poll at ~50ms for responsive beat detection
+    wledPollRef.current = setInterval(poll, 50);
+    return () => { if (wledPollRef.current) clearInterval(wledPollRef.current); };
+  }, [audioConfig.source, audioConfig.wledIp, audioConfig.squelch]);
+
   const toggleBpmWidgetLink = (widgetId: string) => {
     setBpmState(prev => ({
       ...prev,
