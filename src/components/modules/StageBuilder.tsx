@@ -566,15 +566,18 @@ export function StageBuilder() {
     const onRight = Math.abs(mx - (node.x + node.width)) < tol;
     const onTop = Math.abs(my - node.y) < tol;
     const onBottom = Math.abs(my - (node.y + node.height)) < tol;
-    if (onTop && onLeft) return 'nw';
-    if (onTop && onRight) return 'ne';
-    if (onBottom && onLeft) return 'sw';
-    if (onBottom && onRight) return 'se';
-    if (onTop) return 'n';
-    if (onBottom) return 's';
-    if (onLeft) return 'w';
-    if (onRight) return 'e';
+    // Individual axis only — no corner handles
+    if (onTop && !onLeft && !onRight) return 'n';
+    if (onBottom && !onLeft && !onRight) return 's';
+    if (onLeft && !onTop && !onBottom) return 'w';
+    if (onRight && !onTop && !onBottom) return 'e';
     return null;
+  };
+
+  const isCenterAnchor = (mx: number, my: number, node: WLEDNode): boolean => {
+    const cx = node.x + node.width / 2;
+    const cy = node.y + node.height / 2;
+    return Math.sqrt((mx - cx) ** 2 + (my - cy) ** 2) <= 14;
   };
 
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
