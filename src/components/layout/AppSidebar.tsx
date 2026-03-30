@@ -84,6 +84,7 @@ export function AppSidebar() {
           </TooltipTrigger>
           <TooltipContent side="right">Export full project backup</TooltipContent>
         </Tooltip>
+        {userRole === 'admin' && (
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="sm" className="w-full h-8 text-[8px] gap-1 text-muted-foreground hover:text-foreground"
@@ -99,8 +100,9 @@ export function AppSidebar() {
               <Upload size={12} /> Restore
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="right">Import project backup</TooltipContent>
+          <TooltipContent side="right">Import project backup (Admin only)</TooltipContent>
         </Tooltip>
+        )}
       </div>
 
       {/* Logout */}
