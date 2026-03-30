@@ -821,6 +821,44 @@ function ControlWidget({
             const gap = Math.max(2, Math.min(6, s * 0.015));
             return (
               <div className="w-full shrink-0 flex flex-col mt-1" style={{ gap }}>
+                {/* Fixture selector — pick which fixture to control individually */}
+                {widget.linkedFixtureIds.length > 1 && (
+                  <div className="flex flex-wrap justify-center" style={{ gap: Math.max(2, gap) }}>
+                    <button
+                      onClick={e => { e.stopPropagation(); onSelect(); onUpdate({ selectedFixtureId: null }); }}
+                      className={`rounded transition-all border font-semibold ${
+                        !widget.selectedFixtureId
+                          ? 'bg-primary/20 border-primary/50 text-primary'
+                          : 'bg-muted/10 border-border/20 text-muted-foreground/60 hover:border-border/40'
+                      }`}
+                      style={{ fontSize: btnFs * 0.8, paddingLeft: btnPx, paddingRight: btnPx, paddingTop: btnPy, paddingBottom: btnPy }}>
+                      ALL
+                    </button>
+                    {widget.linkedFixtureIds.map((fid, i) => {
+                      const fxColors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6fff', '#ff9f43'];
+                      const fColor = fxColors[i % fxColors.length];
+                      const inst = fixtureData.find(f => f.inst.id === fid);
+                      const isActive = widget.selectedFixtureId === fid;
+                      return (
+                        <button key={fid}
+                          onClick={e => { e.stopPropagation(); onSelect(); onUpdate({ selectedFixtureId: isActive ? null : fid }); }}
+                          className={`rounded transition-all border font-semibold ${
+                            isActive
+                              ? 'border-foreground/60 text-foreground'
+                              : 'border-border/20 text-muted-foreground/60 hover:border-border/40'
+                          }`}
+                          style={{
+                            fontSize: btnFs * 0.75, paddingLeft: btnPx, paddingRight: btnPx, paddingTop: btnPy, paddingBottom: btnPy,
+                            backgroundColor: isActive ? fColor + '30' : fColor + '10',
+                            borderColor: isActive ? fColor : undefined,
+                            color: isActive ? fColor : undefined,
+                          }}>
+                          {inst?.inst.name?.slice(0, 6) || `F${i + 1}`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 {/* Zero all channels button */}
                 <div className="flex justify-center">
                   <button
