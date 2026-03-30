@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { broadcastState, isSyncingFromRemote, onSyncState } from '@/lib/wsSync';
 
 export type MediaSourceType = 'file' | 'youtube' | 'vimeo' | 'url';
 export type LoopMode = 'none' | 'loop-all' | 'loop-one' | 'shuffle';
