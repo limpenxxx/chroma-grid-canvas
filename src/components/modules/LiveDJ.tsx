@@ -584,8 +584,12 @@ function ControlWidget({
             )}
 
             {slots.length === 0 && (
-              <div className="flex-1 flex items-center justify-center">
-                <span className="text-[8px] text-muted-foreground/40 text-center">Link fixtures with fixed color wheels</span>
+              <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                <CircleDot size={Math.min(widget.width, widget.height) * 0.2} className="text-muted-foreground/20" />
+                <span className="text-[9px] text-muted-foreground/40 text-center px-2">
+                  No fixed color wheel fixtures found.
+                  <br />Add fixtures with color wheels in Devices first.
+                </span>
               </div>
             )}
           </div>
