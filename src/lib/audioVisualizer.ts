@@ -26,6 +26,8 @@ export const PRESET_LABELS: Record<VisualizerPreset, string> = {
   'tunnel-flight': '🕳️ Tunnel Flight',
   'kaleidoscope': '🔮 Kaleidoscope',
   'ocean-pulse': '🌀 Ocean Pulse',
+  'emoji-rain': '🎉 Emoji Rain',
+  'emoji-vortex': '😎 Emoji Vortex',
 };
 
 export const INPUT_LABELS: Record<AudioInputSource, string> = {
