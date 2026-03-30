@@ -24,6 +24,34 @@ interface FixtureAssignment {
 
 type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad';
 
+// ── Audio / BPM Types ──
+type AudioSource = 'none' | 'wled-analog' | 'wled-i2s-inmp441' | 'wled-i2s-max98357' | 'wled-i2s-sph0645' | 'wled-udp-sync' | 'browser-mic';
+
+interface AudioConfig {
+  source: AudioSource;
+  squelch: number;    // noise gate 0-255
+  gain: number;       // input gain 0-255
+  udpPort: number;    // WLED UDP sync port
+}
+
+interface BPMState {
+  bpm: number;
+  tapTimes: number[];
+  isSynced: boolean;
+  linkedWidgetIds: string[];
+  flashOn: boolean;
+}
+
+const AUDIO_SOURCES: { value: AudioSource; label: string; description: string }[] = [
+  { value: 'none', label: 'None', description: 'No audio input' },
+  { value: 'wled-analog', label: 'WLED Analog Mic', description: 'MAX4466 / MAX9814 analog microphone on WLED ESP32' },
+  { value: 'wled-i2s-inmp441', label: 'WLED I2S INMP441', description: 'Digital I2S MEMS microphone (recommended)' },
+  { value: 'wled-i2s-max98357', label: 'WLED I2S MAX98357', description: 'I2S line-in via MAX98357 amplifier' },
+  { value: 'wled-i2s-sph0645', label: 'WLED I2S SPH0645', description: 'SPH0645 I2S digital microphone' },
+  { value: 'wled-udp-sync', label: 'WLED UDP Sound Sync', description: 'Receive audio data from another WLED instance via UDP' },
+  { value: 'browser-mic', label: 'Browser Microphone', description: 'Use this device\'s microphone via Web Audio API' },
+];
+
 interface DJWidget {
   id: string;
   type: WidgetType;
