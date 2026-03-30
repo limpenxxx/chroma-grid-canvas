@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ImagePlus, Shield, User, Pencil } from 'lucide-react';
-import stokioLogo from '@/assets/stokio-logo-color.png';
+import stokioLogo from '@/assets/stokio-logo.png';
 import { useAppStore } from '@/store/appStore';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { BottomBar } from '@/components/layout/BottomBar';
@@ -65,7 +65,7 @@ function StartScreen() {
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
         className="flex flex-col items-center gap-10 relative z-10">
-        <img src={stokioLogo} alt="STOKIO FX" className="h-40 w-40 object-contain drop-shadow-[0_0_24px_rgba(0,229,255,0.4)]" />
+        <img src={stokioLogo} alt="STOKIO FX" className="h-48 w-auto max-w-[400px] object-contain drop-shadow-[0_0_24px_rgba(0,229,255,0.4)]" />
         <h1 className="text-2xl font-bold tracking-[0.3em] uppercase text-foreground">STOKIO FX LIGHT CONTROLLER</h1>
         <p className="text-sm text-muted-foreground tracking-wider">Select your role to continue</p>
 
