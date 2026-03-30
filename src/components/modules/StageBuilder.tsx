@@ -164,6 +164,41 @@ export function StageBuilder() {
     return () => { vizEngineRef.current.destroy(); };
   }, []);
 
+  // Arrow key movement for selected items
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedId) return;
+      const step = e.shiftKey ? 10 : 1;
+      const arrows: Record<string, { x: number; y: number }> = {
+        ArrowUp: { x: 0, y: -step },
+        ArrowDown: { x: 0, y: step },
+        ArrowLeft: { x: -step, y: 0 },
+        ArrowRight: { x: step, y: 0 },
+      };
+      const delta = arrows[e.key];
+      if (!delta) return;
+      e.preventDefault();
+
+      if (selectionType === 'node') {
+        setNodes(prev => prev.map(n =>
+          n.id === selectedId ? { ...n, x: Math.max(0, n.x + delta.x), y: Math.max(0, n.y + delta.y) } : n
+        ));
+      } else if (selectionType === 'fixture') {
+        const f = fixtureStore.instances.find(i => i.id === selectedId);
+        if (f) fixtureStore.updateInstance(selectedId, {
+          stageX: Math.max(0, f.stageX + delta.x),
+          stageY: Math.max(0, f.stageY + delta.y),
+        });
+      } else if (selectionType === 'mapping-fixture') {
+        setMappingFixtures(prev => prev.map(mf =>
+          mf.id === selectedId ? { ...mf, x: Math.max(0, mf.x + delta.x), y: Math.max(0, mf.y + delta.y) } : mf
+        ));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedId, selectionType, fixtureStore]);
+
   const startVisualizer = async () => {
     try {
       await vizEngineRef.current.start(vizAudioInput, selectedDeviceId || undefined);
@@ -366,29 +401,31 @@ export function StageBuilder() {
         ctx.strokeRect(-hw - 2, -hh - 2, node.width + 4, node.height + 4);
         ctx.shadowBlur = 0;
         const handleSize = 10;
+        // Edge-only handles (no corners)
         const handles = [
-          { x: -hw, y: -hh }, { x: 0, y: -hh }, { x: hw, y: -hh },
-          { x: -hw, y: 0 }, { x: hw, y: 0 },
-          { x: -hw, y: hh }, { x: 0, y: hh }, { x: hw, y: hh },
+          { x: 0, y: -hh },   // n
+          { x: 0, y: hh },    // s
+          { x: -hw, y: 0 },   // w
+          { x: hw, y: 0 },    // e
         ];
         handles.forEach(pos => {
           ctx.fillStyle = '#00ff66';
           ctx.fillRect(pos.x - handleSize / 2, pos.y - handleSize / 2, handleSize, handleSize);
         });
-        // Center move handle
+        // Center move anchor
         ctx.beginPath();
-        ctx.arc(0, 0, 8, 0, Math.PI * 2);
+        ctx.arc(0, 0, 10, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(0,255,102,0.3)';
         ctx.fill();
         ctx.strokeStyle = '#00ff66';
         ctx.lineWidth = 1.5;
         ctx.stroke();
-        // Cross icon in center
+        // Cross icon
         ctx.strokeStyle = '#00ff66';
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.moveTo(-4, 0); ctx.lineTo(4, 0);
-        ctx.moveTo(0, -4); ctx.lineTo(0, 4);
+        ctx.moveTo(-5, 0); ctx.lineTo(5, 0);
+        ctx.moveTo(0, -5); ctx.lineTo(0, 5);
         ctx.stroke();
       }
 
@@ -566,15 +603,18 @@ export function StageBuilder() {
     const onRight = Math.abs(mx - (node.x + node.width)) < tol;
     const onTop = Math.abs(my - node.y) < tol;
     const onBottom = Math.abs(my - (node.y + node.height)) < tol;
-    if (onTop && onLeft) return 'nw';
-    if (onTop && onRight) return 'ne';
-    if (onBottom && onLeft) return 'sw';
-    if (onBottom && onRight) return 'se';
-    if (onTop) return 'n';
-    if (onBottom) return 's';
-    if (onLeft) return 'w';
-    if (onRight) return 'e';
+    // Individual axis only — no corner handles
+    if (onTop && !onLeft && !onRight) return 'n';
+    if (onBottom && !onLeft && !onRight) return 's';
+    if (onLeft && !onTop && !onBottom) return 'w';
+    if (onRight && !onTop && !onBottom) return 'e';
     return null;
+  };
+
+  const isCenterAnchor = (mx: number, my: number, node: WLEDNode): boolean => {
+    const cx = node.x + node.width / 2;
+    const cy = node.y + node.height / 2;
+    return Math.sqrt((mx - cx) ** 2 + (my - cy) ** 2) <= 14;
   };
 
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
@@ -623,11 +663,18 @@ export function StageBuilder() {
           return;
         }
       }
-      if (mx >= n.x && mx <= n.x + n.width && my >= n.y && my <= n.y + n.height) {
+      // Only allow move from center anchor
+      if (isCenterAnchor(mx, my, n)) {
         setSelectionType('node');
         setSelectedId(n.id);
         setDragging({ type: 'node', id: n.id });
         setDragOffset({ x: mx - n.x, y: my - n.y });
+        return;
+      }
+      // Click to select (but not drag)
+      if (mx >= n.x && mx <= n.x + n.width && my >= n.y && my <= n.y + n.height) {
+        setSelectionType('node');
+        setSelectedId(n.id);
         return;
       }
     }
