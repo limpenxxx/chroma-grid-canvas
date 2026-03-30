@@ -276,6 +276,65 @@ function ControlWidget({
     );
   })() : false;
 
+  // MH pattern animation — animate the joystick dot when a pattern is running
+  const [patternPos, setPatternPos] = useState<{ x: number; y: number } | null>(null);
+  const patternAnimRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (widget.type !== 'xy-pad' || !widget.mhProgram?.running) {
+      setPatternPos(null);
+      if (patternAnimRef.current) cancelAnimationFrame(patternAnimRef.current);
+      return;
+    }
+
+    const prog = widget.mhProgram;
+    const sizeScale = (prog.size || 50) / 100;
+    const speedMs = Math.max(200, 6000 - (prog.speed || 50) * 50); // period in ms
+    const startTime = performance.now();
+
+    const computePos = (t: number): { x: number; y: number } => {
+      const phase = ((t - startTime) / speedMs) * Math.PI * 2;
+      const cx = 128, cy = 128;
+      const range = 110 * sizeScale;
+      switch (prog.pattern) {
+        case 'circle': return { x: cx + Math.cos(phase) * range, y: cy + Math.sin(phase) * range };
+        case 'figure8': return { x: cx + Math.sin(phase) * range, y: cy + Math.sin(phase * 2) * range * 0.6 };
+        case 'zigzag': {
+          const p = ((phase / (Math.PI * 2)) % 1);
+          const seg = p * 4;
+          const xPos = seg < 1 ? seg : seg < 2 ? 1 : seg < 3 ? 3 - seg : 0;
+          const yPos = seg < 1 ? 0 : seg < 2 ? seg - 1 : seg < 3 ? 1 : 4 - seg;
+          return { x: cx + (xPos - 0.5) * range * 2, y: cy + (yPos - 0.5) * range * 2 };
+        }
+        case 'sweep-h': return { x: cx + Math.sin(phase) * range, y: cy };
+        case 'sweep-v': return { x: cx, y: cy + Math.sin(phase) * range };
+        case 'random': return { x: cx + (Math.sin(phase * 3.7) * 0.6 + Math.sin(phase * 1.3) * 0.4) * range, y: cy + (Math.cos(phase * 2.9) * 0.6 + Math.cos(phase * 1.7) * 0.4) * range };
+        case 'square': {
+          const p = ((phase / (Math.PI * 2)) % 1);
+          const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+          const c2 = corners[Math.floor(p * 4) % 4];
+          return { x: cx + c2[0] * range * 0.7, y: cy + c2[1] * range * 0.7 };
+        }
+        case 'triangle': {
+          const p = ((phase / (Math.PI * 2)) % 1);
+          const pts = [[0, -1], [0.87, 0.5], [-0.87, 0.5]];
+          const pt = pts[Math.floor(p * 3) % 3];
+          return { x: cx + pt[0] * range, y: cy + pt[1] * range };
+        }
+        case 'bounce': return { x: cx, y: cy + Math.abs(Math.sin(phase)) * range - range * 0.5 };
+        default: return { x: cx, y: cy };
+      }
+    };
+
+    const animate = (t: number) => {
+      const pos = computePos(t);
+      setPatternPos({ x: Math.max(0, Math.min(255, pos.x)), y: Math.max(0, Math.min(255, pos.y)) });
+      patternAnimRef.current = requestAnimationFrame(animate);
+    };
+    patternAnimRef.current = requestAnimationFrame(animate);
+    return () => { if (patternAnimRef.current) cancelAnimationFrame(patternAnimRef.current); };
+  }, [widget.type, widget.mhProgram?.running, widget.mhProgram?.pattern, widget.mhProgram?.speed, widget.mhProgram?.size]);
+
   const startInteraction = useCallback((e: React.MouseEvent, mode: DragMode) => {
     e.stopPropagation();
     e.preventDefault();
