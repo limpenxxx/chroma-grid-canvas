@@ -1,11 +1,12 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown, Film, Droplets } from 'lucide-react';
+import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown, Film, Droplets, Music, Mic, Volume2, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { useFixtureStore, getFixtureTypeIcon, getChannelColor } from '@/store/fixtureStore';
 import { useMediaStore, getEmbedUrl } from '@/store/mediaStore';
+import { AudioVisualizerEngine, PRESET_LABELS, INPUT_LABELS, type VisualizerPreset, type AudioInputSource } from '@/lib/audioVisualizer';
 
 type SegmentOrientation = 'horizontal' | 'vertical' | 'zigzag-h' | 'zigzag-v';
 
@@ -92,10 +93,14 @@ const ORIENTATION_LABELS: Record<SegmentOrientation, string> = {
 type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null;
 type SelectionType = 'node' | 'fixture' | 'mapping-fixture' | null;
 
+type BackgroundSource = 'video' | 'visualizer' | 'texture';
+
 export function StageBuilder() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const vizEngineRef = useRef<AudioVisualizerEngine>(new AudioVisualizerEngine());
+  const vizCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [nodes, setNodes] = useState<WLEDNode[]>(MOCK_NODES);
   const [mappingFixtures, setMappingFixtures] = useState<MappingFixture[]>([]);
   const [selectionType, setSelectionType] = useState<SelectionType>(null);
@@ -112,9 +117,64 @@ export function StageBuilder() {
   const mediaStore = useMediaStore();
   const stageFixtures = fixtureStore.instances.filter(i => i.onStage);
 
+  // Background source state
+  const [bgSource, setBgSource] = useState<BackgroundSource>('texture');
+  const [vizPreset, setVizPreset] = useState<VisualizerPreset>('plasma-wave');
+  const [vizAudioInput, setVizAudioInput] = useState<AudioInputSource>('microphone');
+  const [vizSensitivity, setVizSensitivity] = useState(1.0);
+  const [vizColorShift, setVizColorShift] = useState(0);
+  const [vizRunning, setVizRunning] = useState(false);
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+  const [showBgPanel, setShowBgPanel] = useState(false);
+
   // Get active media item for video background
   const activeItem = mediaStore.items.find(i => i.id === mediaStore.activeItemId);
   const isVideoPlaying = mediaStore.isPlaying && activeItem?.type === 'video';
+
+  // Auto-switch to video source when video starts playing
+  useEffect(() => {
+    if (isVideoPlaying) setBgSource('video');
+  }, [isVideoPlaying]);
+
+  // Load audio devices
+  useEffect(() => {
+    AudioVisualizerEngine.getInputDevices().then(setAudioDevices).catch(() => {});
+  }, []);
+
+  // Sync viz engine settings
+  useEffect(() => {
+    const engine = vizEngineRef.current;
+    engine.preset = vizPreset;
+    engine.sensitivity = vizSensitivity;
+    engine.colorShift = vizColorShift;
+  }, [vizPreset, vizSensitivity, vizColorShift]);
+
+  // Create offscreen canvas for visualizer
+  useEffect(() => {
+    if (!vizCanvasRef.current) {
+      vizCanvasRef.current = document.createElement('canvas');
+      vizCanvasRef.current.width = 640;
+      vizCanvasRef.current.height = 360;
+    }
+    return () => { vizEngineRef.current.destroy(); };
+  }, []);
+
+  const startVisualizer = async () => {
+    try {
+      await vizEngineRef.current.start(vizAudioInput, selectedDeviceId || undefined);
+      setVizRunning(true);
+      setBgSource('visualizer');
+    } catch (err) {
+      console.error('Failed to start visualizer:', err);
+    }
+  };
+
+  const stopVisualizer = () => {
+    vizEngineRef.current.stop();
+    setVizRunning(false);
+    if (bgSource === 'visualizer') setBgSource('texture');
+  };
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -145,10 +205,18 @@ export function StageBuilder() {
       }
     }
 
-    // Video background or animated texture
+    // Background source rendering
     const video = videoRef.current;
-    if (video && isVideoPlaying && video.readyState >= 2) {
+    if (bgSource === 'video' && video && isVideoPlaying && video.readyState >= 2) {
       ctx.drawImage(video, 0, 0, w, h);
+    } else if (bgSource === 'visualizer' && vizCanvasRef.current) {
+      // Render visualizer to offscreen canvas, then draw to main
+      const vizCanvas = vizCanvasRef.current;
+      const vizCtx = vizCanvas.getContext('2d');
+      if (vizCtx) {
+        vizEngineRef.current.render(vizCtx, vizCanvas.width, vizCanvas.height);
+        ctx.drawImage(vizCanvas, 0, 0, w, h);
+      }
     } else {
       // Animated background texture (fallback)
       const time = Date.now() / 2000;
@@ -444,7 +512,7 @@ export function StageBuilder() {
 
     ctx.restore();
     animRef.current = requestAnimationFrame(drawCanvas);
-  }, [nodes, selectionType, selectedId, showGrid, stageFixtures, mappingFixtures, fixtureStore, isVideoPlaying]);
+  }, [nodes, selectionType, selectedId, showGrid, stageFixtures, mappingFixtures, fixtureStore, isVideoPlaying, bgSource]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -735,12 +803,27 @@ export function StageBuilder() {
           <Grid3X3 size={12} /> Grid
         </Button>
 
-        {/* Video status */}
-        {isVideoPlaying && (
-          <div className="flex items-center gap-1 text-[9px] text-primary bg-primary/10 px-2 py-1 rounded border border-primary/30">
-            <Film size={10} /> Video Active
-          </div>
-        )}
+        {/* Background Source Selector */}
+        <div className="flex items-center gap-1 border-l border-border/30 pl-2 ml-1">
+          <Button variant={bgSource === 'texture' ? 'secondary' : 'outline'} size="sm"
+            onClick={() => setBgSource('texture')} className="h-7 text-[9px] gap-1 px-2">
+            <Grid3X3 size={10} /> Texture
+          </Button>
+          <Button variant={bgSource === 'video' ? 'secondary' : 'outline'} size="sm"
+            onClick={() => setBgSource('video')} className="h-7 text-[9px] gap-1 px-2"
+            disabled={!isVideoPlaying}>
+            <Film size={10} /> Video
+          </Button>
+          <Button variant={bgSource === 'visualizer' ? 'secondary' : 'outline'} size="sm"
+            onClick={() => setShowBgPanel(!showBgPanel)} className="h-7 text-[9px] gap-1 px-2">
+            <Music size={10} /> Audio VFX
+          </Button>
+          {vizRunning && (
+            <div className="flex items-center gap-1 text-[9px] text-green-400 bg-green-400/10 px-2 py-1 rounded border border-green-400/30">
+              <Volume2 size={10} className="animate-pulse" /> Live
+            </div>
+          )}
+        </div>
 
         <div className="ml-auto flex items-center gap-1">
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}>
@@ -752,6 +835,85 @@ export function StageBuilder() {
           </Button>
         </div>
       </div>
+
+      {/* Audio Visualizer Settings Panel */}
+      <AnimatePresence>
+        {showBgPanel && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+            className="border-b border-border/30 overflow-hidden bg-card/40">
+            <div className="p-3 flex flex-wrap gap-4 items-end">
+              {/* Audio Input */}
+              <div className="space-y-1">
+                <label className="text-[8px] uppercase tracking-wider text-muted-foreground block">Audio Input</label>
+                <div className="flex gap-1">
+                  {(Object.keys(INPUT_LABELS) as AudioInputSource[]).map(src => (
+                    <Button key={src} variant={vizAudioInput === src ? 'secondary' : 'outline'} size="sm"
+                      className="h-6 text-[8px] px-2 gap-1"
+                      onClick={() => setVizAudioInput(src)}>
+                      {src === 'microphone' && <Mic size={9} />}
+                      {src === 'system-audio' && <Monitor size={9} />}
+                      {src === 'audio-interface' && <Music size={9} />}
+                      {src === 'microphone' ? 'Mic' : src === 'system-audio' ? 'System' : 'Interface'}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Device selector for mic/interface */}
+              {vizAudioInput !== 'system-audio' && audioDevices.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-[8px] uppercase tracking-wider text-muted-foreground block">Device</label>
+                  <select value={selectedDeviceId} onChange={e => setSelectedDeviceId(e.target.value)}
+                    className="h-6 text-[9px] bg-muted/30 border border-border/30 rounded px-2 text-foreground max-w-[200px]">
+                    <option value="">Default</option>
+                    {audioDevices.map(d => (
+                      <option key={d.deviceId} value={d.deviceId}>{d.label || `Input ${d.deviceId.slice(0, 8)}`}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Preset */}
+              <div className="space-y-1">
+                <label className="text-[8px] uppercase tracking-wider text-muted-foreground block">Preset</label>
+                <select value={vizPreset} onChange={e => setVizPreset(e.target.value as VisualizerPreset)}
+                  className="h-6 text-[9px] bg-muted/30 border border-border/30 rounded px-2 text-foreground">
+                  {(Object.entries(PRESET_LABELS)).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sensitivity */}
+              <div className="space-y-1 w-24">
+                <label className="text-[8px] uppercase tracking-wider text-muted-foreground block">
+                  Sensitivity: {vizSensitivity.toFixed(1)}
+                </label>
+                <Slider value={[vizSensitivity * 50]} onValueChange={([v]) => setVizSensitivity(v / 50)} max={150} />
+              </div>
+
+              {/* Color Shift */}
+              <div className="space-y-1 w-24">
+                <label className="text-[8px] uppercase tracking-wider text-muted-foreground block">
+                  Color Shift: {vizColorShift}°
+                </label>
+                <Slider value={[vizColorShift]} onValueChange={([v]) => setVizColorShift(v)} max={360} />
+              </div>
+
+              {/* Start/Stop */}
+              {!vizRunning ? (
+                <Button size="sm" className="h-7 text-[10px] gap-1 bg-green-600 hover:bg-green-700" onClick={startVisualizer}>
+                  <Volume2 size={12} /> Start Audio VFX
+                </Button>
+              ) : (
+                <Button size="sm" variant="destructive" className="h-7 text-[10px] gap-1" onClick={stopVisualizer}>
+                  Stop
+                </Button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="flex-1 flex overflow-hidden">
         {/* Canvas */}
