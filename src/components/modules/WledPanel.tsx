@@ -199,6 +199,7 @@ export function WledPanel() {
                 </div>
               </motion.div>
             ) : (
+              <>
               <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 flex-1"
                   onClick={() => setShowAdd(true)}>
@@ -218,6 +219,7 @@ export function WledPanel() {
                   {scanProgress}
                 </div>
               )}
+              </>
             )}
           </div>
 
