@@ -1,10 +1,14 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker, Grid3X3
+  Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker, Grid3X3, Download, Upload
 } from 'lucide-react';
 import { useAppStore, type ModuleId } from '@/store/appStore';
 import stokioLogo from '@/assets/stokio-logo-color.png';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+import { exportFullBackup, importFullBackup, downloadJson, openJsonFile } from '@/lib/backupRestore';
+import { toast } from 'sonner';
 
 const navItems: { id: ModuleId; icon: typeof Layout; label: string }[] = [
   { id: 'stage', icon: Grid3X3, label: 'Pixel Mapping' },

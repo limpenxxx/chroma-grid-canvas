@@ -848,6 +848,13 @@ export function StageBuilder() {
         </div>
 
         <div className="ml-auto flex items-center gap-1">
+          <Button variant="outline" size="sm" onClick={saveMapping} className="h-7 text-[10px] gap-1">
+            <Save size={12} /> Save
+          </Button>
+          <Button variant="outline" size="sm" onClick={openMapping} className="h-7 text-[10px] gap-1">
+            <FolderOpen size={12} /> Open
+          </Button>
+          <div className="w-px h-5 bg-border/30 mx-1" />
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}>
             <ZoomOut size={14} />
           </Button>
