@@ -516,15 +516,26 @@ function ControlWidget({
             }}>
             <div className="absolute left-1/2 top-0 w-px h-full bg-border/20" />
             <div className="absolute top-1/2 left-0 w-full h-px bg-border/20" />
-            {widget.colorValue && (() => {
+            {(() => {
               const syncWidget = widget.syncColorWidgetId ? allWidgets.find(w => w.id === widget.syncColorWidgetId) : null;
               const dotColor = syncWidget?.colorValue
                 ? `rgb(${syncWidget.colorValue.r},${syncWidget.colorValue.g},${syncWidget.colorValue.b})`
                 : 'hsl(var(--primary))';
+              const dotX = patternPos ? patternPos.x : (widget.colorValue?.r ?? 128);
+              const dotY = patternPos ? patternPos.y : (widget.colorValue?.g ?? 128);
               return (
-                <div className="absolute w-4 h-4 rounded-full border border-foreground -translate-x-1/2 -translate-y-1/2"
-                  style={{ left: `${(widget.colorValue.r / 255) * 100}%`, top: `${(widget.colorValue.g / 255) * 100}%`,
-                    backgroundColor: dotColor, boxShadow: `0 0 10px ${dotColor}` }} />
+                <>
+                  <div className="absolute w-4 h-4 rounded-full border border-foreground -translate-x-1/2 -translate-y-1/2 transition-none"
+                    style={{ left: `${(dotX / 255) * 100}%`, top: `${(dotY / 255) * 100}%`,
+                      backgroundColor: dotColor, boxShadow: `0 0 10px ${dotColor}` }} />
+                  {patternPos && (
+                    <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
+                      <div className="absolute w-1 h-1 rounded-full bg-primary/30 -translate-x-1/2 -translate-y-1/2"
+                        style={{ left: `${(dotX / 255) * 100}%`, top: `${(dotY / 255) * 100}%`,
+                          boxShadow: `0 0 20px 6px ${dotColor}` }} />
+                    </div>
+                  )}
+                </>
               );
             })()}
             <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[8px] text-muted-foreground/40">PAN</span>
