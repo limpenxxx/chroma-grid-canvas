@@ -355,6 +355,12 @@ function ControlWidget({
     <div className={`absolute select-none group transition-shadow ${isSelected ? 'ring-1 ring-primary/60 z-30' : 'z-10'} ${interacting ? 'z-50' : ''}`}
       style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height }}>
 
+      {/* Strobe sync flash overlay */}
+      {isStrobeSynced && (
+        <div className="absolute inset-0 rounded-lg z-[35] pointer-events-none animate-strobe-flash"
+          style={{ background: `radial-gradient(circle, ${widget.color || '#fff'}90, transparent)` }} />
+      )}
+
       {/* Top drag handle — larger, more visible */}
       <div className="absolute -top-3 left-0 right-0 h-6 z-40 cursor-grab active:cursor-grabbing flex items-center justify-center"
         onMouseDown={e => startInteraction(e, 'move')}>
