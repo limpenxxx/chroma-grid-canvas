@@ -63,6 +63,11 @@
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
   }
+
+  select, select option {
+    background-color: hsl(0 0% 20%);
+    color: hsl(var(--foreground));
+  }
 }
 
 @layer components {
