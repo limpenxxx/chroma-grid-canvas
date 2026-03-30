@@ -4,6 +4,7 @@ import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
+import { useFixtureStore, getFixtureTypeIcon, getChannelColor } from '@/store/fixtureStore';
 
 type SegmentOrientation = 'horizontal' | 'vertical' | 'zigzag-h' | 'zigzag-v';
 
