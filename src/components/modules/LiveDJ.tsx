@@ -145,10 +145,12 @@ interface DJWidget {
   wledPresetName?: string;
   wledIp?: string;
   wledPresets?: { id: number; name: string }[];
-  // DMX Reset widget
   resetUniverse?: number;
   // Color program (color-wheel)
   colorProgram?: ColorProgram;
+  // Fader-specific
+  bgColor?: string;              // separate background color for fader widget
+  faderColorSyncWidgetId?: string | null; // sync fader color with a color-wheel widget
 }
 
 type ColorProgramMode = 'static' | 'switch' | 'fade';
@@ -560,17 +562,31 @@ function ControlWidget({
       )}
 
       {/* SLIDER */}
-      {widget.type === 'slider' && (
-        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-3 gap-1 overflow-hidden" style={bgStyle}>
+      {widget.type === 'slider' && (() => {
+        // Determine fader fill color: sync with color widget or use widget.color
+        let faderColor = widget.color;
+        if (widget.faderColorSyncWidgetId) {
+          const syncW = allWidgets.find(w => w.id === widget.faderColorSyncWidgetId);
+          if (syncW?.colorValue) {
+            faderColor = `rgb(${syncW.colorValue.r},${syncW.colorValue.g},${syncW.colorValue.b})`;
+          }
+        }
+        const sliderBg = widget.bgColor || undefined;
+        const sliderBgStyle = sliderBg
+          ? { ...bgStyle, backgroundColor: sliderBg }
+          : bgStyle;
+        return (
+        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-3 gap-1 overflow-hidden" style={sliderBgStyle}>
           <span className="text-muted-foreground font-semibold truncate" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.14)) }}>{widget.label}</span>
           <div className="flex-1 w-10 rounded fader-track border border-border/20 relative">
-            <motion.div className="absolute bottom-0 left-0 w-full rounded-b" style={{ backgroundColor: widget.color + '60' }} animate={{ height: `${widget.value || 0}%` }} />
+            <motion.div className="absolute bottom-0 left-0 w-full rounded-b" style={{ backgroundColor: faderColor + (faderColor.startsWith('rgb') ? '' : '60') }} animate={{ height: `${widget.value || 0}%` }} />
             <input type="range" min={0} max={100} value={widget.value || 0} onChange={e => { onSelect(); onUpdate({ value: Number(e.target.value) }); }}
               className="absolute inset-0 w-full h-full opacity-0 cursor-ns-resize" style={{ writingMode: 'vertical-lr', direction: 'rtl' } as React.CSSProperties} />
           </div>
           <span className="font-mono text-muted-foreground" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.14)) }}>{widget.value || 0}%</span>
         </div>
-      )}
+        );
+      })()}
 
       {/* COLOR WHEEL */}
       {widget.type === 'color-wheel' && (() => {
@@ -2391,7 +2407,9 @@ export function LiveDJ() {
                   </div>
 
                   <div>
-                    <label className="text-[7px] uppercase text-muted-foreground">Background Color</label>
+                    <label className="text-[7px] uppercase text-muted-foreground">
+                      {selectedWidgetData.type === 'slider' ? 'Fader Color' : 'Background Color'}
+                    </label>
                     <div className="flex gap-1">
                       <Input type="color" value={selectedWidgetData.color}
                         onChange={e => updateWidget(selectedWidgetData.id, { color: e.target.value })}
@@ -2400,7 +2418,50 @@ export function LiveDJ() {
                         onChange={e => updateWidget(selectedWidgetData.id, { color: e.target.value })}
                         className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono flex-1" />
                     </div>
+                    {/* Fader color sync with color wheel widget */}
+                    {selectedWidgetData.type === 'slider' && (() => {
+                      const colorWidgets = widgets.filter(w => w.type === 'color-wheel');
+                      return colorWidgets.length > 0 ? (
+                        <div className="mt-1.5">
+                          <label className="text-[7px] uppercase text-muted-foreground">Sync Fader Color with Color Widget</label>
+                          <select
+                            value={selectedWidgetData.faderColorSyncWidgetId || ''}
+                            onChange={e => updateWidget(selectedWidgetData.id, { faderColorSyncWidgetId: e.target.value || null })}
+                            className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
+                            <option value="">None (use fader color)</option>
+                            {colorWidgets.map(cw => (
+                              <option key={cw.id} value={cw.id}>{cw.label}</option>
+                            ))}
+                          </select>
+                          {selectedWidgetData.faderColorSyncWidgetId && (
+                            <div className="text-[7px] text-primary/60 mt-0.5">✓ Fader fill follows live color</div>
+                          )}
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
+
+                  {/* Background Color — only for slider widgets */}
+                  {selectedWidgetData.type === 'slider' && (
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">Background Color</label>
+                      <div className="flex gap-1">
+                        <Input type="color" value={selectedWidgetData.bgColor || '#1a1a2e'}
+                          onChange={e => updateWidget(selectedWidgetData.id, { bgColor: e.target.value })}
+                          className="h-6 w-10 p-0 bg-transparent border-0 cursor-pointer" />
+                        <Input value={selectedWidgetData.bgColor || ''}
+                          onChange={e => updateWidget(selectedWidgetData.id, { bgColor: e.target.value })}
+                          placeholder="Default"
+                          className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono flex-1" />
+                        {selectedWidgetData.bgColor && (
+                          <Button variant="ghost" size="sm" className="h-6 px-1 text-muted-foreground"
+                            onClick={() => updateWidget(selectedWidgetData.id, { bgColor: undefined })}>
+                            <X size={10} />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <label className="text-[7px] uppercase text-muted-foreground">Background Image</label>
