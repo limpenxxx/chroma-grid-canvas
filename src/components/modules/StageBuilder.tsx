@@ -117,6 +117,7 @@ export function StageBuilder() {
   const animRef = useRef<number>(0);
   const canvasDims = useRef({ w: 0, h: 0 });
   const fixtureStore = useFixtureStore();
+  const wledStore = useWledStore();
   const mediaStore = useMediaStore();
   const stageFixtures = fixtureStore.instances.filter(i => i.onStage);
 
