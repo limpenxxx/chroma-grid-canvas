@@ -386,11 +386,11 @@ export function StageBuilder() {
         ctx.fill();
       }
 
-      // Fixture circle
-      const hue = (Date.now() / 30 + mf.x * 2) % 360;
+      // Fixture circle — sample color from video/background
+      const [mr, mg, mb] = sampleBgColor(mf.x, mf.y, mf.sampleRadius, mf.blurAmount);
       ctx.fillStyle = isSelected2
-        ? `hsla(${hue}, 80%, 50%, 0.5)`
-        : `hsla(${hue}, 70%, 45%, 0.35)`;
+        ? `rgba(${mr},${mg},${mb},0.85)`
+        : `rgba(${mr},${mg},${mb},0.7)`;
       ctx.strokeStyle = isSelected2 ? '#00e5ff' : 'rgba(0,229,255,0.5)';
       ctx.lineWidth = isSelected2 ? 2 : 1;
       ctx.beginPath();
