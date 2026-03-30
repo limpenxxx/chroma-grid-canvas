@@ -98,13 +98,16 @@ interface DJWidget {
   color: string;
   bgImage?: string | null;
   flash?: boolean;
+  toggled?: boolean; // for toggle mode state
   value?: number;
   min?: number;
   max?: number;
   colorValue?: { r: number; g: number; b: number };
   linkedFixtureIds: string[];
   linkedFunction?: string;
-  lockAxis?: 'none' | 'x' | 'y'; // lock movement to one axis
+  lockAxis?: 'none' | 'x' | 'y';
+  // MH program (xy-pad only)
+  mhProgram?: MHProgram;
 }
 
 interface ScriptStep {
