@@ -1,7 +1,6 @@
-import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker, ImagePlus
+  Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker
 } from 'lucide-react';
 import { useAppStore, type ModuleId } from '@/store/appStore';
 import stokioLogo from '@/assets/stokio-logo-color.png';
