@@ -65,7 +65,10 @@ function StartScreen() {
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
         className="flex flex-col items-center gap-10 relative z-10">
-        <img src={stokioLogo} alt="STOKIO FX" className="h-48 w-auto max-w-[400px] object-contain drop-shadow-[0_0_24px_rgba(0,229,255,0.4)]" />
+        <div className="relative">
+          <div className="absolute inset-0 rounded-full blur-3xl opacity-60 animate-rainbow-glow" />
+          <img src={stokioLogo} alt="STOKIO FX" className="relative z-10 h-48 w-auto max-w-[400px] object-contain drop-shadow-[0_0_24px_rgba(0,229,255,0.4)]" />
+        </div>
         <h1 className="text-2xl font-bold tracking-[0.3em] uppercase text-foreground">STOKIO FX LIGHT CONTROLLER</h1>
         <p className="text-sm text-muted-foreground tracking-wider">Select your role to continue</p>
 
