@@ -134,6 +134,8 @@ interface DJWidget {
   // Media trigger
   mediaItemId?: string | null;
   mediaPlaylistId?: string | null;
+  mediaPlayMode?: 'play-once' | 'loop' | 'loop-random'; // default: loop
+  mediaFlash?: boolean; // true = flash (hold to play), false = toggle
 }
 
 interface ScriptStep {
