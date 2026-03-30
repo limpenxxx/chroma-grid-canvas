@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ModuleId = 'stage' | 'media' | 'text' | 'fixtures' | 'nodes' | 'devices' | 'showrunner';
+export type ModuleId = 'stage' | 'media' | 'text' | 'fixtures' | 'nodes' | 'devices' | 'livedj';
 
 interface AppState {
   activeModule: ModuleId;

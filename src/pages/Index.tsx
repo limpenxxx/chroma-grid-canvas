@@ -17,7 +17,7 @@ const moduleComponents = {
   fixtures: FixtureControls,
   nodes: NodeLogic,
   devices: Devices,
-  showrunner: ShowRunner,
+  livedj: LiveDJ,
 };
 
 const Index = () => {

@@ -13,7 +13,7 @@ const navItems: { id: ModuleId; icon: typeof Layout; label: string }[] = [
   { id: 'fixtures', icon: Sliders, label: 'Fixture Controls' },
   { id: 'nodes', icon: GitBranch, label: 'Node Logic' },
   { id: 'devices', icon: Cpu, label: 'Devices' },
-  { id: 'showrunner', icon: Play, label: 'Show Runner' },
+  { id: 'livedj', icon: Speaker, label: 'LIVE DJ' },
 ];
 
 export function AppSidebar() {
