@@ -31,6 +31,30 @@ function StartScreen() {
   const [editingUser, setEditingUser] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState(false);
   const [tempName, setTempName] = useState('');
+  const [showPinPad, setShowPinPad] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
+
+  const ADMIN_PIN = '666333';
+
+  const handlePinDigit = (digit: string) => {
+    setPinError(false);
+    const newPin = pinInput + digit;
+    setPinInput(newPin);
+    if (newPin.length >= 6) {
+      if (newPin === ADMIN_PIN) {
+        setShowPinPad(false);
+        setPinInput('');
+        setUserRole('admin');
+      } else {
+        setPinError(true);
+        setTimeout(() => { setPinInput(''); setPinError(false); }, 600);
+      }
+    }
+  };
+
+  const handlePinClear = () => { setPinInput(''); setPinError(false); };
+  const handlePinBack = () => { setPinInput(prev => prev.slice(0, -1)); setPinError(false); };
 
   return (
     <div className="h-screen w-screen flex flex-col items-center justify-center bg-background overflow-hidden relative">
@@ -49,7 +73,7 @@ function StartScreen() {
           {/* Admin Card */}
           <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}
             className="w-56 glass-panel border border-border/30 rounded-xl p-6 flex flex-col items-center gap-4 cursor-pointer hover:border-primary/40 transition-all group"
-            onClick={() => !editingAdmin && setUserRole('admin')}>
+            onClick={() => { if (!editingAdmin) setShowPinPad(true); }}>
             <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center group-hover:shadow-[0_0_20px_hsl(var(--primary)/0.3)] transition-all">
               <Shield size={28} className="text-primary" />
             </div>
@@ -67,7 +91,7 @@ function StartScreen() {
                 </>
               )}
             </div>
-            <span className="text-[9px] text-muted-foreground/50 text-center">Full access to all modules</span>
+            <span className="text-[9px] text-muted-foreground/50 text-center">Full access · PIN protected</span>
           </motion.div>
 
           {/* User Card */}
@@ -95,6 +119,66 @@ function StartScreen() {
           </motion.div>
         </div>
       </motion.div>
+
+      {/* PIN Pad Modal */}
+      <AnimatePresence>
+        {showPinPad && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center"
+            onClick={() => { setShowPinPad(false); setPinInput(''); setPinError(false); }}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-panel border border-border/40 rounded-2xl p-8 flex flex-col items-center gap-6 w-80"
+              onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-2">
+                <Shield size={20} className="text-primary" />
+                <span className="text-sm font-semibold tracking-wider uppercase">Admin PIN</span>
+              </div>
+
+              {/* PIN dots */}
+              <div className="flex gap-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
+                    pinError ? 'border-destructive bg-destructive/30 animate-pulse' :
+                    i < pinInput.length ? 'border-primary bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.5)]' :
+                    'border-border/40 bg-muted/20'
+                  }`} />
+                ))}
+              </div>
+
+              {pinError && (
+                <span className="text-[10px] text-destructive font-semibold animate-pulse">Wrong PIN</span>
+              )}
+
+              {/* Number pad */}
+              <div className="grid grid-cols-3 gap-3">
+                {['1','2','3','4','5','6','7','8','9'].map(d => (
+                  <button key={d} onClick={() => handlePinDigit(d)}
+                    className="w-16 h-16 rounded-xl bg-muted/30 border border-border/30 text-xl font-bold text-foreground hover:bg-muted/50 hover:border-primary/30 active:bg-primary/20 active:scale-95 transition-all">
+                    {d}
+                  </button>
+                ))}
+                <button onClick={handlePinClear}
+                  className="w-16 h-16 rounded-xl bg-muted/20 border border-border/20 text-[10px] font-semibold text-muted-foreground hover:bg-muted/40 transition-all uppercase tracking-wider">
+                  Clear
+                </button>
+                <button onClick={() => handlePinDigit('0')}
+                  className="w-16 h-16 rounded-xl bg-muted/30 border border-border/30 text-xl font-bold text-foreground hover:bg-muted/50 hover:border-primary/30 active:bg-primary/20 active:scale-95 transition-all">
+                  0
+                </button>
+                <button onClick={handlePinBack}
+                  className="w-16 h-16 rounded-xl bg-muted/20 border border-border/20 text-[10px] font-semibold text-muted-foreground hover:bg-muted/40 transition-all uppercase tracking-wider">
+                  ←
+                </button>
+              </div>
+
+              <button onClick={() => { setShowPinPad(false); setPinInput(''); setPinError(false); }}
+                className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground transition-colors uppercase tracking-widest mt-2">
+                Cancel
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="absolute bottom-6 text-[9px] text-muted-foreground/20 tracking-widest">
         Made by Fredric Lindberg · v0.1
