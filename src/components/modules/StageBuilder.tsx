@@ -124,6 +124,7 @@ export function StageBuilder() {
 
   // Background source state
   const [bgSource, setBgSource] = useState<BackgroundSource>('texture');
+  const [testPattern, setTestPattern] = useState<TestPattern>('blobs');
   const [vizPreset, setVizPreset] = useState<VisualizerPreset>('plasma-wave');
   const [vizAudioInput, setVizAudioInput] = useState<AudioInputSource>('microphone');
   const [vizSensitivity, setVizSensitivity] = useState(1.0);
