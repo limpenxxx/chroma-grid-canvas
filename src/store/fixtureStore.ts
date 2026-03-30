@@ -36,13 +36,24 @@ export interface ColorWheelSlot {
   dmxValue: number; // DMX value that selects this color (0-255)
 }
 
+export type FixtureCategory = 'dmx' | 'wled';
+
+export interface WledConfig {
+  ip: string;
+  ledCount: number;
+  segments: number;
+  presets: { id: number; name: string }[];
+}
+
 export interface FixtureDefinition {
   id: string;
   manufacturer: string;
   model: string;
-  type: 'moving-head' | 'par' | 'strip' | 'wash' | 'spot' | 'beam' | 'strobe' | 'laser' | 'effect' | 'dimmer' | 'other';
+  type: 'moving-head' | 'par' | 'strip' | 'wash' | 'spot' | 'beam' | 'strobe' | 'laser' | 'effect' | 'dimmer' | 'wled' | 'other';
+  category: FixtureCategory;
   colorSystem: ColorSystem;
   colorWheelSlots?: ColorWheelSlot[]; // only used when colorSystem === 'color-wheel'
+  wledConfig?: WledConfig; // only for WLED fixtures
   modes: FixtureMode[];
   createdAt: number;
 }

@@ -1,6 +1,10 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export type ModuleId = 'stage' | 'media' | 'text' | 'fixtures' | 'nodes' | 'devices' | 'livedj';
+export type UserRole = 'admin' | 'user';
+
+const USER_MODULES: ModuleId[] = ['media', 'text', 'livedj'];
 
 interface AppState {
   activeModule: ModuleId;
@@ -9,13 +13,42 @@ interface AppState {
   setMasterDimmer: (v: number) => void;
   blackout: boolean;
   toggleBlackout: () => void;
+  // Role system
+  userRole: UserRole | null; // null = not selected yet (show start screen)
+  setUserRole: (r: UserRole) => void;
+  logout: () => void;
+  userName: string;
+  adminName: string;
+  setUserName: (n: string) => void;
+  setAdminName: (n: string) => void;
+  isModuleAllowed: (m: ModuleId) => boolean;
 }
 
-export const useAppStore = create<AppState>((set) => ({
-  activeModule: 'stage',
-  setActiveModule: (m) => set({ activeModule: m }),
-  masterDimmer: 100,
-  setMasterDimmer: (v) => set({ masterDimmer: v }),
-  blackout: false,
-  toggleBlackout: () => set((s) => ({ blackout: !s.blackout })),
-}));
+export const useAppStore = create<AppState>()(
+  persist(
+    (set, get) => ({
+      activeModule: 'stage',
+      setActiveModule: (m) => set({ activeModule: m }),
+      masterDimmer: 100,
+      setMasterDimmer: (v) => set({ masterDimmer: v }),
+      blackout: false,
+      toggleBlackout: () => set((s) => ({ blackout: !s.blackout })),
+      userRole: null,
+      setUserRole: (r) => set({ userRole: r, activeModule: r === 'user' ? 'media' : 'stage' }),
+      logout: () => set({ userRole: null }),
+      userName: 'User',
+      adminName: 'Admin',
+      setUserName: (n) => set({ userName: n }),
+      setAdminName: (n) => set({ adminName: n }),
+      isModuleAllowed: (m) => {
+        const role = get().userRole;
+        if (role === 'admin' || !role) return true;
+        return USER_MODULES.includes(m);
+      },
+    }),
+    {
+      name: 'stokio-app-v1',
+      partialize: (s) => ({ userName: s.userName, adminName: s.adminName }),
+    }
+  )
+);
