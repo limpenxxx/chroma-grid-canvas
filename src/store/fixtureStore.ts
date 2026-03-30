@@ -370,7 +370,7 @@ export function getChannelColor(fn: ChannelFunction): string {
 export function getFixtureTypeIcon(type: FixtureDefinition['type']): string {
   const icons: Record<FixtureDefinition['type'], string> = {
     'moving-head': '◎', par: '●', strip: '▬', wash: '◉', spot: '◈',
-    beam: '↯', strobe: '⚡', laser: '⟐', effect: '✧', dimmer: '◐', other: '□',
+    beam: '↯', strobe: '⚡', laser: '⟐', effect: '✧', dimmer: '◐', wled: '💡', other: '□',
   };
   return icons[type];
 }
