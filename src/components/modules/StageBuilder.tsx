@@ -758,6 +758,26 @@ export function StageBuilder() {
     }));
   };
 
+  const saveMapping = () => {
+    const name = `mapping-${new Date().toISOString().slice(0, 16).replace('T', '_')}`;
+    const json = exportMappingPreset(name, nodes, mappingFixtures);
+    downloadJson(json, `${name}.json`);
+    toast.success('Mapping preset saved');
+  };
+
+  const openMapping = async () => {
+    try {
+      const json = await openJsonFile();
+      const result = parseMappingPreset(json);
+      if (typeof result === 'string') { toast.error(result); return; }
+      setNodes(result.nodes as WLEDNode[]);
+      setMappingFixtures(result.mappingFixtures as MappingFixture[]);
+      setSelectionType(null);
+      setSelectedId(null);
+      toast.success(`Loaded mapping: ${result.name}`);
+    } catch { toast.error('No file selected'); }
+  };
+
   const selectedNode = selectionType === 'node' ? nodes.find(n => n.id === selectedId) : null;
   const selectedMF = selectionType === 'mapping-fixture' ? mappingFixtures.find(mf => mf.id === selectedId) : null;
   const selectedMFInst = selectedMF ? fixtureStore.instances.find(i => i.id === selectedMF.fixtureInstanceId) : null;
