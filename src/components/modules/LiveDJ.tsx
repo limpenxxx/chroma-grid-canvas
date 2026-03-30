@@ -769,6 +769,129 @@ function ControlWidget({
           </div>
         );
       })()}
+
+      {/* VFX AUDIO VISUALIZER */}
+      {widget.type === 'vfx' && (() => {
+        const canvasRef = useRef<HTMLCanvasElement>(null);
+        const engineRef = useRef<AudioVisualizerEngine | null>(null);
+
+        useEffect(() => {
+          if (!canvasRef.current) return;
+          const engine = new AudioVisualizerEngine();
+          engineRef.current = engine;
+          engine.preset = widget.vfxPreset || 'plasma-wave';
+
+          if (widget.vfxRunning) {
+            engine.start(canvasRef.current, 'microphone').catch(() => {});
+          }
+
+          return () => { engine.stop(); };
+        }, []);
+
+        useEffect(() => {
+          if (!engineRef.current) return;
+          engineRef.current.preset = widget.vfxPreset || 'plasma-wave';
+        }, [widget.vfxPreset]);
+
+        useEffect(() => {
+          if (!engineRef.current || !canvasRef.current) return;
+          if (widget.vfxRunning && !engineRef.current.isRunning) {
+            engineRef.current.start(canvasRef.current, 'microphone').catch(() => {});
+          } else if (!widget.vfxRunning && engineRef.current.isRunning) {
+            engineRef.current.stop();
+          }
+        }, [widget.vfxRunning]);
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col overflow-hidden relative"
+            style={bgStyle} onClick={onSelect}>
+            <div className="absolute top-1 left-1 z-10 flex items-center gap-1">
+              <span className="text-[7px] px-1 py-0.5 rounded bg-muted/60 text-muted-foreground backdrop-blur-sm">
+                {PRESET_LABELS[widget.vfxPreset || 'plasma-wave']}
+              </span>
+            </div>
+            <div className="absolute top-1 right-1 z-10">
+              <button
+                onClick={(e) => { e.stopPropagation(); onUpdate({ vfxRunning: !widget.vfxRunning }); }}
+                className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                  widget.vfxRunning ? 'bg-primary/20 text-primary shadow-[0_0_8px_hsl(var(--primary)/0.4)]' : 'bg-muted/40 text-muted-foreground'
+                }`}>
+                {widget.vfxRunning ? <Square size={10} /> : <Play size={10} />}
+              </button>
+            </div>
+            <canvas ref={canvasRef} className="w-full h-full rounded-lg" width={widget.width} height={widget.height} />
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 flex items-end justify-center">
+              <span className="text-muted-foreground font-semibold truncate"
+                style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.08)), textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}>
+                {widget.label}
+              </span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* WLED PRESET */}
+      {widget.type === 'wled-preset' && (() => {
+        const presets = widget.wledPresets || [];
+        const isActive = widget.wledPresetId !== undefined && widget.wledPresetId >= 0;
+
+        const activatePreset = (presetId: number) => {
+          onSelect();
+          onUpdate({ wledPresetId: presetId });
+          // In real mode: fetch(`http://${widget.wledIp}/json/state`, { method: 'POST', body: JSON.stringify({ ps: presetId }) });
+        };
+
+        const fetchPresetsFromDevice = async () => {
+          if (!widget.wledIp) return;
+          try {
+            // Mock presets — in production this would be: fetch(`http://${ip}/json/presets`)
+            const mockPresets = [
+              { id: 1, name: 'Rainbow' }, { id: 2, name: 'Fire' }, { id: 3, name: 'Ocean' },
+              { id: 4, name: 'Forest' }, { id: 5, name: 'Twinkle' }, { id: 6, name: 'Meteor' },
+              { id: 7, name: 'Breathe' }, { id: 8, name: 'Scanner' }, { id: 9, name: 'Chase' },
+              { id: 10, name: 'Fireworks' }, { id: 11, name: 'Sunrise' }, { id: 12, name: 'Party' },
+            ];
+            onUpdate({ wledPresets: mockPresets });
+          } catch {}
+        };
+
+        useEffect(() => {
+          if (widget.wledIp && presets.length === 0) fetchPresetsFromDevice();
+        }, [widget.wledIp]);
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col overflow-hidden relative"
+            style={{ ...bgStyle, borderColor: isActive ? '#ff6600' : undefined,
+              boxShadow: isActive ? '0 0 20px rgba(255,102,0,0.3)' : undefined }}
+            onClick={onSelect}>
+            <div className="px-2 py-1.5 flex items-center gap-1.5 border-b border-border/20" style={{ background: 'rgba(255,102,0,0.08)' }}>
+              <Wifi size={10} className="text-[#ff6600]" />
+              <span className="text-[9px] font-semibold truncate" style={{ color: '#ff6600' }}>{widget.label}</span>
+              {widget.wledIp && <span className="text-[7px] text-muted-foreground/50 ml-auto font-mono">{widget.wledIp}</span>}
+            </div>
+            <div className="flex-1 overflow-y-auto p-1.5 grid gap-1"
+              style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.floor(widget.width / 65))}, 1fr)` }}>
+              {presets.map(p => (
+                <button key={p.id}
+                  onClick={(e) => { e.stopPropagation(); activatePreset(p.id); }}
+                  className={`px-1.5 py-1 rounded text-[8px] font-medium border transition-all truncate ${
+                    widget.wledPresetId === p.id
+                      ? 'bg-[#ff6600]/20 border-[#ff6600]/40 text-[#ff6600] shadow-[0_0_8px_rgba(255,102,0,0.3)]'
+                      : 'border-border/20 text-muted-foreground hover:border-[#ff6600]/30 hover:bg-[#ff6600]/5'
+                  }`}>
+                  {p.name}
+                </button>
+              ))}
+              {presets.length === 0 && (
+                <div className="col-span-full flex flex-col items-center justify-center py-4 gap-1">
+                  <Wifi size={16} className="text-muted-foreground/20" />
+                  <span className="text-[8px] text-muted-foreground/40">Set WLED IP in properties</span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
