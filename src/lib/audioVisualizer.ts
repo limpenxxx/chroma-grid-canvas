@@ -48,6 +48,8 @@ export class AudioVisualizerEngine {
   private _sensitivity = 1.0;
   private _colorShift = 0;
   private particles: { x: number; y: number; vx: number; vy: number; life: number; hue: number }[] = [];
+  private emojis: { x: number; y: number; vx: number; vy: number; life: number; emoji: string; size: number; rot: number; rotV: number }[] = [];
+  private static EMOJI_POOL = ['🔥','💥','⚡','🎵','🎶','✨','💫','🌟','❤️','💜','💙','🧡','💚','🎸','🥁','🎤','🎹','🎷','🎺','🪩','👾','🤖','😎','🤯','🥳','🪐','🌈','🦄','👽','💀','🎃','🍕','🌶️','💎','🫧'];
 
   get isRunning() { return this._isRunning; }
   get preset() { return this._preset; }
