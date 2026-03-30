@@ -7,6 +7,8 @@ import { Slider } from '@/components/ui/slider';
 import { useFixtureStore, getFixtureTypeIcon, getChannelColor } from '@/store/fixtureStore';
 import { useMediaStore, getEmbedUrl } from '@/store/mediaStore';
 import { AudioVisualizerEngine, PRESET_LABELS, INPUT_LABELS, type VisualizerPreset, type AudioInputSource } from '@/lib/audioVisualizer';
+import { exportMappingPreset, parseMappingPreset, downloadJson, openJsonFile } from '@/lib/backupRestore';
+import { toast } from 'sonner';
 
 type SegmentOrientation = 'horizontal' | 'vertical' | 'zigzag-h' | 'zigzag-v';
 
