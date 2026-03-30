@@ -109,6 +109,7 @@ interface DJWidget {
   height: number;
   color: string;
   bgImage?: string | null;
+  bgOpacity?: number; // 0-100, default 70
   flash?: boolean;
   toggled?: boolean; // for toggle mode state
   value?: number;
