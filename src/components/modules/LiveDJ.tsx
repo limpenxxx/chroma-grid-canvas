@@ -1261,20 +1261,31 @@ export function LiveDJ() {
             <span className="text-[8px] uppercase tracking-widest text-muted-foreground/50 mr-1">Pages:</span>
             {pages.map((page, idx) => (
               <div key={page.id} className="flex items-center">
-                <button
-                  onClick={() => setActivePageId(page.id)}
-                  onDoubleClick={() => {
-                    const name = prompt('Rename page:', page.name);
-                    if (name) renamePage(page.id, name);
-                  }}
-                  className={`px-3 py-1 text-[10px] font-semibold rounded-t transition-all ${
-                    activePageId === page.id
-                      ? 'bg-primary/10 text-primary border border-primary/30 border-b-0'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
-                  }`}
-                >
-                  {page.name}
-                </button>
+                {editingPageId === page.id ? (
+                  <input
+                    autoFocus
+                    value={editingPageName}
+                    onChange={e => setEditingPageName(e.target.value)}
+                    onBlur={() => { if (editingPageName.trim()) renamePage(page.id, editingPageName.trim()); setEditingPageId(null); }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') { if (editingPageName.trim()) renamePage(page.id, editingPageName.trim()); setEditingPageId(null); }
+                      if (e.key === 'Escape') setEditingPageId(null);
+                    }}
+                    className="px-2 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary border border-primary/30 rounded-t outline-none w-20"
+                  />
+                ) : (
+                  <button
+                    onClick={() => setActivePageId(page.id)}
+                    onDoubleClick={() => { setEditingPageId(page.id); setEditingPageName(page.name); }}
+                    className={`px-3 py-1 text-[10px] font-semibold rounded-t transition-all ${
+                      activePageId === page.id
+                        ? 'bg-primary/10 text-primary border border-primary/30 border-b-0'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
+                    }`}
+                  >
+                    {page.name}
+                  </button>
+                )}
                 {pages.length > 1 && activePageId === page.id && (
                   <button onClick={() => deletePage(page.id)} className="ml-0.5 text-muted-foreground/40 hover:text-destructive">
                     <X size={10} />
