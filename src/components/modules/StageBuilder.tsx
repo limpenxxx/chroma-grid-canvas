@@ -1013,41 +1013,97 @@ export function StageBuilder() {
                       </div>
                     </div>
 
-                    {/* Pixel Matrix */}
-                    <div className="glass-panel p-3 space-y-2">
-                      <span className="text-[9px] uppercase tracking-widest text-stokio-cyan font-semibold">Pixel Matrix</span>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Pixels X</label>
-                          <Input type="number" min={1} max={256} value={selectedNode.pixelsX}
-                            onChange={e => {
-                              const v = Math.max(1, Number(e.target.value));
-                              const newTotal = v * selectedNode.pixelsY;
-                              updateNode(selectedNode.id, {
-                                pixelsX: v, totalPixels: newTotal,
-                                segments: [{ ...selectedNode.segments[0] || createDefaultSegment(0, 0, newTotal), pixelEnd: newTotal - 1 }, ...selectedNode.segments.slice(1)],
-                              });
-                            }}
-                            className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
+                    {/* Pixel Matrix — auto-filled from WLED fixture */}
+                    {(() => {
+                      const linkedFixture = wledStore.fixtures.find(f => f.deviceIp === selectedNode.ip);
+                      const ledCount = linkedFixture ? (linkedFixture.ledEnd - linkedFixture.ledStart + 1) : null;
+                      return (
+                        <div className="glass-panel p-3 space-y-2">
+                          <span className="text-[9px] uppercase tracking-widest text-stokio-cyan font-semibold">Pixel Matrix</span>
+                          {linkedFixture ? (
+                            <>
+                              <div className="text-[9px] text-muted-foreground space-y-1">
+                                <div className="flex justify-between">
+                                  <span>Fixture:</span>
+                                  <span className="text-foreground font-semibold">{linkedFixture.name}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Segment:</span>
+                                  <span className="text-stokio-cyan font-mono">{linkedFixture.segmentId}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>LED Range:</span>
+                                  <span className="text-stokio-cyan font-mono">{linkedFixture.ledStart}–{linkedFixture.ledEnd}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span>Total LEDs:</span>
+                                  <span className="text-stokio-cyan font-mono">{ledCount}</span>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Pixels X</label>
+                                  <Input type="number" min={1} max={256} value={selectedNode.pixelsX}
+                                    onChange={e => {
+                                      const v = Math.max(1, Number(e.target.value));
+                                      updateNode(selectedNode.id, {
+                                        pixelsX: v, totalPixels: ledCount!, pixelsY: Math.ceil(ledCount! / v),
+                                      });
+                                    }}
+                                    className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
+                                </div>
+                                <div>
+                                  <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Pixels Y</label>
+                                  <Input type="number" min={1} max={256} value={selectedNode.pixelsY}
+                                    onChange={e => {
+                                      const v = Math.max(1, Number(e.target.value));
+                                      updateNode(selectedNode.id, {
+                                        pixelsY: v, totalPixels: ledCount!, pixelsX: Math.ceil(ledCount! / v),
+                                      });
+                                    }}
+                                    className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="text-[9px] text-muted-foreground/60 italic">No WLED fixture linked — select one above</div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Pixels X</label>
+                                  <Input type="number" min={1} max={256} value={selectedNode.pixelsX}
+                                    onChange={e => {
+                                      const v = Math.max(1, Number(e.target.value));
+                                      const newTotal = v * selectedNode.pixelsY;
+                                      updateNode(selectedNode.id, {
+                                        pixelsX: v, totalPixels: newTotal,
+                                        segments: [{ ...selectedNode.segments[0] || createDefaultSegment(0, 0, newTotal), pixelEnd: newTotal - 1 }, ...selectedNode.segments.slice(1)],
+                                      });
+                                    }}
+                                    className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
+                                </div>
+                                <div>
+                                  <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Pixels Y</label>
+                                  <Input type="number" min={1} max={256} value={selectedNode.pixelsY}
+                                    onChange={e => {
+                                      const v = Math.max(1, Number(e.target.value));
+                                      const newTotal = selectedNode.pixelsX * v;
+                                      updateNode(selectedNode.id, {
+                                        pixelsY: v, totalPixels: newTotal,
+                                        segments: [{ ...selectedNode.segments[0] || createDefaultSegment(0, 0, newTotal), pixelEnd: newTotal - 1 }, ...selectedNode.segments.slice(1)],
+                                      });
+                                    }}
+                                    className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
+                                </div>
+                              </div>
+                            </>
+                          )}
+                          <div className="text-[9px] font-mono text-muted-foreground text-center">
+                            Total: <span className="text-stokio-cyan">{linkedFixture ? ledCount : selectedNode.totalPixels}</span> pixels
+                          </div>
                         </div>
-                        <div>
-                          <label className="text-[8px] uppercase text-muted-foreground mb-0.5 block">Pixels Y</label>
-                          <Input type="number" min={1} max={256} value={selectedNode.pixelsY}
-                            onChange={e => {
-                              const v = Math.max(1, Number(e.target.value));
-                              const newTotal = selectedNode.pixelsX * v;
-                              updateNode(selectedNode.id, {
-                                pixelsY: v, totalPixels: newTotal,
-                                segments: [{ ...selectedNode.segments[0] || createDefaultSegment(0, 0, newTotal), pixelEnd: newTotal - 1 }, ...selectedNode.segments.slice(1)],
-                              });
-                            }}
-                            className="h-7 text-xs bg-muted/30 border-border/30 font-mono" />
-                        </div>
-                      </div>
-                      <div className="text-[9px] font-mono text-muted-foreground text-center">
-                        Total: <span className="text-stokio-cyan">{selectedNode.totalPixels}</span> pixels
-                      </div>
-                    </div>
+                      );
+                    })()}
 
                     {/* SignalRGB-style Blur & Sample Settings */}
                     <div className="glass-panel p-3 space-y-3">
