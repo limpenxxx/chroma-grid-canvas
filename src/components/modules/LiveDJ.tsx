@@ -2804,10 +2804,10 @@ export function LiveDJ() {
                             <div>
                               <label className="text-[7px] uppercase text-muted-foreground">Presets</label>
                               <div className="flex flex-wrap gap-1 mt-1">
-                                {COLOR_PROGRAM_PRESETS.filter(p => p.mode === prog.mode || prog.mode === 'fade' || prog.mode === 'switch').map((preset, i) => (
+                                {[...COLOR_PROGRAM_PRESETS, ...customColorPresets].filter(p => p.mode === prog.mode || prog.mode === 'fade' || prog.mode === 'switch').map((preset, i) => (
                                   <button key={i}
                                     onClick={() => updateWidget(selectedWidgetData.id, {
-                                      colorProgram: { ...prog, mode: preset.mode, colors: preset.colors },
+                                      colorProgram: { ...prog, mode: preset.mode, colors: [...preset.colors] },
                                     })}
                                     className="text-[7px] px-1.5 py-0.5 rounded border border-border/20 text-muted-foreground hover:border-primary/30 hover:bg-primary/5 transition-all flex items-center gap-0.5">
                                     {preset.colors.map((c, j) => (
@@ -2818,6 +2818,22 @@ export function LiveDJ() {
                                 ))}
                               </div>
                             </div>
+
+                            {/* Save as custom preset */}
+                            {prog.colors.length >= 2 && (
+                              <button
+                                onClick={() => {
+                                  const name = prompt('Preset name:');
+                                  if (!name) return;
+                                  const newPreset = { label: name, mode: prog.mode, colors: [...prog.colors] };
+                                  const updated = [...customColorPresets, newPreset];
+                                  setCustomColorPresets(updated);
+                                  localStorage.setItem('stokio-custom-color-presets', JSON.stringify(updated));
+                                }}
+                                className="w-full h-6 rounded text-[9px] font-semibold border border-border/20 text-muted-foreground hover:border-primary/30 hover:bg-primary/5 transition-all flex items-center justify-center gap-1">
+                                <Save size={9} /> Save as Custom Preset
+                              </button>
+                            )}
 
                             {/* Speed */}
                             <div>
