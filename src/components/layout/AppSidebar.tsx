@@ -103,6 +103,17 @@ export function AppSidebar() {
         </Tooltip>
       </div>
 
+      {/* Logout */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="sm" className="w-[80px] h-8 text-[8px] gap-1 text-muted-foreground hover:text-foreground mb-1"
+            onClick={() => logout()}>
+            <LogOut size={12} /> {userRole === 'admin' ? 'Admin' : 'User'}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="right">Switch role / Logout</TooltipContent>
+      </Tooltip>
+
       {/* Credit & Version */}
       <div className="flex flex-col items-center gap-1 mt-2">
         <div className="text-[7px] text-muted-foreground/25 font-light text-center leading-tight px-1">
