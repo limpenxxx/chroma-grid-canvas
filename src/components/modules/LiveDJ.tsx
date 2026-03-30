@@ -2409,11 +2409,14 @@ export function LiveDJ() {
                           const wledInst = allFixturesWithDefs.find(f => f.inst.id === entry.targetId);
                           const wledIp = wledInst?.def.wledConfig?.ip;
                           if (wledIp && entry.wledPresetId !== undefined) {
-                            // In production: fetch(`http://${wledIp}/json/state`, { method: 'POST', body: JSON.stringify({ ps: entry.wledPresetId }) });
+                            void setWledPreset(wledIp, entry.wledPresetId).catch(() => {});
                           }
                           // Also apply color if set
                           if (wledIp && entry.color) {
-                            // In production: fetch(`http://${wledIp}/json/state`, { method: 'POST', body: JSON.stringify({ seg: [{ col: [[entry.color.r, entry.color.g, entry.color.b]] }] }) });
+                            void setWledState(wledIp, { on: true, seg: [{ col: [[entry.color.r, entry.color.g, entry.color.b]] }] }).catch(() => {});
+                          }
+                          if (wledIp && !entry.color && entry.dimmer !== undefined) {
+                            void setWledState(wledIp, { on: entry.dimmer > 0, bri: entry.dimmer }).catch(() => {});
                           }
                           // Apply to WLED preset widgets linked to this fixture
                           widgets.forEach(ow => {
