@@ -2089,8 +2089,6 @@ export function LiveDJ() {
                       </div>
                     </div>
                   )}
-                </div>
-              )}
 
                   {/* Media Trigger properties */}
                   {selectedWidgetData.type === 'media-trigger' && (
