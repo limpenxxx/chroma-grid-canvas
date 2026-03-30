@@ -358,6 +358,7 @@ type FixtureTab = 'dmx' | 'wled';
 
 export function FixtureControls() {
   const store = useFixtureStore();
+  const wledStore = useWledStore();
   const [states, setStates] = useState<Record<string, FixtureState>>({});
   const [selectedId, setSelectedId] = useState<string>(store.instances[0]?.id || '');
   const [fixtureTab, setFixtureTab] = useState<FixtureTab>('dmx');
@@ -366,13 +367,18 @@ export function FixtureControls() {
     const def = store.definitions.find(d => d.id === i.definitionId);
     return def?.category === 'dmx';
   });
-  const wledInstances = store.instances.filter(i => {
+  // Legacy fixtureStore WLED instances + real wledStore fixtures
+  const wledStoreFixtures = wledStore.fixtures;
+  const legacyWledInstances = store.instances.filter(i => {
     const def = store.definitions.find(d => d.id === i.definitionId);
     return def?.category === 'wled';
   });
 
-  const currentInstances = fixtureTab === 'dmx' ? dmxInstances : wledInstances;
-  const selected = currentInstances.find(i => i.id === selectedId) || currentInstances[0];
+  const currentInstances = fixtureTab === 'dmx' ? dmxInstances : legacyWledInstances;
+  const selected = fixtureTab === 'wled' 
+    ? (wledStoreFixtures.find(f => f.id === selectedId) ? null : currentInstances.find(i => i.id === selectedId) || currentInstances[0])
+    : (currentInstances.find(i => i.id === selectedId) || currentInstances[0]);
+  const selectedWledFixture = fixtureTab === 'wled' ? wledStoreFixtures.find(f => f.id === selectedId) : undefined;
   const selectedDef = selected ? store.definitions.find(d => d.id === selected.definitionId) : undefined;
   const selectedMode = selected && selectedDef ? selectedDef.modes.find(m => m.id === selected.modeId) : undefined;
 
