@@ -1143,6 +1143,8 @@ export function LiveDJ() {
                   onUpdate={(updates) => updateWidget(w.id, updates)}
                   onPress={() => { }}
                   onRelease={() => { }}
+                  allWidgets={widgets}
+                  fixtureData={fixturesWithDefs}
                 />
               ))}
 
