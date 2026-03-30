@@ -2763,27 +2763,41 @@ export function LiveDJ() {
                           <>
                             <div>
                               <label className="text-[7px] uppercase text-muted-foreground">Colors ({prog.colors.length}/4)</label>
-                              <div className="flex gap-1 mt-1 flex-wrap">
+                              <div className="flex gap-1 mt-1 flex-wrap items-center">
                                 {prog.colors.map((c, i) => (
-                                  <div key={i} className="relative group">
-                                    <div className="w-7 h-7 rounded border border-border/30 cursor-pointer"
+                                  <div key={i} className="relative group flex flex-col items-center gap-0.5">
+                                    <input
+                                      type="color"
+                                      value={`#${c.r.toString(16).padStart(2,'0')}${c.g.toString(16).padStart(2,'0')}${c.b.toString(16).padStart(2,'0')}`}
+                                      onChange={e => {
+                                        const hex = e.target.value;
+                                        const nr = parseInt(hex.slice(1,3), 16);
+                                        const ng = parseInt(hex.slice(3,5), 16);
+                                        const nb = parseInt(hex.slice(5,7), 16);
+                                        const newColors = [...prog.colors];
+                                        newColors[i] = { r: nr, g: ng, b: nb };
+                                        updateWidget(selectedWidgetData.id, { colorProgram: { ...prog, colors: newColors } });
+                                      }}
+                                      className="w-7 h-7 rounded border border-border/30 cursor-pointer p-0 bg-transparent"
                                       style={{ backgroundColor: `rgb(${c.r},${c.g},${c.b})` }}
+                                    />
+                                    <button
                                       onClick={() => {
                                         const newColors = prog.colors.filter((_, j) => j !== i);
                                         updateWidget(selectedWidgetData.id, { colorProgram: { ...prog, colors: newColors } });
-                                      }} />
-                                    <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-destructive text-[6px] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">×</span>
+                                      }}
+                                      className="text-[6px] text-destructive/50 hover:text-destructive transition-colors">✕</button>
                                   </div>
                                 ))}
                                 {prog.colors.length < 4 && (
                                   <button onClick={() => {
-                                    const cv = selectedWidgetData.colorValue || { r: 255, g: 0, b: 0 };
-                                    updateWidget(selectedWidgetData.id, { colorProgram: { ...prog, colors: [...prog.colors, cv] } });
+                                    const cv2 = selectedWidgetData.colorValue || { r: 255, g: 0, b: 0 };
+                                    updateWidget(selectedWidgetData.id, { colorProgram: { ...prog, colors: [...prog.colors, cv2] } });
                                   }}
                                     className="w-7 h-7 rounded border border-dashed border-border/30 text-muted-foreground/40 hover:border-primary/30 hover:text-primary transition-all flex items-center justify-center text-lg">+</button>
                                 )}
                               </div>
-                              <div className="text-[7px] text-muted-foreground/40 mt-0.5">Click color to remove. + adds current wheel color.</div>
+                              <div className="text-[7px] text-muted-foreground/40 mt-0.5">Click swatch to edit color. ✕ to remove. + adds current color.</div>
                             </div>
 
                             {/* Presets */}
