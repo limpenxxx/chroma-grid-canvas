@@ -17,6 +17,8 @@ import {
 } from '@/store/fixtureStore';
 import stokioLogo from '@/assets/stokio-logo-color.png';
 import { useMediaStore } from '@/store/mediaStore';
+import { useWledStore, type WledFixture } from '@/store/wledStore';
+import { setWledPreset, setWledState } from '@/lib/wledApi';
 
 // ── Types ──
 
@@ -1251,10 +1253,17 @@ function ControlWidget({
         const presets = widget.wledPresets || [];
         const isActive = widget.wledPresetId !== undefined && widget.wledPresetId >= 0;
 
-        const activatePreset = (presetId: number) => {
+        const activatePreset = async (presetId: number) => {
           onSelect();
           onUpdate({ wledPresetId: presetId });
-          // In real mode: fetch(`http://${widget.wledIp}/json/state`, { method: 'POST', body: JSON.stringify({ ps: presetId }) });
+          // Send to device — use widget IP or linked fixture IPs
+          const targetIps = new Set<string>();
+          if (widget.wledIp) targetIps.add(widget.wledIp);
+          widget.linkedFixtureIds.forEach(fid => {
+            const wf = fixtureData.find(f => f.inst.id === fid);
+            if (wf?.def.wledConfig?.ip) targetIps.add(wf.def.wledConfig.ip);
+          });
+          await Promise.all([...targetIps].map(ip => setWledPreset(ip, presetId).catch(() => {})));
         };
 
         const fetchPresetsFromDevice = async () => {
@@ -1541,10 +1550,29 @@ function persistLayouts(layouts: SavedLayout[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts));
 }
 
+/** Create a virtual FixtureInstance + FixtureDefinition for a WLED device-list fixture so LiveDJ can treat it like any other fixture */
+function wledFixtureToVirtual(fix: WledFixture): { inst: FixtureInstance; def: FixtureDefinition } {
+  return {
+    inst: {
+      id: fix.id, definitionId: `_wled_${fix.id}`, name: fix.name, icon: fix.icon,
+      universe: 0, dmxAddress: 0, modeId: 'wled-m1',
+      onStage: false, stageX: 0, stageY: 0, stageWidth: 36, stageHeight: 36,
+    },
+    def: {
+      id: `_wled_${fix.id}`, manufacturer: 'WLED', model: fix.deviceName, type: 'wled',
+      category: 'wled', colorSystem: 'rgb',
+      wledConfig: { ip: fix.deviceIp, ledCount: Math.max(1, fix.ledEnd - fix.ledStart + 1), segments: 1, presets: [] },
+      modes: [{ id: 'wled-m1', name: 'WLED RGB', channelCount: 0, channels: [] }],
+      createdAt: 0,
+    },
+  };
+}
+
 // ── Main LIVE DJ Component ──
 
 export function LiveDJ() {
   const store = useFixtureStore();
+  const wledStore = useWledStore();
   const [tab, setTab] = useState<Tab>('controller');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [customColorPresets, setCustomColorPresets] = useState<{ label: string; mode: ColorProgramMode; colors: { r: number; g: number; b: number }[] }[]>(() => {
@@ -1614,6 +1642,7 @@ export function LiveDJ() {
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [showLoadDialog, setShowLoadDialog] = useState(false);
   const [saveName, setSaveName] = useState('');
+  const lastWledSentRef = useRef<Record<string, string>>({});
 
   // ── Audio & BPM ──
   const [audioConfig, setAudioConfig] = useState<AudioConfig>({
@@ -2059,6 +2088,9 @@ export function LiveDJ() {
     inst,
     def: store.definitions.find(d => d.id === inst.definitionId)!,
   })).filter(f => f.def);
+  // Merge real WLED device-list fixtures into the fixture picker
+  const wledVirtualFixtures = wledStore.fixtures.map(wledFixtureToVirtual);
+  const allFixturesWithDefs = [...fixturesWithDefs, ...wledVirtualFixtures];
 
   const selectedWidgetData = widgets.find(w => w.id === selectedWidget);
 
@@ -2069,6 +2101,55 @@ export function LiveDJ() {
     if (!group) return;
     updateWidget(selectedWidget, { linkedFixtureIds: [...new Set([...selectedWidgetData!.linkedFixtureIds, ...group.fixtureIds])] });
   };
+
+  // ── Real WLED output: send state to physical devices when widgets change ──
+  useEffect(() => {
+    const nextSent: Record<string, string> = {};
+    const wledFixMap = new Map(wledStore.fixtures.map(f => [f.id, f]));
+
+    widgets.forEach(w => {
+      const linkedWled = w.linkedFixtureIds.map(id => wledFixMap.get(id)).filter((f): f is WledFixture => !!f);
+      if (linkedWled.length === 0) return;
+
+      // Color wheel → set color on linked WLED fixtures
+      if (w.type === 'color-wheel' && w.colorValue) {
+        const { r, g, b } = w.colorValue;
+        linkedWled.forEach(fix => {
+          const key = `color-${fix.id}`;
+          const val = `${r},${g},${b}`;
+          nextSent[key] = val;
+          if (lastWledSentRef.current[key] === val) return;
+          void setWledState(fix.deviceIp, { on: true, seg: [{ id: fix.segmentId, col: [[r, g, b]] }] }).catch(() => {});
+        });
+      }
+
+      // Slider (dimmer) → set brightness
+      if (w.type === 'slider' && (w.linkedFunction === 'dimmer' || !w.linkedFunction)) {
+        const bri = Math.max(0, Math.min(255, Math.round(((w.value ?? 0) / 100) * 255)));
+        linkedWled.forEach(fix => {
+          const key = `bri-${fix.id}`;
+          const val = String(bri);
+          nextSent[key] = val;
+          if (lastWledSentRef.current[key] === val) return;
+          void setWledState(fix.deviceIp, { on: bri > 0, bri }).catch(() => {});
+        });
+      }
+
+      // WLED preset widget → activate preset
+      if (w.type === 'wled-preset' && w.wledPresetId !== undefined && w.wledPresetId >= 0) {
+        const ips = [...new Set(linkedWled.map(f => f.deviceIp))];
+        ips.forEach(ip => {
+          const key = `preset-${ip}`;
+          const val = String(w.wledPresetId);
+          nextSent[key] = val;
+          if (lastWledSentRef.current[key] === val) return;
+          void setWledPreset(ip, w.wledPresetId!).catch(() => {});
+        });
+      }
+    });
+
+    lastWledSentRef.current = nextSent;
+  }, [widgets, wledStore.fixtures]);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -2332,14 +2413,17 @@ export function LiveDJ() {
                       w.presetEntries.forEach(entry => {
                         // WLED preset: trigger device preset via API
                         if (entry.targetType === 'wled') {
-                          const wledInst = fixturesWithDefs.find(f => f.inst.id === entry.targetId);
+                          const wledInst = allFixturesWithDefs.find(f => f.inst.id === entry.targetId);
                           const wledIp = wledInst?.def.wledConfig?.ip;
                           if (wledIp && entry.wledPresetId !== undefined) {
-                            // In production: fetch(`http://${wledIp}/json/state`, { method: 'POST', body: JSON.stringify({ ps: entry.wledPresetId }) });
+                            void setWledPreset(wledIp, entry.wledPresetId).catch(() => {});
                           }
                           // Also apply color if set
                           if (wledIp && entry.color) {
-                            // In production: fetch(`http://${wledIp}/json/state`, { method: 'POST', body: JSON.stringify({ seg: [{ col: [[entry.color.r, entry.color.g, entry.color.b]] }] }) });
+                            void setWledState(wledIp, { on: true, seg: [{ col: [[entry.color.r, entry.color.g, entry.color.b]] }] }).catch(() => {});
+                          }
+                          if (wledIp && !entry.color && entry.dimmer !== undefined) {
+                            void setWledState(wledIp, { on: entry.dimmer > 0, bri: entry.dimmer }).catch(() => {});
                           }
                           // Apply to WLED preset widgets linked to this fixture
                           widgets.forEach(ow => {
@@ -2382,7 +2466,7 @@ export function LiveDJ() {
                   }}
                   onRelease={() => { }}
                   allWidgets={widgets}
-                  fixtureData={fixturesWithDefs}
+                  fixtureData={allFixturesWithDefs}
                   isFullscreen={isFullscreen}
                   bpm={bpmState.bpm}
                 />
@@ -2788,11 +2872,11 @@ export function LiveDJ() {
                             </div>
                           )}
                           {/* WLED Fixtures */}
-                          {fixturesWithDefs.filter(f => f.def.category === 'wled').length > 0 && (
+                          {allFixturesWithDefs.filter(f => f.def.category === 'wled').length > 0 && (
                             <div>
                               <span className="text-[7px] text-muted-foreground/60">WLED Fixtures:</span>
                               <div className="flex flex-wrap gap-1 mt-0.5">
-                                {fixturesWithDefs.filter(f => f.def.category === 'wled').map(({ inst, def }) => {
+                                {allFixturesWithDefs.filter(f => f.def.category === 'wled').map(({ inst, def }) => {
                                   const inScene = selectedWidgetData.presetEntries?.some(e => e.targetId === inst.id && e.targetType === 'wled');
                                   return (
                                     <button key={inst.id}
@@ -2824,14 +2908,14 @@ export function LiveDJ() {
                           {(selectedWidgetData.presetEntries || []).map((entry, idx) => {
                             const isFixture = entry.targetType === 'fixture';
                             const isWled = entry.targetType === 'wled';
-                            const wledDef = isWled ? fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.def : null;
+                            const wledDef = isWled ? allFixturesWithDefs.find(f => f.inst.id === entry.targetId)?.def : null;
                             const name = isFixture
-                              ? fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.inst.name || entry.targetId
+                              ? allFixturesWithDefs.find(f => f.inst.id === entry.targetId)?.inst.name || entry.targetId
                               : isWled
-                                ? fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.inst.name || entry.targetId
+                                ? allFixturesWithDefs.find(f => f.inst.id === entry.targetId)?.inst.name || entry.targetId
                                 : groups.find(g => g.id === entry.targetId)?.name || entry.targetId;
                             const icon = isFixture
-                              ? getFixtureTypeIcon(fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.def.type || 'other')
+                              ? getFixtureTypeIcon(allFixturesWithDefs.find(f => f.inst.id === entry.targetId)?.def.type || 'other')
                               : isWled ? '💡' : '👥';
                             const updateEntry = (updates: Partial<PresetSceneEntry>) => {
                               const entries = [...(selectedWidgetData.presetEntries || [])];
@@ -3011,7 +3095,7 @@ export function LiveDJ() {
                         <label className="text-[7px] uppercase text-muted-foreground">Per-Fixture Settings</label>
                         <div className="space-y-1 mt-1">
                           {selectedWidgetData.linkedFixtureIds.map(fid => {
-                            const inst = fixturesWithDefs.find(f => f.inst.id === fid);
+                            const inst = allFixturesWithDefs.find(f => f.inst.id === fid);
                             if (!inst) return null;
                             const cfg = selectedWidgetData.mhProgram?.fixtureConfigs?.find(c => c.fixtureId === fid) || {
                               fixtureId: fid, reversePan: false, reverseTilt: false, mirrorPan: false, mirrorTilt: false, delayMs: 0,
@@ -3106,7 +3190,7 @@ export function LiveDJ() {
                   {/* Also add RGB sync option on color-wheel widget for fixed-color fixtures */}
                   {selectedWidgetData.type === 'color-wheel' && (() => {
                     const hasFixedColorFixtures = selectedWidgetData.linkedFixtureIds.some(fid => {
-                      const fd = fixturesWithDefs.find(f => f.inst.id === fid);
+                      const fd = allFixturesWithDefs.find(f => f.inst.id === fid);
                       return fd?.def.colorSystem === 'color-wheel';
                     });
                     if (!hasFixedColorFixtures) return null;
@@ -3273,7 +3357,7 @@ export function LiveDJ() {
                   <div>
                     <label className="text-[7px] uppercase text-muted-foreground">Linked Fixtures</label>
                     <div className="space-y-0.5 mt-1">
-                      {fixturesWithDefs.map(({ inst, def }) => {
+                      {allFixturesWithDefs.map(({ inst, def }) => {
                         const linked = selectedWidgetData.linkedFixtureIds.includes(inst.id);
                         return (
                           <button key={inst.id}
@@ -3510,7 +3594,7 @@ export function LiveDJ() {
                   {group.fixtureIds.length} fixture(s) selected
                 </span>
                 <div className="grid grid-cols-2 gap-1">
-                  {fixturesWithDefs.map(({ inst, def }) => {
+                  {allFixturesWithDefs.map(({ inst, def }) => {
                     const inGroup = group.fixtureIds.includes(inst.id);
                     return (
                       <button key={inst.id}
@@ -3527,7 +3611,7 @@ export function LiveDJ() {
                     );
                   })}
                 </div>
-                {fixturesWithDefs.length === 0 && (
+                {allFixturesWithDefs.length === 0 && (
                   <div className="text-[9px] text-muted-foreground/50 text-center py-2">No fixtures available — add them in Devices first</div>
                 )}
               </div>
@@ -3565,7 +3649,7 @@ export function LiveDJ() {
             </div>
           </div>
 
-          {fixturesWithDefs.map(({ inst, def }) => {
+          {allFixturesWithDefs.map(({ inst, def }) => {
             const assignment = getAssignment(inst.id);
             const mode = assignment?.mode || 'buttons';
             return (
@@ -3592,7 +3676,7 @@ export function LiveDJ() {
             );
           })}
 
-          {fixturesWithDefs.length === 0 && (
+          {allFixturesWithDefs.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <span className="text-sm">No fixtures patched</span>
               <span className="text-[10px] text-muted-foreground/50 mt-1">Go to Devices to add fixtures first</span>
@@ -3624,7 +3708,7 @@ export function LiveDJ() {
               script={script}
               onUpdate={updated => setScripts(prev => prev.map(s => s.id === updated.id ? updated : s))}
               onDelete={() => setScripts(prev => prev.filter(s => s.id !== script.id))}
-              fixtures={fixturesWithDefs}
+              fixtures={allFixturesWithDefs}
             />
           ))}
 
