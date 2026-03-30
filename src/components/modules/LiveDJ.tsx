@@ -1124,7 +1124,10 @@ export function LiveDJ() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      className={`${isFullscreen ? 'fixed inset-0 z-[100] bg-background' : 'h-full'} flex flex-col`}>
       {/* Header */}
+      {!isFullscreen && (
       <div className="flex items-center justify-between p-3 border-b border-border/30">
         <div className="flex items-center gap-2">
           <Speaker size={16} className="text-stokio-pink" />
