@@ -59,10 +59,29 @@ export interface FixtureDefinition {
   createdAt: number;
 }
 
+export type FixtureIcon = 'moving-head' | 'led-strip' | 'led-matrix' | 'rgb-par' | 'pin-spot' | 'smoke' | 'laser' | 'multi-beam';
+
+export const FIXTURE_ICON_OPTIONS: { value: FixtureIcon; label: string; emoji: string }[] = [
+  { value: 'moving-head', label: 'Moving Head', emoji: '◎' },
+  { value: 'led-strip', label: 'LED Strip', emoji: '▬' },
+  { value: 'led-matrix', label: 'LED Matrix', emoji: '⊞' },
+  { value: 'rgb-par', label: 'RGB PAR', emoji: '●' },
+  { value: 'pin-spot', label: 'Pin-spot', emoji: '◈' },
+  { value: 'smoke', label: 'Smoke Machine', emoji: '☁' },
+  { value: 'laser', label: 'Laser Beamer', emoji: '⟐' },
+  { value: 'multi-beam', label: 'Multi Beam RGB', emoji: '✦' },
+];
+
+export function getFixtureIconEmoji(icon?: FixtureIcon): string {
+  const found = FIXTURE_ICON_OPTIONS.find(o => o.value === icon);
+  return found?.emoji || '□';
+}
+
 export interface FixtureInstance {
   id: string;
   definitionId: string;
   name: string;
+  icon?: FixtureIcon;
   universe: number;
   dmxAddress: number;
   modeId: string;

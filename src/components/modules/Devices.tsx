@@ -9,7 +9,9 @@ import {
   useFixtureStore, type FixtureDefinition, type FixtureInstance, type FixtureMode,
   type FixtureChannel, type ChannelFunction, type ColorSystem, type ColorWheelSlot,
   CHANNEL_FUNCTION_LABELS, getChannelColor, getFixtureTypeIcon,
+  FIXTURE_ICON_OPTIONS, getFixtureIconEmoji, type FixtureIcon,
 } from '@/store/fixtureStore';
+import { useWledStore, type WledFixture } from '@/store/wledStore';
 import { WledPanel } from './WledPanel';
 
 type Tab = 'instances' | 'library' | 'editor' | 'wled';
@@ -41,6 +43,7 @@ const ALL_FUNCTIONS: ChannelFunction[] = Object.keys(CHANNEL_FUNCTION_LABELS) as
 
 export function Devices() {
   const store = useFixtureStore();
+  const wledStore = useWledStore();
   const [tab, setTab] = useState<Tab>('instances');
   const [search, setSearch] = useState('');
   const [editingDef, setEditingDef] = useState<FixtureDefinition | null>(null);
@@ -320,7 +323,6 @@ export function Devices() {
               {filteredInsts.filter(i => i.universe === 1).map(inst => {
                 const mode = getInstanceMode(inst);
                 if (!mode) return null;
-                const def = getInstanceDef(inst);
                 const w = (mode.channelCount / 512) * 100;
                 const l = ((inst.dmxAddress - 1) / 512) * 100;
                 const conflicts = getAddressConflicts(inst);
@@ -344,7 +346,14 @@ export function Devices() {
             </div>
           </div>
 
-          {/* Instance list */}
+          {/* Section: DMX Fixtures */}
+          {filteredInsts.length > 0 && (
+            <div className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold mb-1 mt-2">
+              DMX Fixtures
+            </div>
+          )}
+
+          {/* DMX Instance list */}
           {filteredInsts.map(inst => {
             const def = getInstanceDef(inst);
             const mode = getInstanceMode(inst);
@@ -355,13 +364,15 @@ export function Devices() {
 
             return (
               <div key={inst.id} className={`rounded-lg border transition-all ${
-                conflicts.length > 0 ? 'border-destructive/40 bg-destructive/5' : 'border-border/20 bg-card/40'
+                conflicts.length > 0
+                  ? 'border-destructive/40 bg-destructive/5'
+                  : 'border-green-500/20 bg-green-500/10'
               }`}>
                 <button
                   onClick={() => setExpandedInstance(expanded ? null : inst.id)}
                   className="w-full flex items-center gap-3 p-3 text-left"
                 >
-                  <span className="text-lg">{getFixtureTypeIcon(def.type)}</span>
+                  <span className="text-lg">{inst.icon ? getFixtureIconEmoji(inst.icon) : getFixtureTypeIcon(def.type)}</span>
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-semibold">{inst.name}</div>
                     <div className="text-[9px] text-muted-foreground">{def.manufacturer} {def.model} — {mode.name}</div>
@@ -387,6 +398,27 @@ export function Devices() {
                       className="overflow-hidden"
                     >
                       <div className="px-3 pb-3 space-y-2 border-t border-border/20 pt-2">
+                        {/* Icon Selector */}
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Icon</label>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {FIXTURE_ICON_OPTIONS.map(opt => (
+                              <button
+                                key={opt.value}
+                                onClick={() => store.updateInstance(inst.id, { icon: opt.value })}
+                                className={`w-7 h-7 rounded text-sm flex items-center justify-center border transition-all ${
+                                  inst.icon === opt.value
+                                    ? 'border-primary bg-primary/20'
+                                    : 'border-border/30 bg-muted/20 hover:bg-muted/40'
+                                }`}
+                                title={opt.label}
+                              >
+                                {opt.emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
                         {/* DMX Settings */}
                         <div className="grid grid-cols-3 gap-2">
                           <div>
@@ -452,6 +484,131 @@ export function Devices() {
               </div>
             );
           })}
+
+          {/* Section: WLED Fixtures */}
+          {wledStore.fixtures.length > 0 && (
+            <div className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold mb-1 mt-4">
+              WLED Fixtures
+            </div>
+          )}
+
+          {wledStore.fixtures
+            .filter(f => f.name.toLowerCase().includes(search.toLowerCase()) || f.deviceName.toLowerCase().includes(search.toLowerCase()))
+            .map(fix => {
+              const device = wledStore.devices.find(d => d.id === fix.deviceId);
+              const expanded = expandedInstance === fix.id;
+
+              return (
+                <div key={fix.id} className="rounded-lg border transition-all border-blue-400/20 bg-blue-400/10">
+                  <button
+                    onClick={() => setExpandedInstance(expanded ? null : fix.id)}
+                    className="w-full flex items-center gap-3 p-3 text-left"
+                  >
+                    <span className="text-lg">{fix.icon ? getFixtureIconEmoji(fix.icon) : '💡'}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-semibold">{fix.name}</div>
+                      <div className="text-[9px] text-muted-foreground">
+                        {fix.deviceName} — Seg {fix.segmentId} — LED {fix.ledStart}–{fix.ledEnd}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-right">
+                        <div className="text-[10px] font-mono text-blue-400">{fix.deviceIp}</div>
+                        <div className="text-[8px] text-muted-foreground">{fix.ledEnd - fix.ledStart + 1} LEDs</div>
+                      </div>
+                      <div className={`w-2 h-2 rounded-full ${device?.online ? 'bg-green-500' : 'bg-red-500'}`}
+                        title={device?.online ? 'Online' : 'Offline'} />
+                    </div>
+                    {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  </button>
+
+                  <AnimatePresence>
+                    {expanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="px-3 pb-3 space-y-2 border-t border-border/20 pt-2">
+                          {/* Icon Selector */}
+                          <div>
+                            <label className="text-[7px] uppercase text-muted-foreground">Icon</label>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {FIXTURE_ICON_OPTIONS.map(opt => (
+                                <button
+                                  key={opt.value}
+                                  onClick={() => wledStore.updateFixture(fix.id, { icon: opt.value })}
+                                  className={`w-7 h-7 rounded text-sm flex items-center justify-center border transition-all ${
+                                    fix.icon === opt.value
+                                      ? 'border-primary bg-primary/20'
+                                      : 'border-border/30 bg-muted/20 hover:bg-muted/40'
+                                  }`}
+                                  title={opt.label}
+                                >
+                                  {opt.emoji}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* WLED Details */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[7px] uppercase text-muted-foreground">Device</label>
+                              <div className="text-[10px] font-mono bg-muted/30 rounded px-2 py-1">{fix.deviceName}</div>
+                            </div>
+                            <div>
+                              <label className="text-[7px] uppercase text-muted-foreground">IP</label>
+                              <div className="text-[10px] font-mono bg-muted/30 rounded px-2 py-1">{fix.deviceIp}</div>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="text-[7px] uppercase text-muted-foreground">Segment</label>
+                              <div className="text-[10px] font-mono bg-muted/30 rounded px-2 py-1">{fix.segmentId}</div>
+                            </div>
+                            <div>
+                              <label className="text-[7px] uppercase text-muted-foreground">LED Start</label>
+                              <div className="text-[10px] font-mono bg-muted/30 rounded px-2 py-1">{fix.ledStart}</div>
+                            </div>
+                            <div>
+                              <label className="text-[7px] uppercase text-muted-foreground">LED End</label>
+                              <div className="text-[10px] font-mono bg-muted/30 rounded px-2 py-1">{fix.ledEnd}</div>
+                            </div>
+                          </div>
+
+                          {/* Status */}
+                          <div className="flex items-center gap-2 text-[9px]">
+                            <div className={`w-2 h-2 rounded-full ${device?.online ? 'bg-green-500' : 'bg-red-500'}`} />
+                            <span>{device?.online ? 'Online' : 'Offline'}</span>
+                            {device?.lastSeen && (
+                              <span className="text-muted-foreground">
+                                Last seen: {new Date(device.lastSeen).toLocaleTimeString()}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex gap-1 pt-1">
+                            <Button variant="ghost" size="sm" className="h-6 text-[9px] gap-1 text-destructive"
+                              onClick={() => wledStore.removeFixture(fix.id)}>
+                              <Trash2 size={10} /> Remove
+                            </Button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+
+          {filteredInsts.length === 0 && wledStore.fixtures.length === 0 && (
+            <div className="text-center text-muted-foreground text-xs py-8">
+              No fixtures patched yet. Add DMX fixtures above or WLED fixtures in the WLED Devices tab.
+            </div>
+          )}
         </div>
       )}
 

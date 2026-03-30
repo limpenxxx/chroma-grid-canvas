@@ -18,11 +18,14 @@ export interface WledDevice {
   palettes?: string[];
 }
 
+import type { FixtureIcon } from '@/store/fixtureStore';
+
 /** A WLED Fixture is a logical fixture mapped to a segment on a physical WLED device */
 export interface WledFixture {
   id: string;
   deviceId: string;       // reference to WledDevice.id
   name: string;
+  icon?: FixtureIcon;
   segmentId: number;      // WLED segment index
   ledStart: number;       // first LED in this fixture
   ledEnd: number;         // last LED in this fixture
