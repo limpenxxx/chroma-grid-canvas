@@ -108,6 +108,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     model: 'RGBW PAR',
     type: 'par',
     colorSystem: 'rgbw',
+    createdAt: 0,
     modes: [{
       id: 'm1', name: '4 Channel', channelCount: 4,
       channels: [
