@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ImagePlus } from 'lucide-react';
+import stokioLogo from '@/assets/stokio-logo-color.png';
 import { useAppStore } from '@/store/appStore';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { BottomBar } from '@/components/layout/BottomBar';
@@ -39,28 +40,39 @@ const Index = () => {
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-background">
-      {/* Venue Logo Bar — top center */}
-      <div className="w-full flex items-center justify-center bg-[hsl(0_0%_3%)] border-b border-border/30 px-4 shrink-0">
-        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleVenueUpload} />
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="h-24 flex items-center justify-center transition-all overflow-hidden group py-2"
-        >
-          {venueLogo ? (
-            <img
-              src={venueLogo}
-              alt="Venue Logo"
-              className="h-20 max-w-[800px] object-contain opacity-80 hover:opacity-100 transition-opacity"
-            />
-          ) : (
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-border/20 hover:border-primary/30 bg-muted/5 hover:bg-muted/10 transition-all">
-              <ImagePlus size={14} className="text-muted-foreground/30 group-hover:text-muted-foreground/50" />
-              <span className="text-[10px] text-muted-foreground/30 group-hover:text-muted-foreground/50 uppercase tracking-widest">
-                Upload Venue Logo · 1000×200px
-              </span>
-            </div>
-          )}
-        </button>
+      {/* Top Bar — STOKIO logo left, Venue logo center */}
+      <div className="w-full flex items-center bg-[hsl(0_0%_3%)] border-b border-border/30 px-6 shrink-0 h-32">
+        {/* STOKIO Logo — left */}
+        <div className="shrink-0">
+          <img src={stokioLogo} alt="STOKIO FX" className="h-24 w-24 object-contain drop-shadow-[0_0_12px_rgba(0,229,255,0.3)]" />
+        </div>
+
+        {/* Venue Logo — center */}
+        <div className="flex-1 flex items-center justify-center">
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleVenueUpload} />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center justify-center transition-all overflow-hidden group"
+          >
+            {venueLogo ? (
+              <img
+                src={venueLogo}
+                alt="Venue Logo"
+                className="h-24 max-w-[900px] object-contain opacity-80 hover:opacity-100 transition-opacity"
+              />
+            ) : (
+              <div className="flex items-center gap-2 px-6 py-3 rounded-lg border border-dashed border-border/20 hover:border-primary/30 bg-muted/5 hover:bg-muted/10 transition-all">
+                <ImagePlus size={18} className="text-muted-foreground/30 group-hover:text-muted-foreground/50" />
+                <span className="text-xs text-muted-foreground/30 group-hover:text-muted-foreground/50 uppercase tracking-widest">
+                  Upload Venue Logo · 1000×200px
+                </span>
+              </div>
+            )}
+          </button>
+        </div>
+
+        {/* Spacer to balance layout */}
+        <div className="w-24 shrink-0" />
       </div>
 
       <div className="flex-1 flex overflow-hidden">
