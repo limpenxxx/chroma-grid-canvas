@@ -645,7 +645,7 @@ function ControlWidget({
                     className="flex-1 accent-primary cursor-pointer"
                     style={{ minWidth: 0, height: sliderH }}
                   />
-                  <span className="font-mono text-muted-foreground/60 text-right" style={{ fontSize: valFs, minWidth: valFs * 2.5 }}>{widget.mhProgram?.speed ?? 50}</span>
+                  <span className="font-mono text-muted-foreground/60 text-right" style={{ fontSize: valFs, minWidth: valFs * 2.5 }}>{widget.mhProgram?.speed ?? 128}</span>
                 </div>
               </div>
             );
