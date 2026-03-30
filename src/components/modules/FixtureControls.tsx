@@ -3,25 +3,29 @@ import { motion } from 'framer-motion';
 import { Home, Crosshair } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import {
+  useFixtureStore, type FixtureDefinition, type FixtureInstance,
+  type ColorSystem, type ColorWheelSlot, getFixtureTypeIcon,
+} from '@/store/fixtureStore';
 
-interface Fixture {
-  id: string;
-  name: string;
-  type: 'moving-head' | 'par' | 'strip';
-  color: { r: number; g: number; b: number; w: number };
+// ── Live channel values per instance ──
+interface FixtureState {
+  color: { r: number; g: number; b: number; w: number; ww: number; cw: number };
+  colorWheelSlotId?: string; // active slot for color-wheel fixtures
   pan: number;
   tilt: number;
   dimmer: number;
 }
 
-const MOCK_FIXTURES: Fixture[] = [
-  { id: '1', name: 'MH-1', type: 'moving-head', color: { r: 255, g: 0, b: 100, w: 0 }, pan: 50, tilt: 50, dimmer: 80 },
-  { id: '2', name: 'MH-2', type: 'moving-head', color: { r: 0, g: 200, b: 255, w: 0 }, pan: 30, tilt: 70, dimmer: 100 },
-  { id: '3', name: 'PAR-1', type: 'par', color: { r: 255, g: 100, b: 0, w: 128 }, pan: 0, tilt: 0, dimmer: 60 },
-  { id: '4', name: 'STRIP-1', type: 'strip', color: { r: 0, g: 255, b: 50, w: 255 }, pan: 0, tilt: 0, dimmer: 90 },
-];
+function defaultState(): FixtureState {
+  return { color: { r: 0, g: 0, b: 0, w: 0, ww: 0, cw: 0 }, pan: 50, tilt: 50, dimmer: 80 };
+}
 
-function ColorWheel({ color, onChange }: { color: { r: number; g: number; b: number; w: number }; onChange: (c: typeof color) => void }) {
+// ── Color Wheel (HSV) ──
+function ColorWheel({ color, onChange }: {
+  color: { r: number; g: number; b: number };
+  onChange: (c: { r: number; g: number; b: number }) => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const size = 180;
 
@@ -35,8 +39,6 @@ function ColorWheel({ color, onChange }: { color: { r: number; g: number; b: num
     const dist = Math.min(Math.sqrt(x * x + y * y), size / 2 - 10);
     const hue = ((angle * 180 / Math.PI) + 360) % 360;
     const sat = dist / (size / 2 - 10);
-
-    // HSV to RGB
     const c = sat;
     const xx = c * (1 - Math.abs((hue / 60) % 2 - 1));
     const m = 1 - c;
@@ -47,52 +49,105 @@ function ColorWheel({ color, onChange }: { color: { r: number; g: number; b: num
     else if (hue < 240) { g1 = xx; b1 = c; }
     else if (hue < 300) { r1 = xx; b1 = c; }
     else { r1 = c; b1 = xx; }
-
     onChange({
       r: Math.round((r1 + m) * 255),
       g: Math.round((g1 + m) * 255),
       b: Math.round((b1 + m) * 255),
-      w: color.w,
     });
-  }, [color.w, onChange]);
+  }, [onChange]);
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
-      {/* Outer color ring */}
-      <div
-        className="absolute inset-0 rounded-full control-glossy"
-        style={{
-          background: `conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)`,
-          padding: 6,
-        }}
-      >
+      <div className="absolute inset-0 rounded-full control-glossy"
+        style={{ background: `conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)`, padding: 6 }}>
         <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center">
-          {/* Inner white ring */}
-          <div
-            className="w-16 h-16 rounded-full border-2 border-border/30"
-            style={{
-              background: `radial-gradient(circle, rgba(255,255,255,${color.w / 255}) 0%, rgba(255,255,255,0) 70%)`,
-            }}
-          />
+          <div className="w-16 h-16 rounded-full border-2 border-border/30"
+            style={{ background: `rgb(${color.r}, ${color.g}, ${color.b})`, boxShadow: `0 0 20px rgb(${color.r}, ${color.g}, ${color.b})` }} />
         </div>
       </div>
-      {/* Active color indicator */}
-      <div
-        className="absolute top-1/2 left-1/2 w-4 h-4 rounded-full border-2 border-foreground -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-        style={{ backgroundColor: `rgb(${color.r}, ${color.g}, ${color.b})`, boxShadow: `0 0 12px rgb(${color.r}, ${color.g}, ${color.b})` }}
-      />
-      <canvas
-        ref={canvasRef}
-        width={size}
-        height={size}
-        className="absolute inset-0 rounded-full cursor-crosshair opacity-0"
-        onClick={handleClick}
-      />
+      <div className="absolute top-1/2 left-1/2 w-4 h-4 rounded-full border-2 border-foreground -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+        style={{ backgroundColor: `rgb(${color.r}, ${color.g}, ${color.b})`, boxShadow: `0 0 12px rgb(${color.r}, ${color.g}, ${color.b})` }} />
+      <canvas ref={canvasRef} width={size} height={size}
+        className="absolute inset-0 rounded-full cursor-crosshair opacity-0" onClick={handleClick} />
     </div>
   );
 }
 
-function XYPad({ pan, tilt, onPanChange, onTiltChange }: { pan: number; tilt: number; onPanChange: (v: number) => void; onTiltChange: (v: number) => void }) {
+// ── Fixed Color Wheel Selector ──
+function FixedColorWheelSelector({ slots, activeSlotId, onSelect }: {
+  slots: ColorWheelSlot[];
+  activeSlotId?: string;
+  onSelect: (slot: ColorWheelSlot) => void;
+}) {
+  const size = 180;
+  const slotAngle = 360 / slots.length;
+
+  return (
+    <div className="space-y-2">
+      {/* Circular wheel representation */}
+      <div className="relative mx-auto" style={{ width: size, height: size }}>
+        <div className="absolute inset-0 rounded-full control-glossy border border-border/20 overflow-hidden">
+          {slots.map((slot, i) => {
+            const startAngle = i * slotAngle - 90;
+            const isActive = slot.id === activeSlotId;
+            return (
+              <button
+                key={slot.id}
+                className="absolute inset-0 w-full h-full"
+                onClick={() => onSelect(slot)}
+                style={{ clipPath: `polygon(50% 50%, ${50 + 50 * Math.cos((startAngle) * Math.PI / 180)}% ${50 + 50 * Math.sin((startAngle) * Math.PI / 180)}%, ${50 + 50 * Math.cos((startAngle + slotAngle) * Math.PI / 180)}% ${50 + 50 * Math.sin((startAngle + slotAngle) * Math.PI / 180)}%)` }}
+              >
+                <div className="w-full h-full" style={{
+                  backgroundColor: slot.color,
+                  opacity: isActive ? 1 : 0.6,
+                  boxShadow: isActive ? `inset 0 0 20px rgba(255,255,255,0.4)` : 'none',
+                }} />
+              </button>
+            );
+          })}
+          {/* Center dot */}
+          <div className="absolute top-1/2 left-1/2 w-10 h-10 rounded-full -translate-x-1/2 -translate-y-1/2 bg-[#0a0a0a] border border-border/30 flex items-center justify-center">
+            {activeSlotId && (
+              <div className="w-6 h-6 rounded-full" style={{
+                backgroundColor: slots.find(s => s.id === activeSlotId)?.color,
+                boxShadow: `0 0 12px ${slots.find(s => s.id === activeSlotId)?.color}`,
+              }} />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Color grid for quick selection */}
+      <div className="grid grid-cols-4 gap-1.5 max-w-[180px] mx-auto">
+        {slots.map(slot => {
+          const isActive = slot.id === activeSlotId;
+          return (
+            <button
+              key={slot.id}
+              onClick={() => onSelect(slot)}
+              className={`group relative flex flex-col items-center gap-0.5 p-1 rounded transition-all ${isActive ? 'bg-primary/10 ring-1 ring-primary/40' : 'hover:bg-muted/30'}`}
+            >
+              <div className="w-7 h-7 rounded-full border-2 transition-all"
+                style={{
+                  backgroundColor: slot.color,
+                  borderColor: isActive ? 'hsl(var(--primary))' : 'transparent',
+                  boxShadow: isActive ? `0 0 10px ${slot.color}` : 'none',
+                }}
+              />
+              <span className="text-[7px] text-muted-foreground truncate w-full text-center">{slot.name}</span>
+              <span className="text-[6px] font-mono text-muted-foreground/50">DMX:{slot.dmxValue}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── XY Pad ──
+function XYPad({ pan, tilt, onPanChange, onTiltChange }: {
+  pan: number; tilt: number; onPanChange: (v: number) => void; onTiltChange: (v: number) => void;
+}) {
   const padRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -109,8 +164,7 @@ function XYPad({ pan, tilt, onPanChange, onTiltChange }: { pan: number; tilt: nu
 
   return (
     <div className="space-y-2">
-      <div
-        ref={padRef}
+      <div ref={padRef}
         className="w-44 h-44 rounded-lg control-glossy border border-border/30 relative cursor-crosshair select-none"
         onMouseDown={(e) => { setIsDragging(true); handleMove(e); }}
         onMouseMove={handleMove}
@@ -118,19 +172,16 @@ function XYPad({ pan, tilt, onPanChange, onTiltChange }: { pan: number; tilt: nu
         onMouseLeave={() => setIsDragging(false)}
         onClick={handleMove}
       >
-        {/* Grid lines */}
         <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">
           <div className="absolute left-1/2 top-0 w-px h-full bg-border/20" />
           <div className="absolute top-1/2 left-0 w-full h-px bg-border/20" />
         </div>
-        {/* Crosshair */}
         <motion.div
           className="absolute w-4 h-4 rounded-full border-2 border-primary -translate-x-1/2 -translate-y-1/2 pointer-events-none"
           style={{ left: `${pan}%`, top: `${tilt}%`, boxShadow: '0 0 8px hsl(155, 100%, 50%)' }}
           animate={{ left: `${pan}%`, top: `${tilt}%` }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
         />
-        {/* Labels */}
         <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[8px] text-muted-foreground/50">PAN</span>
         <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] text-muted-foreground/50 -rotate-90">TILT</span>
       </div>
@@ -146,14 +197,71 @@ function XYPad({ pan, tilt, onPanChange, onTiltChange }: { pan: number; tilt: nu
   );
 }
 
-export function FixtureControls() {
-  const [fixtures, setFixtures] = useState<Fixture[]>(MOCK_FIXTURES);
-  const [selectedId, setSelectedId] = useState<string>('1');
-  const selected = fixtures.find(f => f.id === selectedId)!;
+// ── White Channel Sliders ──
+function WhiteChannels({ colorSystem, color, onChange }: {
+  colorSystem: ColorSystem;
+  color: FixtureState['color'];
+  onChange: (c: Partial<FixtureState['color']>) => void;
+}) {
+  const channels: { key: keyof FixtureState['color']; label: string }[] = [];
 
-  const updateFixture = (id: string, updates: Partial<Fixture>) => {
-    setFixtures(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
+  if (colorSystem === 'rgbw') {
+    channels.push({ key: 'w', label: 'W' });
+  } else if (colorSystem === 'rgbww') {
+    channels.push({ key: 'w', label: 'WW' }, { key: 'cw', label: 'CW' });
+  } else if (colorSystem === 'rgbwc') {
+    channels.push({ key: 'w', label: 'W' }, { key: 'cw', label: 'C' });
+  }
+
+  if (channels.length === 0) return null;
+
+  return (
+    <div className="space-y-1.5">
+      {channels.map(ch => (
+        <div key={ch.key} className="flex items-center gap-2">
+          <span className="text-[9px] text-muted-foreground w-6 text-right font-semibold">{ch.label}</span>
+          <Slider
+            value={[color[ch.key]]}
+            onValueChange={([v]) => onChange({ [ch.key]: v })}
+            max={255}
+            className="flex-1"
+          />
+          <span className="text-[9px] font-mono text-muted-foreground w-6">{color[ch.key]}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Color System Label ──
+function colorSystemLabel(cs: ColorSystem): string {
+  const map: Record<ColorSystem, string> = {
+    'rgb': 'RGB COLOR',
+    'rgbw': 'RGBW COLOR',
+    'rgbww': 'RGBWW COLOR',
+    'rgbwc': 'RGBWC COLOR',
+    'color-wheel': 'COLOR WHEEL',
   };
+  return map[cs];
+}
+
+// ── Main Component ──
+export function FixtureControls() {
+  const store = useFixtureStore();
+  const [states, setStates] = useState<Record<string, FixtureState>>({});
+  const [selectedId, setSelectedId] = useState<string>(store.instances[0]?.id || '');
+
+  const selected = store.instances.find(i => i.id === selectedId);
+  const selectedDef = selected ? store.definitions.find(d => d.id === selected.definitionId) : undefined;
+  const selectedMode = selected && selectedDef ? selectedDef.modes.find(m => m.id === selected.modeId) : undefined;
+
+  const getState = (id: string): FixtureState => states[id] || defaultState();
+  const updateState = (id: string, updates: Partial<FixtureState>) => {
+    setStates(prev => ({ ...prev, [id]: { ...getState(id), ...updates } }));
+  };
+
+  const hasPanTilt = selectedMode?.channels.some(c => c.function === 'pan' || c.function === 'tilt');
+  const state = selected ? getState(selected.id) : defaultState();
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
@@ -163,86 +271,142 @@ export function FixtureControls() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Fixture List */}
-        <div className="w-40 border-r border-border/30 p-2 space-y-1 overflow-y-auto">
-          {fixtures.map(f => (
-            <button
-              key={f.id}
-              onClick={() => setSelectedId(f.id)}
-              className={`w-full flex items-center gap-2 p-2 rounded text-xs transition-all ${
-                selectedId === f.id ? 'bg-primary/10 border border-primary/30 text-primary' : 'hover:bg-muted/50 text-muted-foreground'
-              }`}
-            >
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: `rgb(${f.color.r},${f.color.g},${f.color.b})`, boxShadow: `0 0 6px rgb(${f.color.r},${f.color.g},${f.color.b})` }} />
-              {f.name}
-            </button>
-          ))}
+        <div className="w-44 border-r border-border/30 p-2 space-y-1 overflow-y-auto">
+          {store.instances.length === 0 && (
+            <div className="text-[10px] text-muted-foreground text-center py-4">No fixtures patched.<br />Go to Devices to add fixtures.</div>
+          )}
+          {store.instances.map(inst => {
+            const def = store.definitions.find(d => d.id === inst.definitionId);
+            if (!def) return null;
+            const s = getState(inst.id);
+            const previewColor = def.colorSystem === 'color-wheel'
+              ? (def.colorWheelSlots?.find(sl => sl.id === s.colorWheelSlotId)?.color || '#888')
+              : `rgb(${s.color.r},${s.color.g},${s.color.b})`;
+            return (
+              <button
+                key={inst.id}
+                onClick={() => setSelectedId(inst.id)}
+                className={`w-full flex items-center gap-2 p-2 rounded text-xs transition-all ${
+                  selectedId === inst.id ? 'bg-primary/10 border border-primary/30 text-primary' : 'hover:bg-muted/50 text-muted-foreground'
+                }`}
+              >
+                <span className="text-sm">{getFixtureTypeIcon(def.type)}</span>
+                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: previewColor, boxShadow: `0 0 6px ${previewColor}` }} />
+                <div className="flex-1 text-left min-w-0">
+                  <div className="truncate text-[10px] font-semibold">{inst.name}</div>
+                  <div className="text-[8px] text-muted-foreground/60">{def.colorSystem.toUpperCase()}</div>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Controls */}
         <div className="flex-1 p-6 overflow-y-auto">
-          <div className="flex flex-wrap gap-8 items-start">
-            {/* Color Wheel */}
-            <div className="space-y-3">
-              <label className="text-[10px] uppercase tracking-wider text-muted-foreground block text-center">RGBW COLOR</label>
-              <ColorWheel
-                color={selected.color}
-                onChange={(c) => updateFixture(selected.id, { color: c })}
-              />
-              {/* White channel */}
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] text-muted-foreground w-4">W</span>
-                <Slider
-                  value={[selected.color.w]}
-                  onValueChange={([v]) => updateFixture(selected.id, { color: { ...selected.color, w: v } })}
-                  max={255}
-                  className="flex-1"
-                />
-                <span className="text-[9px] font-mono text-muted-foreground w-6">{selected.color.w}</span>
-              </div>
-              {/* Color readout */}
-              <div className="text-[9px] font-mono text-muted-foreground text-center">
-                R:{selected.color.r} G:{selected.color.g} B:{selected.color.b} W:{selected.color.w}
-              </div>
-            </div>
-
-            {/* XY Pad */}
-            {selected.type === 'moving-head' && (
+          {!selected || !selectedDef ? (
+            <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Select a fixture</div>
+          ) : (
+            <div className="flex flex-wrap gap-8 items-start">
+              {/* Color Controls */}
               <div className="space-y-3">
-                <label className="text-[10px] uppercase tracking-wider text-muted-foreground block text-center">PAN / TILT</label>
-                <XYPad
-                  pan={selected.pan}
-                  tilt={selected.tilt}
-                  onPanChange={(v) => updateFixture(selected.id, { pan: v })}
-                  onTiltChange={(v) => updateFixture(selected.id, { tilt: v })}
-                />
-                <div className="text-[9px] font-mono text-muted-foreground text-center">
-                  P:{selected.pan}° T:{selected.tilt}°
-                </div>
-              </div>
-            )}
+                <label className="text-[10px] uppercase tracking-wider text-muted-foreground block text-center">
+                  {colorSystemLabel(selectedDef.colorSystem)}
+                </label>
 
-            {/* Dimmer */}
-            <div className="space-y-3">
-              <label className="text-[10px] uppercase tracking-wider text-muted-foreground block text-center">DIMMER</label>
-              <div className="h-44 w-12 rounded-lg fader-track border border-border/30 relative mx-auto">
-                <motion.div
-                  className="absolute bottom-0 left-0 w-full rounded-b-lg bg-gradient-to-t from-primary/60 to-primary/20"
-                  animate={{ height: `${selected.dimmer}%` }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                />
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={selected.dimmer}
-                  onChange={(e) => updateFixture(selected.id, { dimmer: Number(e.target.value) })}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-ns-resize"
-                  style={{ writingMode: 'vertical-lr', direction: 'rtl' } as React.CSSProperties}
-                />
+                {selectedDef.colorSystem === 'color-wheel' ? (
+                  <FixedColorWheelSelector
+                    slots={selectedDef.colorWheelSlots || []}
+                    activeSlotId={state.colorWheelSlotId}
+                    onSelect={(slot) => updateState(selected.id, { colorWheelSlotId: slot.id })}
+                  />
+                ) : (
+                  <>
+                    <ColorWheel
+                      color={state.color}
+                      onChange={(c) => updateState(selected.id, { color: { ...state.color, ...c } })}
+                    />
+                    {/* RGB readout sliders */}
+                    {['r', 'g', 'b'].map(ch => (
+                      <div key={ch} className="flex items-center gap-2">
+                        <span className="text-[9px] text-muted-foreground w-4 uppercase font-semibold">{ch}</span>
+                        <Slider
+                          value={[state.color[ch as keyof typeof state.color]]}
+                          onValueChange={([v]) => updateState(selected.id, { color: { ...state.color, [ch]: v } })}
+                          max={255}
+                          className="flex-1"
+                        />
+                        <span className="text-[9px] font-mono text-muted-foreground w-6">{state.color[ch as keyof typeof state.color]}</span>
+                      </div>
+                    ))}
+                    {/* White channels */}
+                    <WhiteChannels
+                      colorSystem={selectedDef.colorSystem}
+                      color={state.color}
+                      onChange={(updates) => updateState(selected.id, { color: { ...state.color, ...updates } })}
+                    />
+                    {/* Color readout */}
+                    <div className="text-[9px] font-mono text-muted-foreground text-center">
+                      R:{state.color.r} G:{state.color.g} B:{state.color.b}
+                      {selectedDef.colorSystem !== 'rgb' && ` W:${state.color.w}`}
+                      {selectedDef.colorSystem === 'rgbww' && ` CW:${state.color.cw}`}
+                      {selectedDef.colorSystem === 'rgbwc' && ` C:${state.color.cw}`}
+                    </div>
+                  </>
+                )}
               </div>
-              <div className="text-[9px] font-mono text-muted-foreground text-center">{selected.dimmer}%</div>
+
+              {/* XY Pad */}
+              {hasPanTilt && (
+                <div className="space-y-3">
+                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground block text-center">PAN / TILT</label>
+                  <XYPad
+                    pan={state.pan}
+                    tilt={state.tilt}
+                    onPanChange={(v) => updateState(selected.id, { pan: v })}
+                    onTiltChange={(v) => updateState(selected.id, { tilt: v })}
+                  />
+                  <div className="text-[9px] font-mono text-muted-foreground text-center">
+                    P:{state.pan}° T:{state.tilt}°
+                  </div>
+                </div>
+              )}
+
+              {/* Dimmer */}
+              <div className="space-y-3">
+                <label className="text-[10px] uppercase tracking-wider text-muted-foreground block text-center">DIMMER</label>
+                <div className="h-44 w-12 rounded-lg fader-track border border-border/30 relative mx-auto">
+                  <motion.div
+                    className="absolute bottom-0 left-0 w-full rounded-b-lg bg-gradient-to-t from-primary/60 to-primary/20"
+                    animate={{ height: `${state.dimmer}%` }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                  />
+                  <input type="range" min={0} max={100} value={state.dimmer}
+                    onChange={(e) => updateState(selected.id, { dimmer: Number(e.target.value) })}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-ns-resize"
+                    style={{ writingMode: 'vertical-lr', direction: 'rtl' } as React.CSSProperties}
+                  />
+                </div>
+                <div className="text-[9px] font-mono text-muted-foreground text-center">{state.dimmer}%</div>
+              </div>
+
+              {/* Channel overview */}
+              {selectedMode && (
+                <div className="space-y-2 min-w-[160px]">
+                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground block">CHANNELS</label>
+                  <div className="space-y-0.5">
+                    {selectedMode.channels.map(ch => (
+                      <div key={ch.id} className="flex items-center gap-1.5 text-[9px]">
+                        <span className="font-mono text-muted-foreground/50 w-5">{ch.number}</span>
+                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: `var(--channel-${ch.function}, #888)` }} />
+                        <span className="text-muted-foreground">{ch.name}</span>
+                        <span className="text-[7px] text-muted-foreground/40 uppercase ml-auto">{ch.function}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
+          )}
         </div>
       </div>
     </motion.div>
