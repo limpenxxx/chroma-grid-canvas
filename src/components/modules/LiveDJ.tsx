@@ -3,10 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Play, Square, GripVertical, Palette, SlidersHorizontal,
   Zap, ChevronDown, ChevronRight, Monitor, Hand, Layers,
-  Speaker, X, Save, Mic, Activity,
+  Speaker, X, Save, Mic, Activity, Sparkles, Wifi,
   ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users,
   Bookmark, Settings2, CircleDot, Maximize2, Minimize2, Film
 } from 'lucide-react';
+import { AudioVisualizerEngine, PRESET_LABELS, type VisualizerPreset } from '@/lib/audioVisualizer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
