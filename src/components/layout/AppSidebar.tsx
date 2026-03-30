@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { 
-  Layout, Film, Type, Sliders, GitBranch, Cpu, Play 
+  Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker
 } from 'lucide-react';
 import { useAppStore, type ModuleId } from '@/store/appStore';
 import stokioLogo from '@/assets/stokio-logo-color.png';
@@ -13,7 +13,7 @@ const navItems: { id: ModuleId; icon: typeof Layout; label: string }[] = [
   { id: 'fixtures', icon: Sliders, label: 'Fixture Controls' },
   { id: 'nodes', icon: GitBranch, label: 'Node Logic' },
   { id: 'devices', icon: Cpu, label: 'Devices' },
-  { id: 'showrunner', icon: Play, label: 'Show Runner' },
+  { id: 'livedj', icon: Speaker, label: 'LIVE DJ' },
 ];
 
 export function AppSidebar() {

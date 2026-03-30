@@ -8,7 +8,7 @@ import { TextOverlays } from '@/components/modules/TextOverlays';
 import { FixtureControls } from '@/components/modules/FixtureControls';
 import { NodeLogic } from '@/components/modules/NodeLogic';
 import { Devices } from '@/components/modules/Devices';
-import { ShowRunner } from '@/components/modules/ShowRunner';
+import { LiveDJ } from '@/components/modules/LiveDJ';
 
 const moduleComponents = {
   stage: StageBuilder,
@@ -17,7 +17,7 @@ const moduleComponents = {
   fixtures: FixtureControls,
   nodes: NodeLogic,
   devices: Devices,
-  showrunner: ShowRunner,
+  livedj: LiveDJ,
 };
 
 const Index = () => {
