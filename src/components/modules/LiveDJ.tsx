@@ -500,43 +500,88 @@ function ControlWidget({
           : null;
         const activeSlotValue = syncedSlot ? syncedSlot.dmxValue : widget.fixedColorSlotValue;
 
-        const slotSize = slots.length > 0 
-          ? Math.max(16, Math.min(32, (Math.min(widget.width, widget.height) - 40) / Math.ceil(Math.sqrt(slots.length))))
-          : 0;
+        const wheelSize = Math.min(widget.width, widget.height) - 50;
+        const slotAngle = slots.length > 0 ? 360 / slots.length : 0;
 
         return (
           <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-2 gap-1 overflow-hidden" style={bgStyle}>
-            <span className="text-muted-foreground font-semibold truncate" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.1)) }}>{widget.label}</span>
+            <span className="text-muted-foreground font-semibold truncate uppercase tracking-wider" style={{ fontSize: Math.max(8, Math.min(11, widget.width * 0.08)) }}>{widget.label}</span>
             {widget.rgbSyncEnabled && (
               <div className="text-[6px] px-1.5 py-0.5 rounded bg-stokio-cyan/10 text-stokio-cyan border border-stokio-cyan/20 font-semibold">
                 RGB SYNC
               </div>
             )}
-            <div className="flex-1 flex flex-wrap items-center justify-center gap-1 overflow-y-auto p-1">
-              {slots.map(slot => {
-                const isActive = activeSlotValue === slot.dmxValue;
-                return (
-                  <button key={`${slot.dmxValue}-${slot.color}`}
-                    onClick={() => onUpdate({ fixedColorSlotValue: slot.dmxValue })}
-                    className={`rounded-full border-2 transition-all flex-shrink-0 ${isActive ? 'scale-110' : 'hover:scale-105'}`}
-                    style={{
-                      width: slotSize, height: slotSize,
-                      backgroundColor: slot.color,
-                      borderColor: isActive ? '#fff' : 'transparent',
-                      boxShadow: isActive ? `0 0 12px ${slot.color}, 0 0 4px #fff` : `inset 0 -2px 4px rgba(0,0,0,0.3)`,
-                    }}
-                    title={`${slot.name} (DMX ${slot.dmxValue})`}
-                  />
-                );
-              })}
-              {slots.length === 0 && (
+
+            {/* Color Wheel Visual */}
+            {slots.length > 0 && (
+              <div className="relative flex-shrink-0" style={{ width: wheelSize, height: wheelSize }}>
+                <svg viewBox="0 0 100 100" className="w-full h-full" style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.4))' }}>
+                  {slots.map((slot, i) => {
+                    const startAngle = (i * slotAngle - 90) * (Math.PI / 180);
+                    const endAngle = ((i + 1) * slotAngle - 90) * (Math.PI / 180);
+                    const r = 45;
+                    const x1 = 50 + r * Math.cos(startAngle);
+                    const y1 = 50 + r * Math.sin(startAngle);
+                    const x2 = 50 + r * Math.cos(endAngle);
+                    const y2 = 50 + r * Math.sin(endAngle);
+                    const largeArc = slotAngle > 180 ? 1 : 0;
+                    const isActive = activeSlotValue === slot.dmxValue;
+                    return (
+                      <path key={`${slot.dmxValue}-${slot.color}`}
+                        d={`M 50 50 L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`}
+                        fill={slot.color}
+                        stroke={isActive ? '#fff' : 'rgba(0,0,0,0.3)'}
+                        strokeWidth={isActive ? 2 : 0.5}
+                        className="cursor-pointer transition-all"
+                        style={{ filter: isActive ? `drop-shadow(0 0 6px ${slot.color})` : undefined }}
+                        onClick={() => onUpdate({ fixedColorSlotValue: slot.dmxValue })}
+                      />
+                    );
+                  })}
+                  {/* Center dot */}
+                  <circle cx="50" cy="50" r="10" fill="#111" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
+                  {activeSlotValue !== undefined && (() => {
+                    const activeSlot = slots.find(s => s.dmxValue === activeSlotValue);
+                    return activeSlot ? <circle cx="50" cy="50" r="8" fill={activeSlot.color} opacity="0.6" /> : null;
+                  })()}
+                </svg>
+              </div>
+            )}
+
+            {/* Color slot buttons with labels */}
+            {slots.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-x-2 gap-y-0.5 overflow-y-auto px-1" style={{ maxHeight: widget.height * 0.35 }}>
+                {slots.map(slot => {
+                  const isActive = activeSlotValue === slot.dmxValue;
+                  const btnSize = Math.max(18, Math.min(28, widget.width / (Math.min(slots.length, 4) + 1)));
+                  return (
+                    <div key={`btn-${slot.dmxValue}-${slot.color}`} className="flex flex-col items-center gap-0.5">
+                      <button
+                        onClick={() => onUpdate({ fixedColorSlotValue: slot.dmxValue })}
+                        className={`rounded-full border-2 transition-all ${isActive ? 'scale-110' : 'hover:scale-105'}`}
+                        style={{
+                          width: btnSize, height: btnSize,
+                          backgroundColor: slot.color,
+                          borderColor: isActive ? '#fff' : 'rgba(255,255,255,0.15)',
+                          boxShadow: isActive ? `0 0 10px ${slot.color}, 0 0 3px #fff` : `inset 0 -2px 4px rgba(0,0,0,0.3)`,
+                        }}
+                      />
+                      <span className="text-muted-foreground truncate text-center" style={{ fontSize: Math.max(6, Math.min(9, widget.width * 0.06)), maxWidth: btnSize + 10 }}>
+                        {slot.name}
+                      </span>
+                      <span className="text-muted-foreground/40 font-mono" style={{ fontSize: Math.max(5, Math.min(7, widget.width * 0.04)) }}>
+                        DMX {slot.dmxValue}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {slots.length === 0 && (
+              <div className="flex-1 flex items-center justify-center">
                 <span className="text-[8px] text-muted-foreground/40 text-center">Link fixtures with fixed color wheels</span>
-              )}
-            </div>
-            {activeSlotValue !== undefined && slots.length > 0 && (
-              <span className="text-[8px] text-muted-foreground font-mono" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
-                {slots.find(s => s.dmxValue === activeSlotValue)?.name || '—'} · DMX {activeSlotValue}
-              </span>
+              </div>
             )}
           </div>
         );
