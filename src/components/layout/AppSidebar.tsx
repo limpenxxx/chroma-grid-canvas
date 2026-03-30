@@ -1,13 +1,13 @@
 import { motion } from 'framer-motion';
 import { 
-  Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker
+  Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker, Grid3X3
 } from 'lucide-react';
 import { useAppStore, type ModuleId } from '@/store/appStore';
 import stokioLogo from '@/assets/stokio-logo-color.png';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const navItems: { id: ModuleId; icon: typeof Layout; label: string }[] = [
-  { id: 'stage', icon: Layout, label: 'Stage Builder' },
+  { id: 'stage', icon: Grid3X3, label: 'Pixel Mapping' },
   { id: 'media', icon: Film, label: 'Media Server' },
   { id: 'text', icon: Type, label: 'Text Overlays' },
   { id: 'fixtures', icon: Sliders, label: 'Fixture Controls' },
