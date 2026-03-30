@@ -1347,7 +1347,164 @@ export function LiveDJ() {
                     </div>
                   )}
 
-                  {/* MH Movement Programs (XY Pad only) */}
+                  {/* Preset Scene Config */}
+                  {selectedWidgetData.type === 'preset' && (
+                    <div className="space-y-2 border-t border-border/20 pt-2">
+                      <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
+                        <Settings2 size={10} /> Scene Configuration
+                      </label>
+                      <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                        💡 Toggle mode: click to activate/deactivate all scene entries at once.
+                      </div>
+
+                      {/* Add fixture or group to scene */}
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Add to Scene</label>
+                        <div className="space-y-1 mt-1">
+                          {/* Individual fixtures */}
+                          {fixturesWithDefs.length > 0 && (
+                            <div>
+                              <span className="text-[7px] text-muted-foreground/60">Fixtures:</span>
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {fixturesWithDefs.map(({ inst, def }) => {
+                                  const inScene = selectedWidgetData.presetEntries?.some(e => e.targetId === inst.id && e.targetType === 'fixture');
+                                  return (
+                                    <button key={inst.id}
+                                      onClick={() => {
+                                        const entries = selectedWidgetData.presetEntries || [];
+                                        if (inScene) {
+                                          updateWidget(selectedWidgetData.id, { presetEntries: entries.filter(e => !(e.targetId === inst.id && e.targetType === 'fixture')) });
+                                        } else {
+                                          updateWidget(selectedWidgetData.id, { presetEntries: [...entries, { targetId: inst.id, targetType: 'fixture', dimmer: 255 }] });
+                                        }
+                                      }}
+                                      className={`text-[8px] px-1.5 py-0.5 rounded border transition-all ${
+                                        inScene ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border/20 text-muted-foreground hover:border-border/40'
+                                      }`}>
+                                      {getFixtureTypeIcon(def.type)} {inst.name}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                          {/* Groups */}
+                          {groups.length > 0 && (
+                            <div>
+                              <span className="text-[7px] text-muted-foreground/60">Groups:</span>
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {groups.map(g => {
+                                  const inScene = selectedWidgetData.presetEntries?.some(e => e.targetId === g.id && e.targetType === 'group');
+                                  return (
+                                    <button key={g.id}
+                                      onClick={() => {
+                                        const entries = selectedWidgetData.presetEntries || [];
+                                        if (inScene) {
+                                          updateWidget(selectedWidgetData.id, { presetEntries: entries.filter(e => !(e.targetId === g.id && e.targetType === 'group')) });
+                                        } else {
+                                          updateWidget(selectedWidgetData.id, { presetEntries: [...entries, { targetId: g.id, targetType: 'group', dimmer: 255 }] });
+                                        }
+                                      }}
+                                      className={`text-[8px] px-1.5 py-0.5 rounded border transition-all flex items-center gap-1 ${
+                                        inScene ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border/20 text-muted-foreground hover:border-border/40'
+                                      }`}>
+                                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: g.color }} />
+                                      {g.name}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Scene entries detail */}
+                      {(selectedWidgetData.presetEntries || []).length > 0 && (
+                        <div className="space-y-1.5">
+                          <label className="text-[7px] uppercase text-muted-foreground">Scene Values</label>
+                          {(selectedWidgetData.presetEntries || []).map((entry, idx) => {
+                            const isFixture = entry.targetType === 'fixture';
+                            const name = isFixture
+                              ? fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.inst.name || entry.targetId
+                              : groups.find(g => g.id === entry.targetId)?.name || entry.targetId;
+                            const icon = isFixture
+                              ? getFixtureTypeIcon(fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.def.type || 'generic')
+                              : '👥';
+                            const updateEntry = (updates: Partial<PresetSceneEntry>) => {
+                              const entries = [...(selectedWidgetData.presetEntries || [])];
+                              entries[idx] = { ...entries[idx], ...updates };
+                              updateWidget(selectedWidgetData.id, { presetEntries: entries });
+                            };
+                            return (
+                              <div key={`${entry.targetType}-${entry.targetId}`} className="glass-panel p-2 rounded space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[8px] font-semibold flex items-center gap-1">
+                                    {icon} {name}
+                                    <span className="text-[7px] text-muted-foreground/50 uppercase">{entry.targetType}</span>
+                                  </span>
+                                  <button onClick={() => {
+                                    const entries = (selectedWidgetData.presetEntries || []).filter((_, i) => i !== idx);
+                                    updateWidget(selectedWidgetData.id, { presetEntries: entries });
+                                  }} className="text-muted-foreground hover:text-destructive"><X size={10} /></button>
+                                </div>
+                                {/* Dimmer */}
+                                <div className="flex items-center gap-1">
+                                  <label className="text-[7px] text-muted-foreground w-10">Dimmer</label>
+                                  <Slider value={[entry.dimmer]} onValueChange={([v]) => updateEntry({ dimmer: v })} max={255} className="flex-1" />
+                                  <span className="text-[7px] font-mono text-muted-foreground/50 w-6 text-right">{entry.dimmer}</span>
+                                </div>
+                                {/* Color */}
+                                <div className="flex items-center gap-1">
+                                  <label className="text-[7px] text-muted-foreground w-10">Color</label>
+                                  <Input type="color"
+                                    value={entry.color ? `#${entry.color.r.toString(16).padStart(2,'0')}${entry.color.g.toString(16).padStart(2,'0')}${entry.color.b.toString(16).padStart(2,'0')}` : '#ffffff'}
+                                    onChange={e => {
+                                      const hex = e.target.value;
+                                      updateEntry({ color: { r: parseInt(hex.slice(1,3),16), g: parseInt(hex.slice(3,5),16), b: parseInt(hex.slice(5,7),16) } });
+                                    }}
+                                    className="h-5 w-8 p-0 bg-transparent border-0 cursor-pointer" />
+                                  <span className="text-[7px] font-mono text-muted-foreground/50">
+                                    {entry.color ? `R${entry.color.r} G${entry.color.g} B${entry.color.b}` : 'None'}
+                                  </span>
+                                </div>
+                                {/* Strobe */}
+                                <div className="flex items-center gap-1">
+                                  <label className="text-[7px] text-muted-foreground w-10">Strobe</label>
+                                  <Slider value={[entry.strobe || 0]} onValueChange={([v]) => updateEntry({ strobe: v })} max={255} className="flex-1" />
+                                  <span className="text-[7px] font-mono text-muted-foreground/50 w-6 text-right">{entry.strobe || 0}</span>
+                                </div>
+                                {/* Pan / Tilt */}
+                                <div className="grid grid-cols-2 gap-1">
+                                  <div className="flex items-center gap-1">
+                                    <label className="text-[7px] text-muted-foreground">Pan</label>
+                                    <Input type="number" min={0} max={255} value={entry.pan ?? ''}
+                                      onChange={e => updateEntry({ pan: e.target.value ? Number(e.target.value) : undefined })}
+                                      placeholder="—"
+                                      className="h-5 text-[9px] bg-muted/20 border-border/20 font-mono px-1 flex-1" />
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <label className="text-[7px] text-muted-foreground">Tilt</label>
+                                    <Input type="number" min={0} max={255} value={entry.tilt ?? ''}
+                                      onChange={e => updateEntry({ tilt: e.target.value ? Number(e.target.value) : undefined })}
+                                      placeholder="—"
+                                      className="h-5 text-[9px] bg-muted/20 border-border/20 font-mono px-1 flex-1" />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {(selectedWidgetData.presetEntries || []).length === 0 && (
+                        <div className="text-[8px] text-muted-foreground/40 text-center py-3">
+                          Add fixtures or groups above to build your preset scene
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {selectedWidgetData.type === 'xy-pad' && (
                     <div className="space-y-2 border-t border-border/20 pt-2">
                       <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold">MH Movement Program</label>
