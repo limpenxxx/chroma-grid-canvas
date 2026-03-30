@@ -1,9 +1,9 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Play, Pause, Square, GripVertical, Palette, SlidersHorizontal,
   Zap, Copy, Settings, ChevronDown, ChevronRight, Monitor, Hand, Layers,
-  Speaker, SkipForward, X, Save, Edit2
+  Speaker, SkipForward, X, Save, Edit2, Mic, Radio, Activity, Music
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
