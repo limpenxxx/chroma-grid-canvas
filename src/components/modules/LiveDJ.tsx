@@ -396,15 +396,11 @@ function ControlWidget({
 
   const bgStyle: React.CSSProperties = widget.bgImage ? { backgroundImage: `url(${widget.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {};
 
-  // Button: short click = flash/toggle, long press in flash mode = lock toggle
+  // Button: flash = play while held, toggle = click to toggle on/off
   const handleButtonDown = () => {
     onSelect();
     if (widget.flash) {
       setIsPressed(true); onPress();
-      longPressTimer.current = setTimeout(() => {
-        onUpdate({ toggled: !widget.toggled });
-        longPressTimer.current = null;
-      }, LONG_PRESS_MS);
     } else {
       const ns = !widget.toggled;
       onUpdate({ toggled: ns }); setIsPressed(ns);
@@ -412,7 +408,6 @@ function ControlWidget({
     }
   };
   const handleButtonUp = () => {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
     if (widget.flash) { setIsPressed(false); onRelease(); }
   };
   const isButtonActive = widget.flash ? (isPressed || !!widget.toggled) : !!widget.toggled;
