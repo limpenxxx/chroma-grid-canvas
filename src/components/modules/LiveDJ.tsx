@@ -633,8 +633,8 @@ function ControlWidget({
                   <span className="text-muted-foreground/60 uppercase shrink-0 font-semibold" style={{ fontSize: lblFs }}>SPD</span>
                   <input
                     type="range"
-                    min={1} max={100}
-                    value={widget.mhProgram?.speed ?? 50}
+                    min={0} max={255}
+                    value={widget.mhProgram?.speed ?? 128}
                     onClick={e => e.stopPropagation()}
                     onChange={e => {
                       e.stopPropagation();
