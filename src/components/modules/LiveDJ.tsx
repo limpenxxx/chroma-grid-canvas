@@ -1614,7 +1614,40 @@ export function LiveDJ() {
                   isSelected={selectedWidget === w.id}
                   onSelect={() => setSelectedWidget(w.id)}
                   onUpdate={(updates) => updateWidget(w.id, updates)}
-                  onPress={() => { }}
+                  onPress={() => {
+                    // Preset recall: apply stored scene values to all other widgets
+                    if (w.type === 'preset' && w.presetEntries && w.presetEntries.length > 0) {
+                      w.presetEntries.forEach(entry => {
+                        // Find matching widgets linked to this fixture/group and apply values
+                        const targetFixtureIds = entry.targetType === 'group'
+                          ? (groups.find(g => g.id === entry.targetId)?.fixtureIds || [])
+                          : [entry.targetId];
+
+                        widgets.forEach(ow => {
+                          if (ow.id === w.id) return;
+                          const hasLink = ow.linkedFixtureIds.some(fid => targetFixtureIds.includes(fid));
+                          if (!hasLink && ow.linkedFixtureIds.length > 0) return;
+
+                          // Apply dimmer to linked sliders
+                          if (ow.type === 'slider' && (ow.linkedFunction === 'dimmer' || !ow.linkedFunction)) {
+                            updateWidget(ow.id, { value: Math.round(entry.dimmer / 255 * 100) });
+                          }
+                          // Apply color to linked color wheels
+                          if (ow.type === 'color-wheel' && entry.color) {
+                            updateWidget(ow.id, { colorValue: entry.color });
+                          }
+                          // Apply pan/tilt to XY pads
+                          if (ow.type === 'xy-pad' && (entry.pan !== undefined || entry.tilt !== undefined)) {
+                            updateWidget(ow.id, { colorValue: { r: entry.pan ?? 128, g: entry.tilt ?? 128, b: 128 } });
+                          }
+                          // Apply strobe to strobe buttons
+                          if (ow.type === 'button' && ow.linkedFunction === 'strobe' && entry.strobe) {
+                            updateWidget(ow.id, { toggled: entry.strobe > 0 });
+                          }
+                        });
+                      });
+                    }
+                  }}
                   onRelease={() => { }}
                   allWidgets={widgets}
                   fixtureData={fixturesWithDefs}
