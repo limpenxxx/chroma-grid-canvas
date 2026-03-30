@@ -639,7 +639,7 @@ function ControlWidget({
                     onChange={e => {
                       e.stopPropagation();
                       onSelect();
-                      const base = widget.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] };
+                      const base = widget.mhProgram || { pattern: 'circle', speed: 128, size: 50, bpmSync: false, running: false, fixtureConfigs: [] };
                       onUpdate({ mhProgram: { ...base, speed: Number(e.target.value) } });
                     }}
                     className="flex-1 accent-primary cursor-pointer"
