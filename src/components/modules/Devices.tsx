@@ -311,7 +311,7 @@ export function Devices() {
               </motion.div>
             ) : (
               <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 w-full" onClick={() => setAddingInstance(true)}>
-                <Plus size={12} /> Patch Fixture
+                <Plus size={12} /> Add New DMX Fixture
               </Button>
             )}
           </div>
