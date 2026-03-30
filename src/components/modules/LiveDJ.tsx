@@ -2278,6 +2278,28 @@ export function LiveDJ() {
                     </div>
                   </>
                 )}
+                {audioConfig.source === 'browser-mic' && (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">Sensitivity</label>
+                      <Slider value={[audioConfig.sensitivity]} onValueChange={([v]) => setAudioConfig(prev => ({ ...prev, sensitivity: v }))} max={255} className="mt-1" />
+                      <span className="text-[7px] font-mono text-muted-foreground/50">{audioConfig.sensitivity}</span>
+                    </div>
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">Freq Low (Hz)</label>
+                      <Slider value={[audioConfig.freqLow]} onValueChange={([v]) => setAudioConfig(prev => ({ ...prev, freqLow: Math.min(v, prev.freqHigh - 10) }))} min={20} max={8000} step={10} className="mt-1" />
+                      <span className="text-[7px] font-mono text-muted-foreground/50">{audioConfig.freqLow} Hz</span>
+                    </div>
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">Freq High (Hz)</label>
+                      <Slider value={[audioConfig.freqHigh]} onValueChange={([v]) => setAudioConfig(prev => ({ ...prev, freqHigh: Math.max(v, prev.freqLow + 10) }))} min={20} max={16000} step={10} className="mt-1" />
+                      <span className="text-[7px] font-mono text-muted-foreground/50">{audioConfig.freqHigh} Hz</span>
+                    </div>
+                    <div className="text-[7px] text-muted-foreground/40 bg-muted/10 rounded p-1.5">
+                      💡 Low freq (60-200 Hz) = kick/bass detection. High freq (2k-8k Hz) = hi-hat/snare detection.
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* BPM / Tap Tempo — visible for TAP-TEMPO, WLED UDP Sync, and Browser Mic */}
