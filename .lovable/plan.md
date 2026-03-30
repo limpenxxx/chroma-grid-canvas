@@ -1,75 +1,50 @@
 
-# STOKIO FX — Lighting & Pixel-Mapping Console
+
+# WLED Fixtures in Patched Fixtures + Icon System
 
 ## Overview
-A world-class lighting console web app with a Control4-inspired dark premium UI, featuring stage mapping, media playback, fixture controls, and node-based logic — all built as a fully interactive UI prototype structured for future real WLED/DMX connectivity.
+Show WLED fixtures alongside DMX fixtures in the "Patched Fixtures" tab, with color-coded backgrounds (light green for DMX, light blue for WLED). Add a selectable icon system for all fixture types.
 
-## Design System
-- **Background**: Deep black (#050505) with subtle dark gradients
-- **Glassmorphism**: Semi-transparent overlays with backdrop-blur for panels and modals
-- **Accent Colors**: Signal Green (#00FF66) for status/active states, Cyan (#00E5FF) for STOKIO branding, Hot Pink (#FF2D78) for FX branding
-- **Controls**: Large glossy circular elements with radial gradients and glow effects
-- **Typography**: Clean sans-serif (Inter/Geist), thin weights for labels, bold for headers
-- **Animations**: Framer Motion for all transitions, smooth spring physics
-- **Touch-friendly**: Large hit targets, responsive to both mouse and touch
+## Changes
 
-## Layout Architecture
-1. **Left Sidebar** — Icon-based nav with tooltip labels: Stage Builder, Media Server, Text Overlays, Fixture Controls, Node Logic, Devices, Show Runner
-2. **Central Main View** — Context-aware panel that swaps based on sidebar selection
-3. **Bottom Context Bar** — Persistent: Master Dimmer fader, Blackout button, audio waveform visualizer (canvas-drawn), "Now Playing" media status
+### 1. Add icon field to both fixture types
 
-## Module 1: Stage Builder (Canvas-based)
-- WebGL/Canvas 16:9 workspace with zoom and pan
-- Drag WLED device nodes from a side library onto canvas
-- Each node: drag to position, handles to resize, rotation control
-- Nodes act as viewports sampling the background texture layer
-- Live preview of sampled content within each node (mock with CSS patterns/gradients initially)
-- Grid snap, alignment guides, coordinate readout
+**`src/store/fixtureStore.ts`**
+- Add `icon` field to `FixtureInstance` (optional string, e.g. `'moving-head'`, `'led-strip'`, `'led-matrix'`, `'rgb-par'`, `'pin-spot'`, `'smoke'`, `'laser'`, `'multi-beam'`)
+- Update `getFixtureTypeIcon` to return Lucide-compatible icon names or emoji based on the new icon set
 
-## Module 2: Media Server & Playlist
-- Upload area for video/GIF/image files (stored client-side via IndexedDB for prototype)
-- Playlist list with drag-and-drop reordering
-- Per-item crossfade time slider
-- Play/pause/skip controls with progress bar
-- Active media renders to the Stage Builder's hidden background layer
+**`src/store/wledStore.ts`**
+- Add `icon` field to `WledFixture` (same icon set)
 
-## Module 3: Text & Icon Overlays
-- Text input with live preview
-- Font selector dropdown (Google Fonts subset)
-- Emoji/smiley picker panel
-- Generated text-strip becomes a draggable layer on the 16:9 canvas
-- Color, size, scroll speed controls
+### 2. Define icon options
 
-## Module 4: Fixture Controls
-- **RGBW Color Wheel**: Dual-ring glossy circular picker with inner white ring, outer color ring, glow feedback
-- **XY Pad**: Touch-responsive pan/tilt pad with crosshair, home and center buttons
-- **Dimmer Sliders**: Vertical glossy faders per channel
-- Fixture list with mock devices
+Create a shared icon map with these fixture icon choices:
+- Moving Head, LED Strip, LED Matrix, RGB PAR, Pin-spot, Smoke Machine, Laser Beamer, Multi Beam RGB
+- Each maps to an emoji/symbol for rendering in lists and canvas
 
-## Module 5: Node-Based Logic Editor
-- Visual node editor with draggable nodes on a canvas
-- **Input nodes**: DMX Channel (ArtNet/sACN), USB-DMX, Audio Peak, WLED Mic
-- **Action nodes**: Trigger Scene, Play/Pause, Master Dimmer, Set WLED Segment Color
-- SVG cable connections drawn between node ports
-- Add/remove nodes from a library panel
+### 3. Update Patched Fixtures tab in `src/components/modules/Devices.tsx`
 
-## Module 6: Devices Panel
-- List/grid of discovered WLED devices (mock data)
-- Device cards showing IP, name, LED count, status indicator (green glow)
-- Add device manually dialog
+- Import `useWledStore` and its fixtures
+- In the "instances" tab, render **both** DMX fixtures and WLED fixtures in a combined list
+- DMX fixtures: `bg-green-500/10 border-green-500/20` background
+- WLED fixtures: `bg-blue-400/10 border-blue-400/20` background
+- WLED fixture rows show: icon, name, device name, IP, segment info, LED range, online status dot
+- WLED fixtures are expandable like DMX ones, showing segment/LED details and remove button
+- Add an icon selector dropdown in both DMX instance expanded view and WLED fixture expanded view
 
-## Module 7: Show Runner
-- Scene/cue list with play, pause, next controls
-- Timeline-style cue sequencer (simplified)
-- Go button with large touch target
+### 4. Icon selector component
 
-## Assets
-- Copy color logo to src/assets for use in sidebar header
-- Use Lucide icons for navigation
+- Inline dropdown/popover in expanded fixture view
+- Shows all available icons as a grid of clickable options
+- Updates the `icon` field on the fixture instance or WLED fixture
 
-## Tech Approach
-- Framer Motion for all animations and transitions
-- HTML Canvas API for Stage Builder workspace and audio waveform
-- React state + context for cross-module communication
-- Service layer stubs for WLED API, ArtNet, sACN (mock implementations ready for real swap)
-- IndexedDB for media file storage in prototype mode
+### 5. Persist icon in both stores
+
+Both stores already use `persist` middleware, so the new field persists automatically.
+
+## Technical details
+
+- Icon choices: `['moving-head', 'led-strip', 'led-matrix', 'rgb-par', 'pin-spot', 'smoke', 'laser', 'multi-beam']`
+- Icon display map using emoji: `{ 'moving-head': '◎', 'led-strip': '▬', 'led-matrix': '⊞', 'rgb-par': '●', 'pin-spot': '◈', 'smoke': '☁', 'laser': '⟐', 'multi-beam': '✦' }`
+- Files modified: `src/store/fixtureStore.ts`, `src/store/wledStore.ts`, `src/components/modules/Devices.tsx`
+
