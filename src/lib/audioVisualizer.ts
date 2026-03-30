@@ -150,8 +150,8 @@ export class AudioVisualizerEngine {
       return;
     }
 
-    this.analyser.getByteFrequencyData(this.freqData);
-    this.analyser.getByteTimeDomainData(this.timeData);
+    this.analyser.getByteFrequencyData(this.freqData as any);
+    this.analyser.getByteTimeDomainData(this.timeData as any);
     const energy = this.getEnergy();
     const bass = this.getBass();
     const treble = this.getTreble();
