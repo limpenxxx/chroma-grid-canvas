@@ -4,7 +4,8 @@ import {
   Plus, Trash2, Play, Square, GripVertical, Palette, SlidersHorizontal,
   Zap, ChevronDown, ChevronRight, Monitor, Hand, Layers,
   Speaker, X, Save, Mic, Activity,
-  ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users
+  ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users,
+  Bookmark, Settings2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
