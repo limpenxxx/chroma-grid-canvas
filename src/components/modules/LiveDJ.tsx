@@ -1123,7 +1123,6 @@ export function LiveDJ() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
       className={`${isFullscreen ? 'fixed inset-0 z-[100] bg-background' : 'h-full'} flex flex-col`}>
       {/* Header */}
