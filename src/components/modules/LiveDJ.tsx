@@ -692,8 +692,114 @@ export function LiveDJ() {
             )}
           </div>
 
-          {/* Widget palette + properties */}
-          <div className="w-56 border-l border-border/30 flex flex-col overflow-y-auto">
+          {/* Widget palette + audio/BPM + properties */}
+          <div className="w-64 border-l border-border/30 flex flex-col overflow-y-auto">
+            {/* ── Audio Input Section ── */}
+            <div className="p-3 border-b border-border/20 space-y-2">
+              <span className="text-[9px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
+                <Mic size={10} /> Audio Input
+              </span>
+              <select value={audioConfig.source}
+                onChange={e => setAudioConfig(prev => ({ ...prev, source: e.target.value as AudioSource }))}
+                className="w-full h-7 rounded bg-muted/30 border border-border/30 text-[10px] px-2 text-foreground">
+                {AUDIO_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+              {audioConfig.source !== 'none' && (
+                <div className="text-[8px] text-muted-foreground/60 bg-muted/10 rounded p-1.5">
+                  {AUDIO_SOURCES.find(s => s.value === audioConfig.source)?.description}
+                </div>
+              )}
+              {audioConfig.source.startsWith('wled') && (
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div>
+                    <label className="text-[7px] uppercase text-muted-foreground">Squelch</label>
+                    <Slider value={[audioConfig.squelch]} onValueChange={([v]) => setAudioConfig(prev => ({ ...prev, squelch: v }))}
+                      max={255} className="mt-1" />
+                    <span className="text-[7px] font-mono text-muted-foreground/50">{audioConfig.squelch}</span>
+                  </div>
+                  <div>
+                    <label className="text-[7px] uppercase text-muted-foreground">Gain</label>
+                    <Slider value={[audioConfig.gain]} onValueChange={([v]) => setAudioConfig(prev => ({ ...prev, gain: v }))}
+                      max={255} className="mt-1" />
+                    <span className="text-[7px] font-mono text-muted-foreground/50">{audioConfig.gain}</span>
+                  </div>
+                </div>
+              )}
+              {audioConfig.source === 'wled-udp-sync' && (
+                <div>
+                  <label className="text-[7px] uppercase text-muted-foreground">UDP Port</label>
+                  <Input type="number" value={audioConfig.udpPort}
+                    onChange={e => setAudioConfig(prev => ({ ...prev, udpPort: Number(e.target.value) }))}
+                    className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
+                </div>
+              )}
+            </div>
+
+            {/* ── BPM / Tap Tempo ── */}
+            <div className="p-3 border-b border-border/20 space-y-2">
+              <span className="text-[9px] uppercase tracking-widest text-stokio-pink font-semibold flex items-center gap-1">
+                <Activity size={10} /> BPM / Tap Tempo
+              </span>
+              <div className="flex items-center gap-2">
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={handleTap}
+                  className="w-16 h-16 rounded-full control-glossy border-2 flex flex-col items-center justify-center transition-all"
+                  style={{
+                    borderColor: bpmState.flashOn ? '#ff2d78' : 'hsl(var(--border) / 0.3)',
+                    boxShadow: bpmState.flashOn ? '0 0 25px #ff2d7860, inset 0 0 15px #ff2d7820' : 'none',
+                    background: bpmState.flashOn
+                      ? 'radial-gradient(circle at center, #ff2d7815, transparent)'
+                      : undefined,
+                  }}
+                >
+                  <span className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold">TAP</span>
+                  <span className="text-xs font-bold text-primary font-mono">{bpmState.bpm}</span>
+                </motion.button>
+                <div className="flex-1 space-y-1">
+                  <div className="text-lg font-bold font-mono text-foreground flex items-center gap-1">
+                    {bpmState.bpm} <span className="text-[9px] text-muted-foreground font-normal">BPM</span>
+                    {bpmState.isSynced && (
+                      <motion.div
+                        className="w-2.5 h-2.5 rounded-full"
+                        animate={{
+                          backgroundColor: bpmState.flashOn ? '#ff2d78' : '#00ff66',
+                          boxShadow: bpmState.flashOn ? '0 0 10px #ff2d78' : '0 0 6px #00ff6660',
+                        }}
+                        transition={{ duration: 0.05 }}
+                      />
+                    )}
+                  </div>
+                  <div className="flex gap-1">
+                    <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5"
+                      onClick={() => setBpmState(prev => ({ ...prev, bpm: Math.max(20, prev.bpm - 1) }))}>-1</Button>
+                    <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5"
+                      onClick={() => setBpmState(prev => ({ ...prev, bpm: Math.min(300, prev.bpm + 1) }))}>+1</Button>
+                    <Button variant="outline" size="sm" className="h-5 text-[8px] px-1.5"
+                      onClick={() => setBpmState(prev => ({ ...prev, tapTimes: [], isSynced: false }))}>Reset</Button>
+                  </div>
+                </div>
+              </div>
+              {/* BPM-synced widgets */}
+              <div>
+                <label className="text-[7px] uppercase text-muted-foreground">Sync to Widgets</label>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {widgets.map(w => {
+                    const linked = bpmState.linkedWidgetIds.includes(w.id);
+                    return (
+                      <button key={w.id} onClick={() => toggleBpmWidgetLink(w.id)}
+                        className={`text-[8px] px-1.5 py-0.5 rounded border transition-all ${
+                          linked ? 'bg-stokio-pink/10 border-stokio-pink/30 text-stokio-pink' : 'border-border/20 text-muted-foreground hover:border-border/40'
+                        }`}>
+                        {w.label}
+                      </button>
+                    );
+                  })}
+                  {widgets.length === 0 && <span className="text-[8px] text-muted-foreground/40">No widgets</span>}
+                </div>
+              </div>
+            </div>
+
             {/* Add widget buttons */}
             <div className="p-3 border-b border-border/20 space-y-2">
               <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Add Widget</span>
