@@ -1764,6 +1764,63 @@ export function LiveDJ() {
                     </div>
                   )}
 
+                  {/* Fixed Color Widget Config */}
+                  {selectedWidgetData.type === 'fixed-color' && (
+                    <div className="space-y-2 border-t border-border/20 pt-2">
+                      <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
+                        <CircleDot size={10} /> Fixed Color Config
+                      </label>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">RGB Sync</label>
+                        <div className="flex items-center gap-2 mt-1">
+                          <button
+                            onClick={() => updateWidget(selectedWidgetData.id, { rgbSyncEnabled: !selectedWidgetData.rgbSyncEnabled })}
+                            className={`flex-1 h-6 rounded text-[9px] font-semibold border transition-all flex items-center justify-center gap-1 ${
+                              selectedWidgetData.rgbSyncEnabled
+                                ? 'bg-stokio-cyan/10 border-stokio-cyan/30 text-stokio-cyan'
+                                : 'border-border/20 text-muted-foreground hover:border-border/40'
+                            }`}>
+                            {selectedWidgetData.rgbSyncEnabled ? '🔗 RGB Sync ON' : '🔗 RGB Sync OFF'}
+                          </button>
+                        </div>
+                        {selectedWidgetData.rgbSyncEnabled && (
+                          <div className="mt-1">
+                            <label className="text-[7px] uppercase text-muted-foreground">Sync From Color Widget</label>
+                            <select
+                              value={selectedWidgetData.syncColorWidgetId || ''}
+                              onChange={e => updateWidget(selectedWidgetData.id, { syncColorWidgetId: e.target.value || null })}
+                              className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
+                              <option value="">Select widget...</option>
+                              {widgets.filter(w => w.type === 'color-wheel' && w.id !== selectedWidgetData.id).map(w => (
+                                <option key={w.id} value={w.id}>🎨 {w.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                        <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5 mt-1">
+                          💡 When RGB Sync is ON, incoming RGB color auto-selects the closest fixed color slot. Works with RGB DMX fixtures and WLED devices.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Also add RGB sync option on color-wheel widget for fixed-color fixtures */}
+                  {selectedWidgetData.type === 'color-wheel' && (() => {
+                    const hasFixedColorFixtures = selectedWidgetData.linkedFixtureIds.some(fid => {
+                      const fd = fixturesWithDefs.find(f => f.inst.id === fid);
+                      return fd?.def.colorSystem === 'color-wheel';
+                    });
+                    if (!hasFixedColorFixtures) return null;
+                    return (
+                      <div className="space-y-2 border-t border-border/20 pt-2">
+                        <label className="text-[8px] uppercase tracking-widest text-stokio-pink font-semibold">Fixed Color Sync</label>
+                        <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                          💡 Linked fixtures with fixed color wheels will auto-match to the closest color slot when you pick an RGB color.
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Link fixtures — individual */}
                   <div>
                     <label className="text-[7px] uppercase text-muted-foreground">Linked Fixtures</label>
