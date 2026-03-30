@@ -2197,8 +2197,8 @@ export function LiveDJ() {
                 )}
               </div>
 
-              {/* BPM / Tap Tempo — visible for TAP-TEMPO and WLED UDP Sync */}
-              {(audioConfig.source === 'tap-tempo' || audioConfig.source === 'wled-udp-sync') && <div className="p-3 border-b border-border/20 space-y-2">
+              {/* BPM / Tap Tempo — visible for TAP-TEMPO, WLED UDP Sync, and Browser Mic */}
+              {(audioConfig.source === 'tap-tempo' || audioConfig.source === 'wled-udp-sync' || audioConfig.source === 'browser-mic') && <div className="p-3 border-b border-border/20 space-y-2">
                 <span className="text-[9px] uppercase tracking-widest text-stokio-pink font-semibold flex items-center gap-1">
                   <Activity size={10} /> BPM / Tap Tempo
                 </span>
