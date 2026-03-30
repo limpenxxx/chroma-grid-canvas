@@ -1485,6 +1485,7 @@ export function LiveDJ() {
   // ── Audio & BPM ──
   const [audioConfig, setAudioConfig] = useState<AudioConfig>({
     source: 'none', squelch: 10, gain: 128, udpPort: 11988, wledIp: '',
+    sensitivity: 128, freqLow: 60, freqHigh: 200,
   });
   const [bpmState, setBpmState] = useState<BPMState>({
     bpm: 120, tapTimes: [], isSynced: false, linkedWidgetIds: [], flashOn: false,
