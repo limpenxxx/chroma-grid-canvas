@@ -774,29 +774,40 @@ function ControlWidget({
       {widget.type === 'vfx' && (() => {
         const canvasRef = useRef<HTMLCanvasElement>(null);
         const engineRef = useRef<AudioVisualizerEngine | null>(null);
+        const animRef = useRef<number | null>(null);
 
         useEffect(() => {
-          if (!canvasRef.current) return;
           const engine = new AudioVisualizerEngine();
           engineRef.current = engine;
           engine.preset = widget.vfxPreset || 'plasma-wave';
 
           if (widget.vfxRunning) {
-            engine.start(canvasRef.current, 'microphone').catch(() => {});
+            engine.start('microphone').catch(() => {});
           }
 
-          return () => { engine.stop(); };
+          const animate = () => {
+            if (canvasRef.current && engineRef.current) {
+              const ctx = canvasRef.current.getContext('2d');
+              if (ctx) engineRef.current.render(ctx, canvasRef.current.width, canvasRef.current.height);
+            }
+            animRef.current = requestAnimationFrame(animate);
+          };
+          animRef.current = requestAnimationFrame(animate);
+
+          return () => {
+            engine.stop();
+            if (animRef.current) cancelAnimationFrame(animRef.current);
+          };
         }, []);
 
         useEffect(() => {
-          if (!engineRef.current) return;
-          engineRef.current.preset = widget.vfxPreset || 'plasma-wave';
+          if (engineRef.current) engineRef.current.preset = widget.vfxPreset || 'plasma-wave';
         }, [widget.vfxPreset]);
 
         useEffect(() => {
-          if (!engineRef.current || !canvasRef.current) return;
+          if (!engineRef.current) return;
           if (widget.vfxRunning && !engineRef.current.isRunning) {
-            engineRef.current.start(canvasRef.current, 'microphone').catch(() => {});
+            engineRef.current.start('microphone').catch(() => {});
           } else if (!widget.vfxRunning && engineRef.current.isRunning) {
             engineRef.current.stop();
           }
