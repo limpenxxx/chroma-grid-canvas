@@ -345,7 +345,10 @@ function ControlWidget({
 
     const prog = widget.mhProgram;
     const sizeScale = (prog.size || 50) / 100;
-    const speedMs = Math.max(800, 1000 + (255 - (prog.speed || 128)) * 100); // period in ms: 255=fast(1s), 0=slow(~26s)
+    // BPM sync: one full cycle per beat; otherwise use speed slider
+    const speedMs = prog.bpmSync && bpm > 0
+      ? (60000 / bpm)
+      : Math.max(800, 1000 + (255 - (prog.speed || 128)) * 100);
     const startTime = performance.now();
 
     const computePos = (t: number): { x: number; y: number } => {
