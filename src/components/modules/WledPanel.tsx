@@ -199,16 +199,25 @@ export function WledPanel() {
                 </div>
               </motion.div>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 flex-1"
                   onClick={() => setShowAdd(true)}>
-                  <Plus size={12} /> Add WLED Device
+                  <Plus size={12} /> Add Device
+                </Button>
+                <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 flex-1"
+                  onClick={scanNetwork} disabled={scanning}>
+                  <Radar size={12} className={scanning ? 'animate-spin' : ''} /> Scan Network
                 </Button>
                 <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1"
                   onClick={() => store.refreshAll()} disabled={store._polling}>
-                  <RefreshCw size={12} className={store._polling ? 'animate-spin' : ''} /> Refresh
+                  <RefreshCw size={12} className={store._polling ? 'animate-spin' : ''} />
                 </Button>
               </div>
+              {scanProgress && (
+                <div className="text-[9px] text-primary/80 text-center mt-1 animate-pulse">
+                  {scanProgress}
+                </div>
+              )}
             )}
           </div>
 
