@@ -1315,6 +1315,24 @@ export function LiveDJ() {
     if (activePageId === pageId) setActivePageId(pages.find(p => p.id !== pageId)!.id);
   };
 
+  const duplicatePage = (pageId: string) => {
+    const source = pages.find(p => p.id === pageId);
+    if (!source) return;
+    const newId = `page-${Date.now()}`;
+    const clonedWidgets = source.widgets.map(w => ({
+      ...w,
+      id: `w-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    }));
+    const newPage: LayoutPage = {
+      ...source,
+      id: newId,
+      name: `${source.name} (copy)`,
+      widgets: clonedWidgets,
+    };
+    setPages(prev => [...prev, newPage]);
+    setActivePageId(newId);
+  };
+
   // ── Group management ──
   const addGroup = () => {
     setGroups(prev => [...prev, {
