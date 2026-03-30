@@ -390,6 +390,45 @@ function ControlWidget({
     return () => { if (patternAnimRef.current) cancelAnimationFrame(patternAnimRef.current); };
   }, [widget.type, widget.mhProgram?.running, widget.mhProgram?.pattern, widget.mhProgram?.speed, widget.mhProgram?.size]);
 
+  // Color program animation
+  const colorProgAnimRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (widget.type !== 'color-wheel' || !widget.colorProgram?.running || widget.colorProgram.colors.length < 2) {
+      if (colorProgAnimRef.current) cancelAnimationFrame(colorProgAnimRef.current);
+      return;
+    }
+    const prog = widget.colorProgram;
+    const speedMs = Math.max(200, 300 + (255 - (prog.speed || 128)) * 40);
+    const startTime = performance.now();
+    const colors = prog.colors;
+    const n = colors.length;
+
+    const animate = (t: number) => {
+      const elapsed = t - startTime;
+      const totalCycle = speedMs * n;
+      const pos = (elapsed % totalCycle) / speedMs;
+      const idx = Math.floor(pos) % n;
+
+      if (prog.mode === 'switch') {
+        onUpdate({ colorValue: colors[idx] });
+      } else if (prog.mode === 'fade') {
+        const frac = pos - idx;
+        const next = (idx + 1) % n;
+        const c = colors[idx], cn = colors[next];
+        onUpdate({
+          colorValue: {
+            r: Math.round(c.r + (cn.r - c.r) * frac),
+            g: Math.round(c.g + (cn.g - c.g) * frac),
+            b: Math.round(c.b + (cn.b - c.b) * frac),
+          },
+        });
+      }
+      colorProgAnimRef.current = requestAnimationFrame(animate);
+    };
+    colorProgAnimRef.current = requestAnimationFrame(animate);
+    return () => { if (colorProgAnimRef.current) cancelAnimationFrame(colorProgAnimRef.current); };
+  }, [widget.type, widget.colorProgram?.running, widget.colorProgram?.mode, widget.colorProgram?.speed, widget.colorProgram?.colors?.length]);
+
   const startInteraction = useCallback((e: React.MouseEvent, mode: DragMode) => {
     e.stopPropagation();
     e.preventDefault();
