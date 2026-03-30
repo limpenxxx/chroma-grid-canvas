@@ -2679,6 +2679,125 @@ export function LiveDJ() {
                     );
                   })()}
 
+                  {/* Color Program settings for color-wheel */}
+                  {selectedWidgetData.type === 'color-wheel' && (() => {
+                    const prog = selectedWidgetData.colorProgram || { mode: 'static' as ColorProgramMode, colors: [], speed: 128, bpmSync: false, running: false };
+                    const defaultProg: ColorProgram = { mode: 'static', colors: [], speed: 128, bpmSync: false, running: false };
+                    return (
+                      <div className="space-y-2 border-t border-border/20 pt-2">
+                        <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
+                          <Sparkles size={10} /> Color Program
+                        </label>
+
+                        {/* Mode selector */}
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Mode</label>
+                          <div className="flex gap-1 mt-1">
+                            {([['static', 'Static'], ['switch', 'Switch'], ['fade', 'Fade']] as [ColorProgramMode, string][]).map(([m, lbl]) => (
+                              <button key={m}
+                                onClick={() => updateWidget(selectedWidgetData.id, {
+                                  colorProgram: { ...prog, mode: m, running: m !== 'static' && prog.running },
+                                })}
+                                className={`flex-1 h-6 rounded text-[9px] font-semibold border transition-all ${
+                                  prog.mode === m ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border/20 text-muted-foreground hover:border-border/40'
+                                }`}>{lbl}</button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Color slots */}
+                        {prog.mode !== 'static' && (
+                          <>
+                            <div>
+                              <label className="text-[7px] uppercase text-muted-foreground">Colors ({prog.colors.length}/4)</label>
+                              <div className="flex gap-1 mt-1 flex-wrap">
+                                {prog.colors.map((c, i) => (
+                                  <div key={i} className="relative group">
+                                    <div className="w-7 h-7 rounded border border-border/30 cursor-pointer"
+                                      style={{ backgroundColor: `rgb(${c.r},${c.g},${c.b})` }}
+                                      onClick={() => {
+                                        const newColors = prog.colors.filter((_, j) => j !== i);
+                                        updateWidget(selectedWidgetData.id, { colorProgram: { ...prog, colors: newColors } });
+                                      }} />
+                                    <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-destructive text-[6px] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">×</span>
+                                  </div>
+                                ))}
+                                {prog.colors.length < 4 && (
+                                  <button onClick={() => {
+                                    const cv = selectedWidgetData.colorValue || { r: 255, g: 0, b: 0 };
+                                    updateWidget(selectedWidgetData.id, { colorProgram: { ...prog, colors: [...prog.colors, cv] } });
+                                  }}
+                                    className="w-7 h-7 rounded border border-dashed border-border/30 text-muted-foreground/40 hover:border-primary/30 hover:text-primary transition-all flex items-center justify-center text-lg">+</button>
+                                )}
+                              </div>
+                              <div className="text-[7px] text-muted-foreground/40 mt-0.5">Click color to remove. + adds current wheel color.</div>
+                            </div>
+
+                            {/* Presets */}
+                            <div>
+                              <label className="text-[7px] uppercase text-muted-foreground">Presets</label>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {COLOR_PROGRAM_PRESETS.filter(p => p.mode === prog.mode || prog.mode === 'fade' || prog.mode === 'switch').map((preset, i) => (
+                                  <button key={i}
+                                    onClick={() => updateWidget(selectedWidgetData.id, {
+                                      colorProgram: { ...prog, mode: preset.mode, colors: preset.colors },
+                                    })}
+                                    className="text-[7px] px-1.5 py-0.5 rounded border border-border/20 text-muted-foreground hover:border-primary/30 hover:bg-primary/5 transition-all flex items-center gap-0.5">
+                                    {preset.colors.map((c, j) => (
+                                      <div key={j} className="w-2 h-2 rounded-full" style={{ backgroundColor: `rgb(${c.r},${c.g},${c.b})` }} />
+                                    ))}
+                                    <span className="ml-0.5">{preset.label}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Speed */}
+                            <div>
+                              <label className="text-[7px] uppercase text-muted-foreground">Speed</label>
+                              <Slider value={[prog.speed]}
+                                onValueChange={([v]) => updateWidget(selectedWidgetData.id, {
+                                  colorProgram: { ...prog, speed: v },
+                                })} max={255} className="mt-1" />
+                              <span className="text-[7px] font-mono text-muted-foreground/50">{prog.speed}</span>
+                            </div>
+
+                            {/* BPM Sync */}
+                            <button
+                              onClick={() => updateWidget(selectedWidgetData.id, {
+                                colorProgram: { ...prog, bpmSync: !prog.bpmSync },
+                              })}
+                              className={`w-full h-6 rounded text-[9px] font-semibold border transition-all flex items-center justify-center gap-1 ${
+                                prog.bpmSync ? 'bg-stokio-pink/10 border-stokio-pink/30 text-stokio-pink' : 'border-border/20 text-muted-foreground hover:border-border/40'
+                              }`}>
+                              {prog.bpmSync ? '🎵 BPM Sync ON' : '🎵 BPM Sync'}
+                            </button>
+
+                            {/* Run/Stop */}
+                            <Button
+                              size="sm"
+                              variant={prog.running ? 'destructive' : 'default'}
+                              className="h-7 text-[9px] gap-1 w-full"
+                              disabled={prog.colors.length < 2}
+                              onClick={() => updateWidget(selectedWidgetData.id, {
+                                colorProgram: { ...prog, running: !prog.running },
+                              })}>
+                              {prog.running ? <><Square size={9} /> Stop</> : <><Play size={9} /> Run</>}
+                            </Button>
+
+                            {prog.colors.length < 2 && (
+                              <div className="text-[7px] text-muted-foreground/40">Add at least 2 colors to run</div>
+                            )}
+                          </>
+                        )}
+
+                        <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                          💡 Switch: hard cuts between colors. Fade: smooth transitions. Use BPM Sync to lock changes to the beat.
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Link fixtures — individual */}
                   <div>
                     <label className="text-[7px] uppercase text-muted-foreground">Linked Fixtures</label>
