@@ -26,6 +26,39 @@ interface FixtureAssignment {
 
 type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad';
 
+// ── MH Movement Programs ──
+type MHPattern = 'circle' | 'figure8' | 'zigzag' | 'sweep-h' | 'sweep-v' | 'random' | 'square' | 'triangle' | 'bounce';
+
+const MH_PATTERNS: { value: MHPattern; label: string }[] = [
+  { value: 'circle', label: '⭕ Circle' },
+  { value: 'figure8', label: '♾ Figure 8' },
+  { value: 'zigzag', label: '⚡ Zigzag' },
+  { value: 'sweep-h', label: '↔ Sweep H' },
+  { value: 'sweep-v', label: '↕ Sweep V' },
+  { value: 'random', label: '🎲 Random' },
+  { value: 'square', label: '◻ Square' },
+  { value: 'triangle', label: '△ Triangle' },
+  { value: 'bounce', label: '⬆ Bounce' },
+];
+
+interface MHFixtureConfig {
+  fixtureId: string;
+  reversePan: boolean;
+  reverseTilt: boolean;
+  mirrorPan: boolean;
+  mirrorTilt: boolean;
+  delayMs: number; // delay offset per fixture
+}
+
+interface MHProgram {
+  pattern: MHPattern;
+  speed: number; // 1-100
+  size: number; // 1-100 (movement range)
+  bpmSync: boolean;
+  running: boolean;
+  fixtureConfigs: MHFixtureConfig[];
+}
+
 // ── Audio / BPM Types ──
 type AudioSource = 'none' | 'wled-analog' | 'wled-i2s-inmp441' | 'wled-i2s-max98357' | 'wled-i2s-sph0645' | 'wled-udp-sync' | 'browser-mic';
 
