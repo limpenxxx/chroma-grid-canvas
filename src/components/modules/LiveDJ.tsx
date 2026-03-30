@@ -5,7 +5,7 @@ import {
   Zap, ChevronDown, ChevronRight, Monitor, Hand, Layers,
   Speaker, X, Save, Mic, Activity,
   ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users,
-  Bookmark, Settings2, CircleDot, Maximize2, Minimize2
+  Bookmark, Settings2, CircleDot, Maximize2, Minimize2, Film
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ import {
   getFixtureTypeIcon,
 } from '@/store/fixtureStore';
 import stokioLogo from '@/assets/stokio-logo-color.png';
+import { useMediaStore } from '@/store/mediaStore';
 
 // ── Types ──
 
@@ -25,7 +26,7 @@ interface FixtureAssignment {
   mode: ControlMode;
 }
 
-type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color';
+type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger';
 
 // ── Preset Scene Entry ──
 interface PresetSceneEntry {
@@ -130,6 +131,9 @@ interface DJWidget {
   fixedColorSlotValue?: number;
   // RGB sync mode for fixed-color widget
   rgbSyncEnabled?: boolean;
+  // Media trigger
+  mediaItemId?: string | null;
+  mediaPlaylistId?: string | null;
 }
 
 interface ScriptStep {
@@ -183,6 +187,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'xy-pad', label: 'XY Pad', icon: Plus, w: 180, h: 180 },
   { type: 'preset', label: 'Pre Set', icon: Bookmark, w: 120, h: 120 },
   { type: 'fixed-color', label: 'Fixed Color', icon: CircleDot, w: 150, h: 150 },
+  { type: 'media-trigger', label: 'Media', icon: Film, w: 120, h: 120 },
 ];
 
 // ── Color distance helper (Euclidean in RGB space) ──
@@ -683,6 +688,50 @@ function ControlWidget({
                 </span>
               </div>
             )}
+          </div>
+        );
+      })()}
+
+      {/* MEDIA TRIGGER */}
+      {widget.type === 'media-trigger' && (() => {
+        const mediaStore = useMediaStore.getState();
+        const linkedItem = widget.mediaItemId ? mediaStore.items.find(i => i.id === widget.mediaItemId) : null;
+        const linkedPlaylist = widget.mediaPlaylistId ? mediaStore.playlists.find(p => p.id === widget.mediaPlaylistId) : null;
+        const isActive = linkedItem
+          ? mediaStore.activeItemId === linkedItem.id && mediaStore.isPlaying
+          : linkedPlaylist
+            ? mediaStore.activePlaylistId === linkedPlaylist.id && mediaStore.isPlaying
+            : false;
+        const displayName = linkedItem?.name || linkedPlaylist?.name || 'No media linked';
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center gap-1 transition-all overflow-hidden relative cursor-pointer"
+            style={{ ...bgStyle, borderColor: isActive ? '#00e5ff' : undefined,
+              boxShadow: isActive ? '0 0 24px rgba(0,229,255,0.3), inset 0 0 20px rgba(0,229,255,0.15)' : undefined }}
+            onClick={() => {
+              onSelect();
+              if (linkedPlaylist) {
+                mediaStore.isPlaying && mediaStore.activePlaylistId === linkedPlaylist.id
+                  ? useMediaStore.getState().setIsPlaying(false)
+                  : useMediaStore.getState().playPlaylist(linkedPlaylist.id);
+              } else if (linkedItem) {
+                mediaStore.isPlaying && mediaStore.activeItemId === linkedItem.id
+                  ? useMediaStore.getState().setIsPlaying(false)
+                  : useMediaStore.getState().playItem(linkedItem.id);
+              }
+            }}>
+            <div className="absolute inset-0 rounded-lg opacity-15" style={{ backgroundColor: '#00e5ff' }} />
+            {isActive && <div className="absolute inset-0 rounded-lg z-[2]" style={{ background: 'radial-gradient(circle at center, rgba(0,229,255,0.2), transparent)' }} />}
+            <Film size={Math.min(widget.width, widget.height) * 0.2} className="text-stokio-cyan relative z-10 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" />
+            <span className="text-muted-foreground font-semibold truncate px-2 relative z-10 text-center"
+              style={{ fontSize: Math.max(7, Math.min(11, widget.width * 0.1)), textShadow: '0 1px 4px rgba(0,0,0,0.9)' }}>
+              {widget.label}
+            </span>
+            <span className="text-muted-foreground/50 truncate px-2 relative z-10 text-center"
+              style={{ fontSize: Math.max(6, Math.min(9, widget.width * 0.07)) }}>
+              {displayName}
+            </span>
+            {isActive && <div className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary))] animate-pulse z-10" />}
           </div>
         );
       })()}
@@ -2037,6 +2086,44 @@ export function LiveDJ() {
                             {g.name} ({g.fixtureIds.length})
                           </button>
                         ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Media Trigger properties */}
+                  {selectedWidgetData.type === 'media-trigger' && (
+                    <div className="p-3 border-t border-border/20 space-y-2">
+                      <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold">Media Link</label>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Trigger Video</label>
+                        <select value={selectedWidgetData.mediaItemId || ''}
+                          onChange={e => updateWidget(selectedWidgetData.id, {
+                            mediaItemId: e.target.value || null,
+                            mediaPlaylistId: e.target.value ? null : selectedWidgetData.mediaPlaylistId,
+                          })}
+                          className="w-full h-7 rounded bg-muted/30 border border-border/30 text-[10px] px-2 text-foreground mt-1">
+                          <option value="">— None —</option>
+                          {useMediaStore.getState().items.map(item => (
+                            <option key={item.id} value={item.id}>🎬 {item.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Trigger Playlist</label>
+                        <select value={selectedWidgetData.mediaPlaylistId || ''}
+                          onChange={e => updateWidget(selectedWidgetData.id, {
+                            mediaPlaylistId: e.target.value || null,
+                            mediaItemId: e.target.value ? null : selectedWidgetData.mediaItemId,
+                          })}
+                          className="w-full h-7 rounded bg-muted/30 border border-border/30 text-[10px] px-2 text-foreground mt-1">
+                          <option value="">— None —</option>
+                          {useMediaStore.getState().playlists.map(pl => (
+                            <option key={pl.id} value={pl.id}>📋 {pl.name} ({pl.itemIds.length} items)</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                        💡 Click this widget during a show to play the linked video or playlist.
                       </div>
                     </div>
                   )}
