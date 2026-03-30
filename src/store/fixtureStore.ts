@@ -125,6 +125,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     model: 'Moving Head Spot',
     type: 'moving-head',
     colorSystem: 'rgbw',
+    createdAt: 0,
     modes: [{
       id: 'm1', name: '16 Channel', channelCount: 16,
       channels: [
