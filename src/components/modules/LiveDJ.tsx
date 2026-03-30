@@ -1429,7 +1429,7 @@ export function LiveDJ() {
                               ? fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.inst.name || entry.targetId
                               : groups.find(g => g.id === entry.targetId)?.name || entry.targetId;
                             const icon = isFixture
-                              ? getFixtureTypeIcon(fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.def.type || 'generic')
+                              ? getFixtureTypeIcon(fixturesWithDefs.find(f => f.inst.id === entry.targetId)?.def.type || 'other')
                               : '👥';
                             const updateEntry = (updates: Partial<PresetSceneEntry>) => {
                               const entries = [...(selectedWidgetData.presetEntries || [])];
