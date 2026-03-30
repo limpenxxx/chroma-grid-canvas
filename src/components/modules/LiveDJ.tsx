@@ -25,7 +25,7 @@ interface FixtureAssignment {
   mode: ControlMode;
 }
 
-type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset';
+type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color';
 
 // ── Preset Scene Entry ──
 interface PresetSceneEntry {
