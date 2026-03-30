@@ -264,6 +264,18 @@ function ControlWidget({
   const MIN_SIZE = 40;
   const LONG_PRESS_MS = 500;
 
+  // Strobe sync: check if any active strobe widget shares linked fixtures with this widget
+  const isStrobeSynced = widget.type !== 'button' || widget.linkedFunction !== 'strobe' ? (() => {
+    const myFixtures = new Set(widget.linkedFixtureIds);
+    if (myFixtures.size === 0) return false;
+    return allWidgets.some(w =>
+      w.id !== widget.id &&
+      w.linkedFunction === 'strobe' &&
+      (w.toggled || false) &&
+      w.linkedFixtureIds.some(fid => myFixtures.has(fid))
+    );
+  })() : false;
+
   const startInteraction = useCallback((e: React.MouseEvent, mode: DragMode) => {
     e.stopPropagation();
     e.preventDefault();
