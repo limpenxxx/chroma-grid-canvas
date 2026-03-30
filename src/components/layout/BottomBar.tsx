@@ -134,7 +134,14 @@ export function BottomBar() {
 
       {/* Waveform */}
       <div className="flex-1 flex items-center gap-2 max-w-md">
-        <Music size={14} className="text-muted-foreground shrink-0" />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={toggleAudio}
+          className={`h-7 w-7 p-0 shrink-0 ${audioActive ? 'text-primary' : 'text-muted-foreground'}`}
+        >
+          {audioActive ? <Mic size={14} /> : <MicOff size={14} />}
+        </Button>
         <canvas
           ref={canvasRef}
           className="w-full h-8 rounded"
