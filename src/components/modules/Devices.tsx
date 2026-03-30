@@ -9,7 +9,9 @@ import {
   useFixtureStore, type FixtureDefinition, type FixtureInstance, type FixtureMode,
   type FixtureChannel, type ChannelFunction, type ColorSystem, type ColorWheelSlot,
   CHANNEL_FUNCTION_LABELS, getChannelColor, getFixtureTypeIcon,
+  FIXTURE_ICON_OPTIONS, getFixtureIconEmoji, type FixtureIcon,
 } from '@/store/fixtureStore';
+import { useWledStore, type WledFixture } from '@/store/wledStore';
 import { WledPanel } from './WledPanel';
 
 type Tab = 'instances' | 'library' | 'editor' | 'wled';
