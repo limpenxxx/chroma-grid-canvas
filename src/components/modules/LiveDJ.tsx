@@ -1271,6 +1271,20 @@ export function LiveDJ() {
     if (selectedWidget === id) setSelectedWidget(null);
   };
 
+  const duplicateWidget = (id: string) => {
+    const source = widgets.find(w => w.id === id);
+    if (!source) return;
+    const clone: DJWidget = {
+      ...source,
+      id: `w-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      x: source.x + 20,
+      y: source.y + 20,
+      label: `${source.label} (copy)`,
+    };
+    setWidgets(prev => [...prev, clone]);
+    setSelectedWidget(clone.id);
+  };
+
   const handleWidgetBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedWidget) return;
