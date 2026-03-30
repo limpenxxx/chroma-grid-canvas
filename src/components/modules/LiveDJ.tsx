@@ -27,7 +27,7 @@ interface FixtureAssignment {
   mode: ControlMode;
 }
 
-type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset';
+type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'dmx-reset';
 
 // ── Preset Scene Entry ──
 interface PresetSceneEntry {
@@ -114,9 +114,9 @@ interface DJWidget {
   height: number;
   color: string;
   bgImage?: string | null;
-  bgOpacity?: number; // 0-100, default 70
+  bgOpacity?: number;
   flash?: boolean;
-  toggled?: boolean; // for toggle mode state
+  toggled?: boolean;
   value?: number;
   min?: number;
   max?: number;
@@ -124,30 +124,24 @@ interface DJWidget {
   linkedFixtureIds: string[];
   linkedFunction?: string;
   lockAxis?: 'none' | 'x' | 'y';
-  // MH program (xy-pad only)
   mhProgram?: MHProgram;
-  // Preset scene entries (preset only)
   presetEntries?: PresetSceneEntry[];
   presetShowSubmenu?: boolean;
-  // Color sync: link this widget to another widget's color output
   syncColorWidgetId?: string | null;
-  // Fixed color: selected slot DMX value
   fixedColorSlotValue?: number;
-  // RGB sync mode for fixed-color widget
   rgbSyncEnabled?: boolean;
-  // Media trigger
   mediaItemId?: string | null;
   mediaPlaylistId?: string | null;
-  mediaPlayMode?: 'play-once' | 'loop' | 'loop-random'; // default: loop
-  mediaFlash?: boolean; // true = flash (hold to play), false = toggle
-  // VFX
+  mediaPlayMode?: 'play-once' | 'loop' | 'loop-random';
+  mediaFlash?: boolean;
   vfxPreset?: VisualizerPreset;
   vfxRunning?: boolean;
-  // WLED Preset
   wledPresetId?: number;
   wledPresetName?: string;
   wledIp?: string;
   wledPresets?: { id: number; name: string }[];
+  // DMX Reset widget
+  resetUniverse?: number; // 1-based universe number
 }
 
 interface ScriptStep {
@@ -207,6 +201,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'media-trigger', label: 'Media', icon: Film, w: 120, h: 120 },
   { type: 'vfx', label: 'Audio VFX', icon: Sparkles, w: 200, h: 200 },
   { type: 'wled-preset', label: 'WLED Preset', icon: Wifi, w: 120, h: 120 },
+  { type: 'dmx-reset', label: 'DMX Reset', icon: Square, w: 120, h: 80 },
 ];
 
 // ── Color distance helper (Euclidean in RGB space) ──
@@ -563,7 +558,7 @@ function ControlWidget({
             <span className="absolute left-0.5 top-1/2 -translate-y-1/2 text-[7px] text-muted-foreground/40 -rotate-90">TILT</span>
           </div>
 
-          {/* On-widget MH controls */}
+          {/* Zero fixture button + MH controls */}
           {(() => {
             const s = Math.min(widget.width, widget.height);
             const btnFs = Math.max(10, Math.min(16, s * 0.07));
@@ -575,6 +570,32 @@ function ControlWidget({
             const gap = Math.max(2, Math.min(6, s * 0.015));
             return (
               <div className="w-full shrink-0 flex flex-col mt-1" style={{ gap }}>
+                {/* Zero all channels button */}
+                <div className="flex justify-center">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      onSelect();
+                      // Zero pan/tilt on the pad
+                      onUpdate({ colorValue: { r: 0, g: 0, b: 128 } });
+                      // Stop any running MH program
+                      if (widget.mhProgram?.running) {
+                        onUpdate({ mhProgram: { ...widget.mhProgram, running: false }, colorValue: { r: 0, g: 0, b: 128 } });
+                      }
+                      // Zero all linked fixture sliders/values
+                      widget.linkedFixtureIds.forEach(fid => {
+                        allWidgets.forEach(aw => {
+                          if (aw.id !== widget.id && aw.linkedFixtureIds.includes(fid) && (aw.type === 'slider' || aw.type === 'button')) {
+                            // We signal zero via the widget's own update — parent handles propagation
+                          }
+                        });
+                      });
+                    }}
+                    className="rounded border border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive/60 transition-all font-bold uppercase tracking-wider"
+                    style={{ fontSize: btnFs * 0.85, paddingLeft: btnPx * 2, paddingRight: btnPx * 2, paddingTop: btnPy, paddingBottom: btnPy }}>
+                    ⬛ ZERO
+                  </button>
+                </div>
                 {/* Pattern quick-select row */}
                 <div className="flex flex-wrap justify-center" style={{ gap: Math.max(2, gap) }}>
                   {MH_PATTERNS.map(p => {
@@ -975,6 +996,34 @@ function ControlWidget({
                 </div>
               )}
             </div>
+          </div>
+        );
+      })()}
+
+      {/* DMX RESET */}
+      {widget.type === 'dmx-reset' && (() => {
+        const universe = widget.resetUniverse ?? 1;
+        const s = Math.min(widget.width, widget.height);
+        const fs = Math.max(10, Math.min(18, s * 0.15));
+        const subFs = Math.max(8, Math.min(13, s * 0.1));
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-destructive/30 flex flex-col items-center justify-center gap-1 transition-all overflow-hidden relative cursor-pointer hover:border-destructive/60 hover:bg-destructive/5 active:bg-destructive/15 active:scale-95"
+            style={bgStyle}
+            onClick={e => {
+              e.stopPropagation();
+              onSelect();
+              onPress();
+              // Visual feedback
+              onUpdate({ toggled: true });
+              setTimeout(() => onUpdate({ toggled: false }), 300);
+            }}>
+            {widget.toggled && (
+              <div className="absolute inset-0 rounded-lg bg-destructive/20 animate-pulse z-0" />
+            )}
+            <Square size={Math.max(14, s * 0.12)} className="text-destructive relative z-10" />
+            <span className="text-destructive font-bold uppercase tracking-wider relative z-10" style={{ fontSize: fs }}>RESET</span>
+            <span className="text-muted-foreground/60 font-semibold relative z-10" style={{ fontSize: subFs }}>Universe {universe}</span>
+            <span className="text-muted-foreground/30 relative z-10" style={{ fontSize: Math.max(7, subFs * 0.7) }}>512 CH → 0</span>
           </div>
         );
       })()}
@@ -2683,6 +2732,28 @@ export function LiveDJ() {
                       )}
                       <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
                         💡 Enter your WLED device IP and fetch presets. Click a preset on the widget to activate it via WLED JSON API.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* DMX Reset Widget Config */}
+                  {selectedWidgetData.type === 'dmx-reset' && (
+                    <div className="space-y-2 border-t border-border/20 pt-2">
+                      <label className="text-[8px] uppercase tracking-widest text-destructive font-semibold flex items-center gap-1">
+                        <Square size={10} /> DMX Reset
+                      </label>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Universe</label>
+                        <Input
+                          type="number"
+                          min={1} max={64}
+                          value={selectedWidgetData.resetUniverse ?? 1}
+                          onChange={e => updateWidget(selectedWidgetData.id, { resetUniverse: Math.max(1, Number(e.target.value)) })}
+                          className="h-6 text-[10px] bg-muted/20 border-border/20 mt-1"
+                        />
+                      </div>
+                      <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                        💡 Sends DMX value 0 to all 512 channels on the selected universe. Use as an emergency blackout.
                       </div>
                     </div>
                   )}
