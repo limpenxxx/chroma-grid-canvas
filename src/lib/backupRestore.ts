@@ -11,6 +11,7 @@ const PERSIST_KEYS = [
   'stokio-fixtures-v1',
   'stokio-media-v1',
   'stokio-dj-layouts',
+  'sflc-node-logic-v2',
 ];
 
 export interface StokioBackup {
