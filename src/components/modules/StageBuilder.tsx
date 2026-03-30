@@ -214,7 +214,7 @@ export function StageBuilder() {
   const stopVisualizer = () => {
     vizEngineRef.current.stop();
     setVizRunning(false);
-    if (bgSource === 'visualizer') setBgSource('texture');
+    if (bgSource === 'visualizer') setBgSource('none');
   };
 
   const drawCanvas = useCallback(() => {
