@@ -778,7 +778,7 @@ function ControlWidget({
                           boxShadow: `0 0 20px 6px ${dotColor}` }} />
                     </div>
                   )}
-                  {/* Per-fixture delayed/mirrored dots */}
+                  {/* Per-fixture delayed/mirrored dots (pattern mode) */}
                   {Object.entries(perFixturePos).map(([fid, fpos]) => {
                     const fxColors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6fff', '#ff9f43'];
                     const fIdx = widget.linkedFixtureIds.indexOf(fid);
@@ -787,6 +787,19 @@ function ControlWidget({
                       <div key={fid} className="absolute w-2.5 h-2.5 rounded-full border border-foreground/50 -translate-x-1/2 -translate-y-1/2 transition-none pointer-events-none"
                         style={{ left: `${(fpos.x / 255) * 100}%`, top: `${(fpos.y / 255) * 100}%`,
                           backgroundColor: fColor, boxShadow: `0 0 6px ${fColor}`, opacity: 0.8 }} />
+                    );
+                  })}
+                  {/* Per-fixture manual position dots (non-pattern mode) */}
+                  {!patternPos && widget.fixturePositions && Object.entries(widget.fixturePositions).map(([fid, fpos]) => {
+                    const fxColors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6fff', '#ff9f43'];
+                    const fIdx = widget.linkedFixtureIds.indexOf(fid);
+                    if (fIdx < 0) return null;
+                    const fColor = fxColors[fIdx % fxColors.length];
+                    const isSelected = widget.selectedFixtureId === fid;
+                    return (
+                      <div key={`manual-${fid}`} className={`absolute rounded-full border -translate-x-1/2 -translate-y-1/2 transition-none pointer-events-none ${isSelected ? 'w-4 h-4 border-2 border-foreground' : 'w-2.5 h-2.5 border border-foreground/50'}`}
+                        style={{ left: `${(fpos.x / 255) * 100}%`, top: `${(fpos.y / 255) * 100}%`,
+                          backgroundColor: fColor, boxShadow: `0 0 ${isSelected ? 12 : 6}px ${fColor}`, opacity: isSelected ? 1 : 0.7 }} />
                     );
                   })}
                 </>
