@@ -109,6 +109,7 @@ interface DJWidget {
   height: number;
   color: string;
   bgImage?: string | null;
+  bgOpacity?: number; // 0-100, default 70
   flash?: boolean;
   toggled?: boolean; // for toggle mode state
   value?: number;
@@ -334,7 +335,7 @@ function ControlWidget({
           onMouseLeave={() => { if (widget.flash && isPressed) handleButtonUp(); }}>
           {/* Gradient overlay — always shown (on bg image too) */}
           <div className="absolute inset-0 rounded-lg opacity-15" style={{ backgroundColor: widget.color }} />
-          {widget.bgImage && <div className="absolute inset-0 rounded-lg bg-gradient-to-t from-black/70 via-black/30 to-transparent z-[1]" />}
+          {widget.bgImage && <div className="absolute inset-0 rounded-lg z-[1]" style={{ background: `linear-gradient(to top, rgba(0,0,0,${(widget.bgOpacity ?? 70) / 100}), rgba(0,0,0,${(widget.bgOpacity ?? 70) / 300}), transparent)` }} />}
           {isButtonActive && <div className="absolute inset-0 rounded-lg z-[2]" style={{ background: `radial-gradient(circle at center, ${widget.color}30, transparent)` }} />}
           <Zap size={Math.min(widget.width, widget.height) * 0.25} style={{ color: widget.color, textShadow: '0 1px 4px rgba(0,0,0,0.8)' }} className="relative z-10 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" />
           <span className="text-muted-foreground font-semibold truncate px-1 relative z-10"
@@ -424,7 +425,7 @@ function ControlWidget({
           onMouseDown={handleButtonDown} onMouseUp={handleButtonUp}
           onMouseLeave={() => { if (widget.flash && isPressed) handleButtonUp(); }}>
           <div className="absolute inset-0 rounded-lg opacity-15" style={{ backgroundColor: widget.color }} />
-          {widget.bgImage && <div className="absolute inset-0 rounded-lg bg-gradient-to-t from-black/70 via-black/30 to-transparent z-[1]" />}
+          {widget.bgImage && <div className="absolute inset-0 rounded-lg z-[1]" style={{ background: `linear-gradient(to top, rgba(0,0,0,${(widget.bgOpacity ?? 70) / 100}), rgba(0,0,0,${(widget.bgOpacity ?? 70) / 300}), transparent)` }} />}
           {isButtonActive && <div className="absolute inset-0 rounded-lg z-[2]" style={{ background: `radial-gradient(circle at center, ${widget.color}30, transparent)` }} />}
           <Bookmark size={Math.min(widget.width, widget.height) * 0.2} style={{ color: widget.color }} className="relative z-10 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]" />
           <span className="text-muted-foreground font-semibold truncate px-1 relative z-10"
@@ -1282,6 +1283,18 @@ export function LiveDJ() {
                       </div>
                     )}
                   </div>
+
+                  {selectedWidgetData.bgImage && (
+                    <div>
+                      <label className="text-[7px] uppercase text-muted-foreground">Image Overlay Opacity</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Slider value={[selectedWidgetData.bgOpacity ?? 70]}
+                          onValueChange={([v]) => updateWidget(selectedWidgetData.id, { bgOpacity: v })}
+                          max={100} className="flex-1" />
+                        <span className="text-[8px] font-mono text-muted-foreground/60 w-8 text-right">{selectedWidgetData.bgOpacity ?? 70}%</span>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-1">
                     <div>
