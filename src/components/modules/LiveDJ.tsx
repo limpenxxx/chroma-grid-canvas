@@ -1253,10 +1253,17 @@ function ControlWidget({
         const presets = widget.wledPresets || [];
         const isActive = widget.wledPresetId !== undefined && widget.wledPresetId >= 0;
 
-        const activatePreset = (presetId: number) => {
+        const activatePreset = async (presetId: number) => {
           onSelect();
           onUpdate({ wledPresetId: presetId });
-          // In real mode: fetch(`http://${widget.wledIp}/json/state`, { method: 'POST', body: JSON.stringify({ ps: presetId }) });
+          // Send to device — use widget IP or linked fixture IPs
+          const targetIps = new Set<string>();
+          if (widget.wledIp) targetIps.add(widget.wledIp);
+          widget.linkedFixtureIds.forEach(fid => {
+            const wf = fixtureData.find(f => f.inst.id === fid);
+            if (wf?.def.wledConfig?.ip) targetIps.add(wf.def.wledConfig.ip);
+          });
+          await Promise.all([...targetIps].map(ip => setWledPreset(ip, presetId).catch(() => {})));
         };
 
         const fetchPresetsFromDevice = async () => {
