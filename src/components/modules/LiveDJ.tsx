@@ -174,6 +174,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'slider', label: 'Fader', icon: SlidersHorizontal, w: 70, h: 200 },
   { type: 'color-wheel', label: 'Color Pick', icon: Palette, w: 140, h: 140 },
   { type: 'xy-pad', label: 'XY Pad', icon: Plus, w: 180, h: 180 },
+  { type: 'preset', label: 'Pre Set', icon: Bookmark, w: 120, h: 120 },
 ];
 
 const STEP_TYPES: { value: ScriptStep['type']; label: string }[] = [
