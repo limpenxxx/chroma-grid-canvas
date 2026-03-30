@@ -1639,10 +1639,17 @@ export function LiveDJ() {
                     {page.name}
                   </button>
                 )}
-                {pages.length > 1 && activePageId === page.id && (
-                  <button onClick={() => deletePage(page.id)} className="ml-0.5 text-muted-foreground/40 hover:text-destructive">
-                    <X size={10} />
-                  </button>
+                {activePageId === page.id && (
+                  <>
+                    <button onClick={() => duplicatePage(page.id)} className="ml-0.5 text-muted-foreground/40 hover:text-primary" title="Duplicate tab">
+                      <Copy size={10} />
+                    </button>
+                    {pages.length > 1 && (
+                      <button onClick={() => deletePage(page.id)} className="ml-0.5 text-muted-foreground/40 hover:text-destructive">
+                        <X size={10} />
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             ))}
@@ -1650,6 +1657,42 @@ export function LiveDJ() {
               className="px-2 py-1 text-[10px] text-muted-foreground hover:text-primary border border-dashed border-border/20 hover:border-primary/30 rounded transition-all">
               <Plus size={10} />
             </button>
+
+            <div className="ml-auto flex items-center gap-2">
+              {/* Tab Background */}
+              <input ref={tabBgInputRef} type="file" accept="image/*" className="hidden" onChange={handleTabBgUpload} />
+              <Button variant="outline" size="sm" className="h-6 text-[8px] gap-1"
+                onClick={() => tabBgInputRef.current?.click()}>
+                <ImagePlus size={9} /> BG
+              </Button>
+              {activePage?.bgImage && (
+                <>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[7px] text-muted-foreground">Opacity</span>
+                    <input type="range" min={0} max={100} value={activePage.bgOpacity ?? 30}
+                      onChange={e => updatePageBg({ bgOpacity: Number(e.target.value) })}
+                      className="w-16 h-3 accent-primary" />
+                    <span className="text-[7px] font-mono text-muted-foreground w-6">{activePage.bgOpacity ?? 30}%</span>
+                  </div>
+                  <select value={activePage.bgFit || 'fill'}
+                    onChange={e => updatePageBg({ bgFit: e.target.value as 'fill' | 'fit' })}
+                    className="h-6 text-[8px] bg-muted/30 border border-border/30 rounded px-1 text-foreground">
+                    <option value="fill">Fill</option>
+                    <option value="fit">Fit</option>
+                  </select>
+                  <Button variant="ghost" size="sm" className="h-6 text-[8px] text-destructive p-1"
+                    onClick={() => updatePageBg({ bgImage: null })}>
+                    <X size={9} />
+                  </Button>
+                </>
+              )}
+
+              {/* Snap to Grid */}
+              <Button variant={snapToGrid ? 'secondary' : 'outline'} size="sm" className="h-6 text-[8px] gap-1"
+                onClick={() => setSnapToGrid(!snapToGrid)}>
+                <Grid3X3 size={9} /> Snap {snapToGrid ? 'ON' : 'OFF'}
+              </Button>
+            </div>
           </div>
 
           <div className="flex-1 flex overflow-hidden">
