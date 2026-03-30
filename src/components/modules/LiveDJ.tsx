@@ -606,7 +606,7 @@ function ControlWidget({
                         onClick={e => {
                           e.stopPropagation();
                           onSelect();
-                          const base = widget.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] };
+                          const base = widget.mhProgram || { pattern: 'circle', speed: 128, size: 50, bpmSync: false, running: false, fixtureConfigs: [] };
                           if (isSelected2 && base.running) {
                             onUpdate({ mhProgram: { ...base, running: false } });
                           } else {
@@ -2403,7 +2403,7 @@ export function LiveDJ() {
                           value={selectedWidgetData.mhProgram?.pattern || 'circle'}
                           onChange={e => updateWidget(selectedWidgetData.id, {
                             mhProgram: {
-                              ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
+                              ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 128, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
                               pattern: e.target.value as MHPattern,
                             },
                           })}
@@ -2416,17 +2416,17 @@ export function LiveDJ() {
                       <div className="grid grid-cols-2 gap-1">
                         <div>
                           <label className="text-[7px] uppercase text-muted-foreground">Speed</label>
-                          <Slider value={[selectedWidgetData.mhProgram?.speed || 50]}
+                          <Slider value={[selectedWidgetData.mhProgram?.speed || 128]}
                             onValueChange={([v]) => updateWidget(selectedWidgetData.id, {
-                              mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }), speed: v },
+                              mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 128, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }), speed: v },
                             })} max={100} className="mt-1" />
-                          <span className="text-[7px] font-mono text-muted-foreground/50">{selectedWidgetData.mhProgram?.speed || 50}%</span>
+                          <span className="text-[7px] font-mono text-muted-foreground/50">{selectedWidgetData.mhProgram?.speed || 128}%</span>
                         </div>
                         <div>
                           <label className="text-[7px] uppercase text-muted-foreground">Size</label>
                           <Slider value={[selectedWidgetData.mhProgram?.size || 50]}
                             onValueChange={([v]) => updateWidget(selectedWidgetData.id, {
-                              mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }), size: v },
+                              mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 128, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }), size: v },
                             })} max={100} className="mt-1" />
                           <span className="text-[7px] font-mono text-muted-foreground/50">{selectedWidgetData.mhProgram?.size || 50}%</span>
                         </div>
@@ -2439,14 +2439,14 @@ export function LiveDJ() {
                           variant={selectedWidgetData.mhProgram?.running ? 'destructive' : 'default'}
                           className="h-6 text-[9px] gap-1 flex-1"
                           onClick={() => updateWidget(selectedWidgetData.id, {
-                            mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
+                            mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 128, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
                               running: !selectedWidgetData.mhProgram?.running },
                           })}>
                           {selectedWidgetData.mhProgram?.running ? <><Square size={9} /> Stop</> : <><Play size={9} /> Run</>}
                         </Button>
                         <Button size="sm" variant="outline" className={`h-6 text-[9px] gap-1 ${selectedWidgetData.mhProgram?.bpmSync ? 'bg-stokio-pink/10 text-stokio-pink border-stokio-pink/30' : ''}`}
                           onClick={() => updateWidget(selectedWidgetData.id, {
-                            mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
+                            mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 128, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
                               bpmSync: !selectedWidgetData.mhProgram?.bpmSync },
                           })}>
                           {selectedWidgetData.mhProgram?.bpmSync ? '🎵 BPM Sync ON' : '🎵 BPM Sync'}
@@ -2469,7 +2469,7 @@ export function LiveDJ() {
                                 ? existing.map(c => c.fixtureId === fid ? { ...c, ...updates } : c)
                                 : [...existing, { ...cfg, ...updates }];
                               updateWidget(selectedWidgetData.id, {
-                                mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
+                                mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 128, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
                                   fixtureConfigs: updated },
                               });
                             };
