@@ -178,6 +178,9 @@ interface LayoutPage {
   id: string;
   name: string;
   widgets: DJWidget[];
+  bgImage?: string | null;
+  bgOpacity?: number; // 0-100
+  bgFit?: 'fill' | 'fit'; // fill = cover, fit = contain
 }
 
 // ── Saved Layout ──
