@@ -280,11 +280,11 @@ export function Devices() {
             {addingInstance ? (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
                 className="glass-panel p-3 space-y-2">
-                <div className="text-[9px] uppercase tracking-widest text-primary font-semibold">Patch New Fixture</div>
+                <div className="text-[9px] uppercase tracking-widest text-primary font-semibold">Add New DMX Fixture</div>
                 <select value={newInstDefId} onChange={e => setNewInstDefId(e.target.value)}
                   className="w-full h-7 rounded bg-muted/30 border border-border/30 text-xs px-2 text-foreground">
                   <option value="">Select fixture type...</option>
-                  {store.definitions.map(d => (
+                  {store.definitions.filter(d => d.category === 'dmx').map(d => (
                     <option key={d.id} value={d.id}>{d.manufacturer} {d.model}</option>
                   ))}
                 </select>
@@ -311,7 +311,7 @@ export function Devices() {
               </motion.div>
             ) : (
               <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 w-full" onClick={() => setAddingInstance(true)}>
-                <Plus size={12} /> Patch Fixture
+                <Plus size={12} /> Add New DMX Fixture
               </Button>
             )}
           </div>
