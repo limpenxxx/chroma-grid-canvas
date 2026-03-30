@@ -172,6 +172,8 @@ export class AudioVisualizerEngine {
       case 'tunnel-flight': this.renderTunnel(ctx, w, h, energy, bass, treble, t); break;
       case 'kaleidoscope': this.renderKaleidoscope(ctx, w, h, energy, bass, treble, t); break;
       case 'ocean-pulse': this.renderOcean(ctx, w, h, energy, bass, treble, t); break;
+      case 'emoji-rain': this.renderEmojiRain(ctx, w, h, energy, bass, treble, t); break;
+      case 'emoji-vortex': this.renderEmojiVortex(ctx, w, h, energy, bass, treble, t); break;
     }
   }
 
