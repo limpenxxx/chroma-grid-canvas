@@ -2095,6 +2095,55 @@ export function LiveDJ() {
     updateWidget(selectedWidget, { linkedFixtureIds: [...new Set([...selectedWidgetData!.linkedFixtureIds, ...group.fixtureIds])] });
   };
 
+  // ── Real WLED output: send state to physical devices when widgets change ──
+  useEffect(() => {
+    const nextSent: Record<string, string> = {};
+    const wledFixMap = new Map(wledStore.fixtures.map(f => [f.id, f]));
+
+    widgets.forEach(w => {
+      const linkedWled = w.linkedFixtureIds.map(id => wledFixMap.get(id)).filter((f): f is WledFixture => !!f);
+      if (linkedWled.length === 0) return;
+
+      // Color wheel → set color on linked WLED fixtures
+      if (w.type === 'color-wheel' && w.colorValue) {
+        const { r, g, b } = w.colorValue;
+        linkedWled.forEach(fix => {
+          const key = `color-${fix.id}`;
+          const val = `${r},${g},${b}`;
+          nextSent[key] = val;
+          if (lastWledSentRef.current[key] === val) return;
+          void setWledState(fix.deviceIp, { on: true, seg: [{ id: fix.segmentId, col: [[r, g, b]] }] }).catch(() => {});
+        });
+      }
+
+      // Slider (dimmer) → set brightness
+      if (w.type === 'slider' && (w.linkedFunction === 'dimmer' || !w.linkedFunction)) {
+        const bri = Math.max(0, Math.min(255, Math.round(((w.value ?? 0) / 100) * 255)));
+        linkedWled.forEach(fix => {
+          const key = `bri-${fix.id}`;
+          const val = String(bri);
+          nextSent[key] = val;
+          if (lastWledSentRef.current[key] === val) return;
+          void setWledState(fix.deviceIp, { on: bri > 0, bri }).catch(() => {});
+        });
+      }
+
+      // WLED preset widget → activate preset
+      if (w.type === 'wled-preset' && w.wledPresetId !== undefined && w.wledPresetId >= 0) {
+        const ips = [...new Set(linkedWled.map(f => f.deviceIp))];
+        ips.forEach(ip => {
+          const key = `preset-${ip}`;
+          const val = String(w.wledPresetId);
+          nextSent[key] = val;
+          if (lastWledSentRef.current[key] === val) return;
+          void setWledPreset(ip, w.wledPresetId!).catch(() => {});
+        });
+      }
+    });
+
+    lastWledSentRef.current = nextSent;
+  }, [widgets, wledStore.fixtures]);
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
       className={`${isFullscreen ? 'fixed inset-0 z-[100] bg-background' : 'h-full'} flex flex-col`}>
