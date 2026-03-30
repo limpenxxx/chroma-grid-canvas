@@ -26,6 +26,39 @@ interface FixtureAssignment {
 
 type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad';
 
+// ── MH Movement Programs ──
+type MHPattern = 'circle' | 'figure8' | 'zigzag' | 'sweep-h' | 'sweep-v' | 'random' | 'square' | 'triangle' | 'bounce';
+
+const MH_PATTERNS: { value: MHPattern; label: string }[] = [
+  { value: 'circle', label: '⭕ Circle' },
+  { value: 'figure8', label: '♾ Figure 8' },
+  { value: 'zigzag', label: '⚡ Zigzag' },
+  { value: 'sweep-h', label: '↔ Sweep H' },
+  { value: 'sweep-v', label: '↕ Sweep V' },
+  { value: 'random', label: '🎲 Random' },
+  { value: 'square', label: '◻ Square' },
+  { value: 'triangle', label: '△ Triangle' },
+  { value: 'bounce', label: '⬆ Bounce' },
+];
+
+interface MHFixtureConfig {
+  fixtureId: string;
+  reversePan: boolean;
+  reverseTilt: boolean;
+  mirrorPan: boolean;
+  mirrorTilt: boolean;
+  delayMs: number; // delay offset per fixture
+}
+
+interface MHProgram {
+  pattern: MHPattern;
+  speed: number; // 1-100
+  size: number; // 1-100 (movement range)
+  bpmSync: boolean;
+  running: boolean;
+  fixtureConfigs: MHFixtureConfig[];
+}
+
 // ── Audio / BPM Types ──
 type AudioSource = 'none' | 'wled-analog' | 'wled-i2s-inmp441' | 'wled-i2s-max98357' | 'wled-i2s-sph0645' | 'wled-udp-sync' | 'browser-mic';
 
@@ -65,13 +98,16 @@ interface DJWidget {
   color: string;
   bgImage?: string | null;
   flash?: boolean;
+  toggled?: boolean; // for toggle mode state
   value?: number;
   min?: number;
   max?: number;
   colorValue?: { r: number; g: number; b: number };
   linkedFixtureIds: string[];
   linkedFunction?: string;
-  lockAxis?: 'none' | 'x' | 'y'; // lock movement to one axis
+  lockAxis?: 'none' | 'x' | 'y';
+  // MH program (xy-pad only)
+  mhProgram?: MHProgram;
 }
 
 interface ScriptStep {
@@ -177,18 +213,18 @@ function ControlWidget({
   } | null>(null);
   const [isPressed, setIsPressed] = useState(false);
   const [interacting, setInteracting] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const MIN_SIZE = 40;
+  const LONG_PRESS_MS = 500;
 
   const startInteraction = useCallback((e: React.MouseEvent, mode: DragMode) => {
     e.stopPropagation();
     e.preventDefault();
     onSelect();
     dragRef.current = {
-      mode,
-      startX: e.clientX, startY: e.clientY,
-      origX: widget.x, origY: widget.y,
-      origW: widget.width, origH: widget.height,
+      mode, startX: e.clientX, startY: e.clientY,
+      origX: widget.x, origY: widget.y, origW: widget.width, origH: widget.height,
     };
     setInteracting(true);
 
@@ -198,179 +234,120 @@ function ControlWidget({
       const dx = ev.clientX - ref.startX;
       const dy = ev.clientY - ref.startY;
       const lock = widget.lockAxis || 'none';
-
       if (ref.mode === 'move') {
-        onUpdate({
-          x: Math.max(0, ref.origX + (lock === 'y' ? 0 : dx)),
-          y: Math.max(0, ref.origY + (lock === 'x' ? 0 : dy)),
-        });
+        onUpdate({ x: Math.max(0, ref.origX + (lock === 'y' ? 0 : dx)), y: Math.max(0, ref.origY + (lock === 'x' ? 0 : dy)) });
       } else if (ref.mode === 'resize-br') {
-        onUpdate({
-          width: Math.max(MIN_SIZE, ref.origW + dx),
-          height: Math.max(MIN_SIZE, ref.origH + dy),
-        });
+        onUpdate({ width: Math.max(MIN_SIZE, ref.origW + dx), height: Math.max(MIN_SIZE, ref.origH + dy) });
       } else if (ref.mode === 'resize-bl') {
-        const newW = Math.max(MIN_SIZE, ref.origW - dx);
-        onUpdate({
-          x: ref.origX + ref.origW - newW,
-          width: newW,
-          height: Math.max(MIN_SIZE, ref.origH + dy),
-        });
+        const nw = Math.max(MIN_SIZE, ref.origW - dx);
+        onUpdate({ x: ref.origX + ref.origW - nw, width: nw, height: Math.max(MIN_SIZE, ref.origH + dy) });
       } else if (ref.mode === 'resize-tr') {
-        const newH = Math.max(MIN_SIZE, ref.origH - dy);
-        onUpdate({
-          y: ref.origY + ref.origH - newH,
-          width: Math.max(MIN_SIZE, ref.origW + dx),
-          height: newH,
-        });
+        const nh = Math.max(MIN_SIZE, ref.origH - dy);
+        onUpdate({ y: ref.origY + ref.origH - nh, width: Math.max(MIN_SIZE, ref.origW + dx), height: nh });
       } else if (ref.mode === 'resize-tl') {
-        const newW = Math.max(MIN_SIZE, ref.origW - dx);
-        const newH = Math.max(MIN_SIZE, ref.origH - dy);
-        onUpdate({
-          x: ref.origX + ref.origW - newW,
-          y: ref.origY + ref.origH - newH,
-          width: newW,
-          height: newH,
-        });
+        const nw = Math.max(MIN_SIZE, ref.origW - dx);
+        const nh = Math.max(MIN_SIZE, ref.origH - dy);
+        onUpdate({ x: ref.origX + ref.origW - nw, y: ref.origY + ref.origH - nh, width: nw, height: nh });
       }
     };
-
     const handleUp = () => {
       dragRef.current = null;
       setInteracting(false);
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
     };
-
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
   }, [widget, onUpdate, onSelect]);
 
-  // Resize handle component
   const ResizeHandle = ({ corner, cursor }: { corner: DragMode; cursor: string }) => {
-    const pos: Record<string, string> = {
-      'resize-br': 'bottom-0 right-0',
-      'resize-bl': 'bottom-0 left-0',
-      'resize-tr': 'top-0 right-0',
-      'resize-tl': 'top-0 left-0',
-    };
+    const pos: Record<string, string> = { 'resize-br': 'bottom-0 right-0', 'resize-bl': 'bottom-0 left-0', 'resize-tr': 'top-0 right-0', 'resize-tl': 'top-0 left-0' };
     return (
-      <div
-        className={`absolute ${pos[corner]} w-3 h-3 ${cursor} z-30 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-60'} transition-opacity`}
-        onMouseDown={e => startInteraction(e, corner)}
-      >
+      <div className={`absolute ${pos[corner]} w-3 h-3 ${cursor} z-30 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-60'} transition-opacity`}
+        onMouseDown={e => startInteraction(e, corner)}>
         <div className="absolute inset-0.5 rounded-sm border border-primary/60 bg-primary/20" />
       </div>
     );
   };
 
-  const bgStyle: React.CSSProperties = widget.bgImage
-    ? { backgroundImage: `url(${widget.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-    : {};
+  const bgStyle: React.CSSProperties = widget.bgImage ? { backgroundImage: `url(${widget.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {};
+
+  // Button: short click = flash/toggle, long press in flash mode = lock toggle
+  const handleButtonDown = () => {
+    if (widget.flash) {
+      setIsPressed(true); onPress();
+      longPressTimer.current = setTimeout(() => {
+        onUpdate({ toggled: !widget.toggled });
+        longPressTimer.current = null;
+      }, LONG_PRESS_MS);
+    } else {
+      const ns = !widget.toggled;
+      onUpdate({ toggled: ns }); setIsPressed(ns);
+      if (ns) onPress(); else onRelease();
+    }
+  };
+  const handleButtonUp = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+    if (widget.flash) { setIsPressed(false); onRelease(); }
+  };
+  const isButtonActive = widget.flash ? (isPressed || !!widget.toggled) : !!widget.toggled;
 
   return (
-    <div
-      className={`absolute select-none group transition-shadow ${isSelected ? 'ring-1 ring-primary/60 z-30' : 'z-10'} ${interacting ? 'z-50' : ''}`}
-      style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height }}
-    >
-      {/* Move handle — whole widget area */}
-      <div
-        className="absolute inset-0 z-20 cursor-grab active:cursor-grabbing"
-        onMouseDown={e => {
-          // Don't start drag if clicking inside interactive elements
-          const target = e.target as HTMLElement;
-          if (target.closest('input, button[data-widget-action], .widget-interactive')) return;
-          startInteraction(e, 'move');
-        }}
-      />
+    <div className={`absolute select-none group transition-shadow ${isSelected ? 'ring-1 ring-primary/60 z-30' : 'z-10'} ${interacting ? 'z-50' : ''}`}
+      style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height }}>
 
-      {/* Resize corners */}
+      {/* Top drag handle */}
+      <div className="absolute -top-1 left-2 right-2 h-5 z-40 cursor-grab active:cursor-grabbing flex items-center justify-center rounded-t"
+        onMouseDown={e => startInteraction(e, 'move')}>
+        <GripVertical size={10} className="text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors" />
+      </div>
+
       <ResizeHandle corner="resize-br" cursor="cursor-se-resize" />
       <ResizeHandle corner="resize-bl" cursor="cursor-sw-resize" />
       <ResizeHandle corner="resize-tr" cursor="cursor-ne-resize" />
       <ResizeHandle corner="resize-tl" cursor="cursor-nw-resize" />
 
-      {/* Widget body */}
+      {/* BUTTON */}
       {widget.type === 'button' && (
-        <div
-          className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center gap-1 transition-all overflow-hidden relative"
-          style={{
-            ...bgStyle,
-            borderColor: isPressed ? widget.color : undefined,
-            boxShadow: isPressed ? `0 0 24px ${widget.color}50, inset 0 0 20px ${widget.color}25` : undefined,
-          }}
-        >
-          {/* Color overlay when no image */}
-          {!widget.bgImage && (
-            <div className="absolute inset-0 rounded-lg opacity-15 transition-opacity"
-              style={{ backgroundColor: widget.color }} />
-          )}
-          {isPressed && (
-            <div className="absolute inset-0 rounded-lg"
-              style={{ background: `radial-gradient(circle at center, ${widget.color}30, transparent)` }} />
-          )}
-          <button
-            data-widget-action="true"
-            className="relative z-20 w-full h-full flex flex-col items-center justify-center gap-1"
-            onMouseDown={() => { setIsPressed(true); onPress(); }}
-            onMouseUp={() => { setIsPressed(false); onRelease(); }}
-            onMouseLeave={() => { if (isPressed) { setIsPressed(false); onRelease(); } }}
-          >
-            <Zap size={Math.min(widget.width, widget.height) * 0.25} style={{ color: widget.color }} />
-            <span className="text-muted-foreground font-semibold truncate px-1"
-              style={{ fontSize: Math.max(8, Math.min(14, widget.width * 0.12)) }}>
-              {widget.label}
-            </span>
-          </button>
+        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center gap-1 transition-all overflow-hidden relative cursor-pointer"
+          style={{ ...bgStyle, borderColor: isButtonActive ? widget.color : undefined,
+            boxShadow: isButtonActive ? `0 0 24px ${widget.color}50, inset 0 0 20px ${widget.color}25` : undefined }}
+          onMouseDown={handleButtonDown} onMouseUp={handleButtonUp}
+          onMouseLeave={() => { if (widget.flash && isPressed) handleButtonUp(); }}>
+          {!widget.bgImage && <div className="absolute inset-0 rounded-lg opacity-15" style={{ backgroundColor: widget.color }} />}
+          {isButtonActive && <div className="absolute inset-0 rounded-lg" style={{ background: `radial-gradient(circle at center, ${widget.color}30, transparent)` }} />}
+          <Zap size={Math.min(widget.width, widget.height) * 0.25} style={{ color: widget.color }} className="relative z-10" />
+          <span className="text-muted-foreground font-semibold truncate px-1 relative z-10"
+            style={{ fontSize: Math.max(8, Math.min(14, widget.width * 0.12)) }}>{widget.label}</span>
+          {!widget.flash && <div className={`absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full transition-all ${widget.toggled ? 'bg-primary shadow-[0_0_6px_hsl(var(--primary))]' : 'bg-muted-foreground/20'}`} />}
+          {widget.flash && widget.toggled && <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[7px] text-primary font-bold uppercase tracking-wider">LOCKED</div>}
         </div>
       )}
 
+      {/* SLIDER */}
       {widget.type === 'slider' && (
-        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-3 gap-1 overflow-hidden"
-          style={bgStyle}>
-          <span className="text-muted-foreground font-semibold truncate relative z-20"
-            style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.14)) }}>
-            {widget.label}
-          </span>
-          <div className="flex-1 w-10 rounded fader-track border border-border/20 relative widget-interactive z-20">
-            <motion.div
-              className="absolute bottom-0 left-0 w-full rounded-b"
-              style={{ backgroundColor: widget.color + '60' }}
-              animate={{ height: `${widget.value || 0}%` }}
-            />
-            <input
-              type="range" min={0} max={100} value={widget.value || 0}
-              onChange={e => onUpdate({ value: Number(e.target.value) })}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-ns-resize"
-              style={{ writingMode: 'vertical-lr', direction: 'rtl' } as React.CSSProperties}
-            />
+        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-3 gap-1 overflow-hidden" style={bgStyle}>
+          <span className="text-muted-foreground font-semibold truncate" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.14)) }}>{widget.label}</span>
+          <div className="flex-1 w-10 rounded fader-track border border-border/20 relative">
+            <motion.div className="absolute bottom-0 left-0 w-full rounded-b" style={{ backgroundColor: widget.color + '60' }} animate={{ height: `${widget.value || 0}%` }} />
+            <input type="range" min={0} max={100} value={widget.value || 0} onChange={e => onUpdate({ value: Number(e.target.value) })}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-ns-resize" style={{ writingMode: 'vertical-lr', direction: 'rtl' } as React.CSSProperties} />
           </div>
-          <span className="font-mono text-muted-foreground relative z-20"
-            style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.14)) }}>
-            {widget.value || 0}%
-          </span>
+          <span className="font-mono text-muted-foreground" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.14)) }}>{widget.value || 0}%</span>
         </div>
       )}
 
+      {/* COLOR WHEEL */}
       {widget.type === 'color-wheel' && (
-        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-3 gap-1 overflow-hidden"
-          style={bgStyle}>
-          <span className="text-muted-foreground font-semibold truncate relative z-20"
-            style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.1)) }}>
-            {widget.label}
-          </span>
-          <div className="flex-1 flex items-center justify-center relative z-20 widget-interactive">
-            <div
-              className="rounded-full border-2 border-border/30 cursor-pointer"
-              style={{
-                width: Math.min(widget.width, widget.height) - 40,
-                height: Math.min(widget.width, widget.height) - 40,
-                background: `conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)`,
-              }}
+        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-3 gap-1 overflow-hidden" style={bgStyle}>
+          <span className="text-muted-foreground font-semibold truncate" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.1)) }}>{widget.label}</span>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="rounded-full border-2 border-border/30 cursor-pointer"
+              style={{ width: Math.min(widget.width, widget.height) - 40, height: Math.min(widget.width, widget.height) - 40,
+                background: `conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)` }}
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
-                const cx = e.clientX - rect.left - rect.width / 2;
-                const cy = e.clientY - rect.top - rect.height / 2;
+                const cx = e.clientX - rect.left - rect.width / 2, cy = e.clientY - rect.top - rect.height / 2;
                 const hue = ((Math.atan2(cy, cx) * 180 / Math.PI) + 360) % 360;
                 const c = 1, xx = c * (1 - Math.abs((hue / 60) % 2 - 1)), m = 0;
                 let r = 0, g = 0, b = 0;
@@ -378,15 +355,12 @@ function ControlWidget({
                 else if (hue < 180) { g = c; b = xx; } else if (hue < 240) { g = xx; b = c; }
                 else if (hue < 300) { r = xx; b = c; } else { r = c; b = xx; }
                 onUpdate({ colorValue: { r: Math.round((r + m) * 255), g: Math.round((g + m) * 255), b: Math.round((b + m) * 255) } });
-              }}
-            >
+              }}>
               {widget.colorValue && (
                 <div className="w-full h-full rounded-full flex items-center justify-center">
                   <div className="w-6 h-6 rounded-full border border-foreground/50"
-                    style={{
-                      backgroundColor: `rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})`,
-                      boxShadow: `0 0 10px rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})`,
-                    }} />
+                    style={{ backgroundColor: `rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})`,
+                      boxShadow: `0 0 10px rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})` }} />
                 </div>
               )}
             </div>
@@ -394,30 +368,27 @@ function ControlWidget({
         </div>
       )}
 
+      {/* XY PAD */}
       {widget.type === 'xy-pad' && (
-        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-3 gap-1 overflow-hidden"
-          style={bgStyle}>
-          <span className="text-muted-foreground font-semibold truncate relative z-20"
-            style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.08)) }}>
-            {widget.label}
-          </span>
-          <div className="flex-1 w-full relative border border-border/20 rounded cursor-crosshair widget-interactive z-20"
+        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-3 gap-1 overflow-hidden" style={bgStyle}>
+          <span className="text-muted-foreground font-semibold truncate" style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.08)) }}>{widget.label}</span>
+          {widget.mhProgram?.running && (
+            <div className="absolute top-1 right-1 text-[6px] px-1 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 animate-pulse font-semibold z-20">
+              {MH_PATTERNS.find(p => p.value === widget.mhProgram?.pattern)?.label}
+            </div>
+          )}
+          <div className="flex-1 w-full relative border border-border/20 rounded cursor-crosshair"
             onClick={e => {
               const rect = e.currentTarget.getBoundingClientRect();
               const x = Math.round(((e.clientX - rect.left) / rect.width) * 255);
               const y = Math.round(((e.clientY - rect.top) / rect.height) * 255);
               onUpdate({ colorValue: { r: x, g: y, b: 128 } });
-            }}
-          >
+            }}>
             <div className="absolute left-1/2 top-0 w-px h-full bg-border/20" />
             <div className="absolute top-1/2 left-0 w-full h-px bg-border/20" />
             {widget.colorValue && (
               <div className="absolute w-4 h-4 rounded-full bg-primary border border-foreground -translate-x-1/2 -translate-y-1/2"
-                style={{
-                  left: `${(widget.colorValue.r / 255) * 100}%`,
-                  top: `${(widget.colorValue.g / 255) * 100}%`,
-                  boxShadow: '0 0 10px hsl(var(--primary))',
-                }} />
+                style={{ left: `${(widget.colorValue.r / 255) * 100}%`, top: `${(widget.colorValue.g / 255) * 100}%`, boxShadow: '0 0 10px hsl(var(--primary))' }} />
             )}
             <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[8px] text-muted-foreground/40">PAN</span>
             <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] text-muted-foreground/40 -rotate-90">TILT</span>
@@ -1320,14 +1291,140 @@ export function LiveDJ() {
                   </div>
 
                   {selectedWidgetData.type === 'button' && (
-                    <div>
-                      <label className="text-[7px] uppercase text-muted-foreground">Behavior</label>
-                      <select value={selectedWidgetData.flash ? 'flash' : 'toggle'}
-                        onChange={e => updateWidget(selectedWidgetData.id, { flash: e.target.value === 'flash' })}
-                        className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground">
-                        <option value="flash">Flash (hold)</option>
-                        <option value="toggle">Toggle</option>
-                      </select>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Behavior</label>
+                        <select value={selectedWidgetData.flash ? 'flash' : 'toggle'}
+                          onChange={e => updateWidget(selectedWidgetData.id, { flash: e.target.value === 'flash' })}
+                          className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground">
+                          <option value="flash">Flash (hold) · long-press to lock</option>
+                          <option value="toggle">Toggle (click on/off)</option>
+                        </select>
+                      </div>
+                      <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                        {selectedWidgetData.flash
+                          ? '💡 Click & hold = momentary flash. Long-press (0.5s) = lock ON/OFF.'
+                          : '💡 Click to toggle on/off.'}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* MH Movement Programs (XY Pad only) */}
+                  {selectedWidgetData.type === 'xy-pad' && (
+                    <div className="space-y-2 border-t border-border/20 pt-2">
+                      <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold">MH Movement Program</label>
+
+                      {/* Pattern selector */}
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Pattern</label>
+                        <select
+                          value={selectedWidgetData.mhProgram?.pattern || 'circle'}
+                          onChange={e => updateWidget(selectedWidgetData.id, {
+                            mhProgram: {
+                              ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
+                              pattern: e.target.value as MHPattern,
+                            },
+                          })}
+                          className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground">
+                          {MH_PATTERNS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                        </select>
+                      </div>
+
+                      {/* Speed & Size */}
+                      <div className="grid grid-cols-2 gap-1">
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Speed</label>
+                          <Slider value={[selectedWidgetData.mhProgram?.speed || 50]}
+                            onValueChange={([v]) => updateWidget(selectedWidgetData.id, {
+                              mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }), speed: v },
+                            })} max={100} className="mt-1" />
+                          <span className="text-[7px] font-mono text-muted-foreground/50">{selectedWidgetData.mhProgram?.speed || 50}%</span>
+                        </div>
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Size</label>
+                          <Slider value={[selectedWidgetData.mhProgram?.size || 50]}
+                            onValueChange={([v]) => updateWidget(selectedWidgetData.id, {
+                              mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }), size: v },
+                            })} max={100} className="mt-1" />
+                          <span className="text-[7px] font-mono text-muted-foreground/50">{selectedWidgetData.mhProgram?.size || 50}%</span>
+                        </div>
+                      </div>
+
+                      {/* Controls */}
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant={selectedWidgetData.mhProgram?.running ? 'destructive' : 'default'}
+                          className="h-6 text-[9px] gap-1 flex-1"
+                          onClick={() => updateWidget(selectedWidgetData.id, {
+                            mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
+                              running: !selectedWidgetData.mhProgram?.running },
+                          })}>
+                          {selectedWidgetData.mhProgram?.running ? <><Square size={9} /> Stop</> : <><Play size={9} /> Run</>}
+                        </Button>
+                        <Button size="sm" variant="outline" className={`h-6 text-[9px] gap-1 ${selectedWidgetData.mhProgram?.bpmSync ? 'bg-stokio-pink/10 text-stokio-pink border-stokio-pink/30' : ''}`}
+                          onClick={() => updateWidget(selectedWidgetData.id, {
+                            mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
+                              bpmSync: !selectedWidgetData.mhProgram?.bpmSync },
+                          })}>
+                          {selectedWidgetData.mhProgram?.bpmSync ? '🎵 BPM Sync ON' : '🎵 BPM Sync'}
+                        </Button>
+                      </div>
+
+                      {/* Per-fixture configs: mirror, reverse, delay */}
+                      <div className="border-t border-border/10 pt-2">
+                        <label className="text-[7px] uppercase text-muted-foreground">Per-Fixture Settings</label>
+                        <div className="space-y-1 mt-1">
+                          {selectedWidgetData.linkedFixtureIds.map(fid => {
+                            const inst = fixturesWithDefs.find(f => f.inst.id === fid);
+                            if (!inst) return null;
+                            const cfg = selectedWidgetData.mhProgram?.fixtureConfigs?.find(c => c.fixtureId === fid) || {
+                              fixtureId: fid, reversePan: false, reverseTilt: false, mirrorPan: false, mirrorTilt: false, delayMs: 0,
+                            };
+                            const updateCfg = (updates: Partial<MHFixtureConfig>) => {
+                              const existing = selectedWidgetData.mhProgram?.fixtureConfigs || [];
+                              const updated = existing.find(c => c.fixtureId === fid)
+                                ? existing.map(c => c.fixtureId === fid ? { ...c, ...updates } : c)
+                                : [...existing, { ...cfg, ...updates }];
+                              updateWidget(selectedWidgetData.id, {
+                                mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
+                                  fixtureConfigs: updated },
+                              });
+                            };
+                            return (
+                              <div key={fid} className="glass-panel p-2 rounded space-y-1">
+                                <div className="text-[8px] font-semibold flex items-center gap-1">
+                                  <span>{getFixtureTypeIcon(inst.def.type)}</span> {inst.inst.name}
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {[
+                                    { key: 'reversePan', label: '↔ Rev Pan', val: cfg.reversePan },
+                                    { key: 'reverseTilt', label: '↕ Rev Tilt', val: cfg.reverseTilt },
+                                    { key: 'mirrorPan', label: '🪞 Mirror Pan', val: cfg.mirrorPan },
+                                    { key: 'mirrorTilt', label: '🪞 Mirror Tilt', val: cfg.mirrorTilt },
+                                  ].map(opt => (
+                                    <button key={opt.key}
+                                      onClick={() => updateCfg({ [opt.key]: !opt.val })}
+                                      className={`text-[7px] px-1.5 py-0.5 rounded border transition-all ${
+                                        opt.val ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border/20 text-muted-foreground hover:border-border/40'
+                                      }`}>{opt.label}</button>
+                                  ))}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <label className="text-[7px] text-muted-foreground">Delay:</label>
+                                  <Input type="number" min={0} step={50} value={cfg.delayMs}
+                                    onChange={e => updateCfg({ delayMs: Number(e.target.value) })}
+                                    className="h-5 w-16 text-[9px] bg-muted/20 border-border/20 font-mono px-1" />
+                                  <span className="text-[7px] text-muted-foreground/50">ms</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {selectedWidgetData.linkedFixtureIds.length === 0 && (
+                            <div className="text-[8px] text-muted-foreground/40 text-center py-2">Link fixtures above to configure per-fixture MH settings</div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
 
