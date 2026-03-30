@@ -407,6 +407,14 @@ export function StageBuilder() {
       return;
     }
 
+    if (draggingFixture) {
+      fixtureStore.updateInstance(draggingFixture, {
+        stageX: Math.max(0, mx - dragOffset.x),
+        stageY: Math.max(0, my - dragOffset.y),
+      });
+      return;
+    }
+
     if (dragging) {
       setNodes(prev => prev.map(n =>
         n.id === dragging
@@ -418,6 +426,7 @@ export function StageBuilder() {
 
   const handleCanvasMouseUp = () => {
     setDragging(null);
+    setDraggingFixture(null);
     setResizing(null);
   };
 
