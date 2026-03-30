@@ -163,7 +163,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     manufacturer: 'Generic',
     model: 'Strobe',
     type: 'strobe',
-    createdAt: 0,
+    colorSystem: 'rgb',
     modes: [{
       id: 'm1', name: '2 Channel', channelCount: 2,
       channels: [
