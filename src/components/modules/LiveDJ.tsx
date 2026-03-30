@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Play, Pause, Square, GripVertical, Palette, SlidersHorizontal,
   Zap, Copy, Settings, ChevronDown, ChevronRight, Monitor, Hand, Layers,
-  Speaker, SkipForward, X, Save, Edit2, Mic, Radio, Activity, Music
+  Speaker, SkipForward, X, Save, Edit2, Mic, Radio, Activity, Music,
+  ImagePlus, Lock, Unlock, Move
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,7 @@ import {
   useFixtureStore, type FixtureInstance, type FixtureDefinition,
   getFixtureTypeIcon,
 } from '@/store/fixtureStore';
+import stokioLogo from '@/assets/stokio-logo-color.png';
 
 // ── Types ──
 
@@ -29,9 +31,9 @@ type AudioSource = 'none' | 'wled-analog' | 'wled-i2s-inmp441' | 'wled-i2s-max98
 
 interface AudioConfig {
   source: AudioSource;
-  squelch: number;    // noise gate 0-255
-  gain: number;       // input gain 0-255
-  udpPort: number;    // WLED UDP sync port
+  squelch: number;
+  gain: number;
+  udpPort: number;
 }
 
 interface BPMState {
@@ -49,7 +51,7 @@ const AUDIO_SOURCES: { value: AudioSource; label: string; description: string }[
   { value: 'wled-i2s-max98357', label: 'WLED I2S MAX98357', description: 'I2S line-in via MAX98357 amplifier' },
   { value: 'wled-i2s-sph0645', label: 'WLED I2S SPH0645', description: 'SPH0645 I2S digital microphone' },
   { value: 'wled-udp-sync', label: 'WLED UDP Sound Sync', description: 'Receive audio data from another WLED instance via UDP' },
-  { value: 'browser-mic', label: 'Browser Microphone', description: 'Use this device\'s microphone via Web Audio API' },
+  { value: 'browser-mic', label: 'Browser Microphone', description: "Use this device's microphone via Web Audio API" },
 ];
 
 interface DJWidget {
@@ -61,25 +63,22 @@ interface DJWidget {
   width: number;
   height: number;
   color: string;
-  // Button-specific
-  flash?: boolean; // true = only active while pressed
-  // Slider-specific
+  bgImage?: string | null;
+  flash?: boolean;
   value?: number;
   min?: number;
   max?: number;
-  // Color wheel
   colorValue?: { r: number; g: number; b: number };
-  // Linked fixtures
   linkedFixtureIds: string[];
-  // Linked channel function
   linkedFunction?: string;
+  lockAxis?: 'none' | 'x' | 'y'; // lock movement to one axis
 }
 
 interface ScriptStep {
   id: string;
   type: 'set-color' | 'set-dimmer' | 'set-position' | 'wait' | 'fade';
   params: Record<string, number | string>;
-  duration: number; // ms
+  duration: number;
 }
 
 interface DJScript {
@@ -92,13 +91,11 @@ interface DJScript {
 
 type Tab = 'controller' | 'assignments' | 'scripts';
 
-// ── Constants ──
-
 const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: number; h: number }[] = [
-  { type: 'button', label: 'Flash Button', icon: Zap, w: 80, h: 80 },
-  { type: 'slider', label: 'Fader', icon: SlidersHorizontal, w: 60, h: 160 },
-  { type: 'color-wheel', label: 'Color Pick', icon: Palette, w: 120, h: 120 },
-  { type: 'xy-pad', label: 'XY Pad', icon: Plus, w: 140, h: 140 },
+  { type: 'button', label: 'Flash Button', icon: Zap, w: 100, h: 100 },
+  { type: 'slider', label: 'Fader', icon: SlidersHorizontal, w: 70, h: 200 },
+  { type: 'color-wheel', label: 'Color Pick', icon: Palette, w: 140, h: 140 },
+  { type: 'xy-pad', label: 'XY Pad', icon: Plus, w: 180, h: 180 },
 ];
 
 const STEP_TYPES: { value: ScriptStep['type']; label: string }[] = [
@@ -131,7 +128,9 @@ function ModeBadge({ mode }: { mode: ControlMode }) {
   );
 }
 
-// ── Draggable Widget ──
+// ── Draggable + Resizable Widget ──
+
+type DragMode = 'none' | 'move' | 'resize-br' | 'resize-bl' | 'resize-tr' | 'resize-tl';
 
 function ControlWidget({
   widget, isSelected, onSelect, onUpdate, onPress, onRelease,
@@ -143,84 +142,170 @@ function ControlWidget({
   onPress: () => void;
   onRelease: () => void;
 }) {
-  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef<{
+    mode: DragMode;
+    startX: number; startY: number;
+    origX: number; origY: number;
+    origW: number; origH: number;
+  } | null>(null);
   const [isPressed, setIsPressed] = useState(false);
+  const [interacting, setInteracting] = useState(false);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 2) return; // right click
+  const MIN_SIZE = 40;
+
+  const startInteraction = useCallback((e: React.MouseEvent, mode: DragMode) => {
+    e.stopPropagation();
+    e.preventDefault();
     onSelect();
-    // Check if grip handle area (top 16px)
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const relY = e.clientY - rect.top;
-    if (relY <= 18) {
-      dragRef.current = { startX: e.clientX, startY: e.clientY, origX: widget.x, origY: widget.y };
-      setIsDragging(true);
-      e.preventDefault();
-    }
+    dragRef.current = {
+      mode,
+      startX: e.clientX, startY: e.clientY,
+      origX: widget.x, origY: widget.y,
+      origW: widget.width, origH: widget.height,
+    };
+    setInteracting(true);
+
+    const handleMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      const ref = dragRef.current;
+      const dx = ev.clientX - ref.startX;
+      const dy = ev.clientY - ref.startY;
+      const lock = widget.lockAxis || 'none';
+
+      if (ref.mode === 'move') {
+        onUpdate({
+          x: Math.max(0, ref.origX + (lock === 'y' ? 0 : dx)),
+          y: Math.max(0, ref.origY + (lock === 'x' ? 0 : dy)),
+        });
+      } else if (ref.mode === 'resize-br') {
+        onUpdate({
+          width: Math.max(MIN_SIZE, ref.origW + dx),
+          height: Math.max(MIN_SIZE, ref.origH + dy),
+        });
+      } else if (ref.mode === 'resize-bl') {
+        const newW = Math.max(MIN_SIZE, ref.origW - dx);
+        onUpdate({
+          x: ref.origX + ref.origW - newW,
+          width: newW,
+          height: Math.max(MIN_SIZE, ref.origH + dy),
+        });
+      } else if (ref.mode === 'resize-tr') {
+        const newH = Math.max(MIN_SIZE, ref.origH - dy);
+        onUpdate({
+          y: ref.origY + ref.origH - newH,
+          width: Math.max(MIN_SIZE, ref.origW + dx),
+          height: newH,
+        });
+      } else if (ref.mode === 'resize-tl') {
+        const newW = Math.max(MIN_SIZE, ref.origW - dx);
+        const newH = Math.max(MIN_SIZE, ref.origH - dy);
+        onUpdate({
+          x: ref.origX + ref.origW - newW,
+          y: ref.origY + ref.origH - newH,
+          width: newW,
+          height: newH,
+        });
+      }
+    };
+
+    const handleUp = () => {
+      dragRef.current = null;
+      setInteracting(false);
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  }, [widget, onUpdate, onSelect]);
+
+  // Resize handle component
+  const ResizeHandle = ({ corner, cursor }: { corner: DragMode; cursor: string }) => {
+    const pos: Record<string, string> = {
+      'resize-br': 'bottom-0 right-0',
+      'resize-bl': 'bottom-0 left-0',
+      'resize-tr': 'top-0 right-0',
+      'resize-tl': 'top-0 left-0',
+    };
+    return (
+      <div
+        className={`absolute ${pos[corner]} w-3 h-3 ${cursor} z-30 ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-60'} transition-opacity`}
+        onMouseDown={e => startInteraction(e, corner)}
+      >
+        <div className="absolute inset-0.5 rounded-sm border border-primary/60 bg-primary/20" />
+      </div>
+    );
   };
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragRef.current) return;
-    const dx = e.clientX - dragRef.current.startX;
-    const dy = e.clientY - dragRef.current.startY;
-    onUpdate({
-      x: Math.max(0, dragRef.current.origX + dx),
-      y: Math.max(0, dragRef.current.origY + dy),
-    });
-  }, [onUpdate]);
-
-  const handleMouseUp = useCallback(() => {
-    dragRef.current = null;
-    setIsDragging(false);
-  }, []);
-
-  // Attach global listeners when dragging
-  useState(() => {
-    if (isDragging) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  });
+  const bgStyle: React.CSSProperties = widget.bgImage
+    ? { backgroundImage: `url(${widget.bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    : {};
 
   return (
     <div
-      className={`absolute select-none transition-shadow ${isSelected ? 'ring-1 ring-primary/50' : ''} ${isDragging ? 'z-50' : 'z-10'}`}
+      className={`absolute select-none group transition-shadow ${isSelected ? 'ring-1 ring-primary/60 z-30' : 'z-10'} ${interacting ? 'z-50' : ''}`}
       style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height }}
-      onMouseDown={handleMouseDown}
     >
-      {/* Drag handle */}
-      <div className="absolute -top-0.5 left-0 right-0 h-4 flex items-center justify-center cursor-grab active:cursor-grabbing">
-        <GripVertical size={10} className="text-muted-foreground/40" />
-      </div>
+      {/* Move handle — whole widget area */}
+      <div
+        className="absolute inset-0 z-20 cursor-grab active:cursor-grabbing"
+        onMouseDown={e => {
+          // Don't start drag if clicking inside interactive elements
+          const target = e.target as HTMLElement;
+          if (target.closest('input, button[data-widget-action], .widget-interactive')) return;
+          startInteraction(e, 'move');
+        }}
+      />
+
+      {/* Resize corners */}
+      <ResizeHandle corner="resize-br" cursor="cursor-se-resize" />
+      <ResizeHandle corner="resize-bl" cursor="cursor-sw-resize" />
+      <ResizeHandle corner="resize-tr" cursor="cursor-ne-resize" />
+      <ResizeHandle corner="resize-tl" cursor="cursor-nw-resize" />
 
       {/* Widget body */}
       {widget.type === 'button' && (
-        <motion.button
-          className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center gap-1 transition-all"
+        <div
+          className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center gap-1 transition-all overflow-hidden relative"
           style={{
+            ...bgStyle,
             borderColor: isPressed ? widget.color : undefined,
-            boxShadow: isPressed ? `0 0 20px ${widget.color}40, inset 0 0 15px ${widget.color}20` : undefined,
-            background: isPressed ? `radial-gradient(circle at center, ${widget.color}15, transparent)` : undefined,
+            boxShadow: isPressed ? `0 0 24px ${widget.color}50, inset 0 0 20px ${widget.color}25` : undefined,
           }}
-          whileTap={{ scale: 0.95 }}
-          onMouseDown={() => { setIsPressed(true); onPress(); }}
-          onMouseUp={() => { setIsPressed(false); onRelease(); }}
-          onMouseLeave={() => { if (isPressed) { setIsPressed(false); onRelease(); } }}
         >
-          <Zap size={16} style={{ color: widget.color }} />
-          <span className="text-[8px] text-muted-foreground font-semibold truncate px-1">{widget.label}</span>
-        </motion.button>
+          {/* Color overlay when no image */}
+          {!widget.bgImage && (
+            <div className="absolute inset-0 rounded-lg opacity-15 transition-opacity"
+              style={{ backgroundColor: widget.color }} />
+          )}
+          {isPressed && (
+            <div className="absolute inset-0 rounded-lg"
+              style={{ background: `radial-gradient(circle at center, ${widget.color}30, transparent)` }} />
+          )}
+          <button
+            data-widget-action="true"
+            className="relative z-20 w-full h-full flex flex-col items-center justify-center gap-1"
+            onMouseDown={() => { setIsPressed(true); onPress(); }}
+            onMouseUp={() => { setIsPressed(false); onRelease(); }}
+            onMouseLeave={() => { if (isPressed) { setIsPressed(false); onRelease(); } }}
+          >
+            <Zap size={Math.min(widget.width, widget.height) * 0.25} style={{ color: widget.color }} />
+            <span className="text-muted-foreground font-semibold truncate px-1"
+              style={{ fontSize: Math.max(8, Math.min(14, widget.width * 0.12)) }}>
+              {widget.label}
+            </span>
+          </button>
+        </div>
       )}
 
       {widget.type === 'slider' && (
-        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-2 gap-1">
-          <span className="text-[7px] text-muted-foreground font-semibold truncate">{widget.label}</span>
-          <div className="flex-1 w-8 rounded fader-track border border-border/20 relative">
+        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-3 gap-1 overflow-hidden"
+          style={bgStyle}>
+          <span className="text-muted-foreground font-semibold truncate relative z-20"
+            style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.14)) }}>
+            {widget.label}
+          </span>
+          <div className="flex-1 w-10 rounded fader-track border border-border/20 relative widget-interactive z-20">
             <motion.div
               className="absolute bottom-0 left-0 w-full rounded-b"
               style={{ backgroundColor: widget.color + '60' }}
@@ -233,27 +318,33 @@ function ControlWidget({
               style={{ writingMode: 'vertical-lr', direction: 'rtl' } as React.CSSProperties}
             />
           </div>
-          <span className="text-[8px] font-mono text-muted-foreground">{widget.value || 0}%</span>
+          <span className="font-mono text-muted-foreground relative z-20"
+            style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.14)) }}>
+            {widget.value || 0}%
+          </span>
         </div>
       )}
 
       {widget.type === 'color-wheel' && (
-        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-2 gap-1">
-          <span className="text-[7px] text-muted-foreground font-semibold truncate">{widget.label}</span>
-          <div className="flex-1 flex items-center justify-center">
+        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center justify-center p-3 gap-1 overflow-hidden"
+          style={bgStyle}>
+          <span className="text-muted-foreground font-semibold truncate relative z-20"
+            style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.1)) }}>
+            {widget.label}
+          </span>
+          <div className="flex-1 flex items-center justify-center relative z-20 widget-interactive">
             <div
               className="rounded-full border-2 border-border/30 cursor-pointer"
               style={{
-                width: Math.min(widget.width, widget.height) - 30,
-                height: Math.min(widget.width, widget.height) - 30,
+                width: Math.min(widget.width, widget.height) - 40,
+                height: Math.min(widget.width, widget.height) - 40,
                 background: `conic-gradient(from 0deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)`,
               }}
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
-                const x = e.clientX - rect.left - rect.width / 2;
-                const y = e.clientY - rect.top - rect.height / 2;
-                const hue = ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
-                // Simple HSV→RGB at full sat
+                const cx = e.clientX - rect.left - rect.width / 2;
+                const cy = e.clientY - rect.top - rect.height / 2;
+                const hue = ((Math.atan2(cy, cx) * 180 / Math.PI) + 360) % 360;
                 const c = 1, xx = c * (1 - Math.abs((hue / 60) % 2 - 1)), m = 0;
                 let r = 0, g = 0, b = 0;
                 if (hue < 60) { r = c; g = xx; } else if (hue < 120) { r = xx; g = c; }
@@ -265,8 +356,10 @@ function ControlWidget({
               {widget.colorValue && (
                 <div className="w-full h-full rounded-full flex items-center justify-center">
                   <div className="w-6 h-6 rounded-full border border-foreground/50"
-                    style={{ backgroundColor: `rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})`,
-                      boxShadow: `0 0 10px rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})` }} />
+                    style={{
+                      backgroundColor: `rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})`,
+                      boxShadow: `0 0 10px rgb(${widget.colorValue.r},${widget.colorValue.g},${widget.colorValue.b})`,
+                    }} />
                 </div>
               )}
             </div>
@@ -275,28 +368,32 @@ function ControlWidget({
       )}
 
       {widget.type === 'xy-pad' && (
-        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-2 gap-1">
-          <span className="text-[7px] text-muted-foreground font-semibold truncate">{widget.label}</span>
-          <div className="flex-1 w-full relative border border-border/20 rounded cursor-crosshair"
+        <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col items-center p-3 gap-1 overflow-hidden"
+          style={bgStyle}>
+          <span className="text-muted-foreground font-semibold truncate relative z-20"
+            style={{ fontSize: Math.max(8, Math.min(12, widget.width * 0.08)) }}>
+            {widget.label}
+          </span>
+          <div className="flex-1 w-full relative border border-border/20 rounded cursor-crosshair widget-interactive z-20"
             onClick={e => {
               const rect = e.currentTarget.getBoundingClientRect();
               const x = Math.round(((e.clientX - rect.left) / rect.width) * 255);
               const y = Math.round(((e.clientY - rect.top) / rect.height) * 255);
-              onUpdate({ colorValue: { r: x, g: y, b: 128 } }); // reusing colorValue for pan/tilt
+              onUpdate({ colorValue: { r: x, g: y, b: 128 } });
             }}
           >
             <div className="absolute left-1/2 top-0 w-px h-full bg-border/20" />
             <div className="absolute top-1/2 left-0 w-full h-px bg-border/20" />
             {widget.colorValue && (
-              <div className="absolute w-3 h-3 rounded-full bg-primary border border-foreground -translate-x-1/2 -translate-y-1/2"
+              <div className="absolute w-4 h-4 rounded-full bg-primary border border-foreground -translate-x-1/2 -translate-y-1/2"
                 style={{
                   left: `${(widget.colorValue.r / 255) * 100}%`,
                   top: `${(widget.colorValue.g / 255) * 100}%`,
-                  boxShadow: '0 0 8px hsl(var(--primary))',
+                  boxShadow: '0 0 10px hsl(var(--primary))',
                 }} />
             )}
-            <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[6px] text-muted-foreground/40">PAN</span>
-            <span className="absolute left-0.5 top-1/2 -translate-y-1/2 text-[6px] text-muted-foreground/40 -rotate-90">TILT</span>
+            <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[8px] text-muted-foreground/40">PAN</span>
+            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] text-muted-foreground/40 -rotate-90">TILT</span>
           </div>
         </div>
       )}
@@ -374,7 +471,6 @@ function ScriptEditor({
         {expanded && (
           <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="overflow-hidden">
             <div className="px-3 pb-3 space-y-2 border-t border-border/20 pt-2">
-              {/* Controls */}
               <div className="flex items-center gap-1">
                 {!running ? (
                   <Button size="sm" className="h-6 text-[9px] gap-1" onClick={runScript}>
@@ -398,7 +494,6 @@ function ScriptEditor({
                 </Button>
               </div>
 
-              {/* Linked fixtures */}
               <div className="flex flex-wrap gap-1">
                 <span className="text-[7px] text-muted-foreground uppercase self-center">Fixtures:</span>
                 {fixtures.map(({ inst, def }) => {
@@ -421,7 +516,6 @@ function ScriptEditor({
                 })}
               </div>
 
-              {/* Steps timeline */}
               <div className="space-y-1">
                 {script.steps.map((step, idx) => (
                   <div key={step.id}
@@ -469,9 +563,7 @@ function ScriptEditor({
                       </div>
                     )}
 
-                    {(step.type === 'wait' || step.type === 'fade') && (
-                      <div className="flex-1" />
-                    )}
+                    {(step.type === 'wait' || step.type === 'fade') && <div className="flex-1" />}
 
                     <div className="flex items-center gap-1">
                       <span className="text-muted-foreground">ms:</span>
@@ -506,24 +598,24 @@ export function LiveDJ() {
   );
   const [widgets, setWidgets] = useState<DJWidget[]>([
     {
-      id: 'w1', type: 'button', label: 'STROBE', x: 20, y: 30, width: 80, height: 80,
-      color: '#ff2d78', flash: true, linkedFixtureIds: [], linkedFunction: 'strobe',
+      id: 'w1', type: 'button', label: 'STROBE', x: 20, y: 30, width: 100, height: 100,
+      color: '#ff2d78', flash: true, linkedFixtureIds: [], linkedFunction: 'strobe', lockAxis: 'none',
     },
     {
-      id: 'w2', type: 'button', label: 'BLACKOUT', x: 110, y: 30, width: 80, height: 80,
-      color: '#ffffff', flash: true, linkedFixtureIds: [], linkedFunction: 'dimmer',
+      id: 'w2', type: 'button', label: 'BLACKOUT', x: 140, y: 30, width: 100, height: 100,
+      color: '#ffffff', flash: true, linkedFixtureIds: [], linkedFunction: 'dimmer', lockAxis: 'none',
     },
     {
-      id: 'w3', type: 'slider', label: 'MASTER', x: 210, y: 20, width: 60, height: 160,
-      color: '#00ff66', value: 100, min: 0, max: 100, linkedFixtureIds: [], linkedFunction: 'dimmer',
+      id: 'w3', type: 'slider', label: 'MASTER', x: 260, y: 20, width: 70, height: 200,
+      color: '#00ff66', value: 100, min: 0, max: 100, linkedFixtureIds: [], linkedFunction: 'dimmer', lockAxis: 'none',
     },
     {
-      id: 'w4', type: 'color-wheel', label: 'COLOR', x: 290, y: 20, width: 120, height: 120,
-      color: '#00e5ff', colorValue: { r: 255, g: 0, b: 100 }, linkedFixtureIds: [],
+      id: 'w4', type: 'color-wheel', label: 'COLOR', x: 350, y: 20, width: 140, height: 140,
+      color: '#00e5ff', colorValue: { r: 255, g: 0, b: 100 }, linkedFixtureIds: [], lockAxis: 'none',
     },
     {
-      id: 'w5', type: 'xy-pad', label: 'PAN/TILT', x: 430, y: 20, width: 140, height: 140,
-      color: '#00e5ff', colorValue: { r: 128, g: 128, b: 128 }, linkedFixtureIds: [],
+      id: 'w5', type: 'xy-pad', label: 'PAN/TILT', x: 510, y: 20, width: 180, height: 180,
+      color: '#00e5ff', colorValue: { r: 128, g: 128, b: 128 }, linkedFixtureIds: [], lockAxis: 'none',
     },
   ]);
   const [scripts, setScripts] = useState<DJScript[]>([
@@ -545,6 +637,7 @@ export function LiveDJ() {
   ]);
   const [selectedWidget, setSelectedWidget] = useState<string | null>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const imgInputRef = useRef<HTMLInputElement>(null);
 
   // ── Audio & BPM ──
   const [audioConfig, setAudioConfig] = useState<AudioConfig>({
@@ -558,7 +651,7 @@ export function LiveDJ() {
   const handleTap = () => {
     const now = Date.now();
     setBpmState(prev => {
-      const taps = [...prev.tapTimes, now].filter(t => now - t < 5000); // keep last 5s of taps
+      const taps = [...prev.tapTimes, now].filter(t => now - t < 5000);
       if (taps.length >= 2) {
         const intervals = taps.slice(1).map((t, i) => t - taps[i]);
         const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
@@ -569,7 +662,6 @@ export function LiveDJ() {
     });
   };
 
-  // BPM flash indicator
   useEffect(() => {
     if (bpmFlashRef.current) clearInterval(bpmFlashRef.current);
     if (bpmState.bpm > 0 && bpmState.isSynced) {
@@ -618,12 +710,22 @@ export function LiveDJ() {
       flash: type === 'button',
       value: type === 'slider' ? 50 : undefined,
       linkedFixtureIds: [],
+      lockAxis: 'none',
     }]);
   };
 
   const removeWidget = (id: string) => {
     setWidgets(prev => prev.filter(w => w.id !== id));
     if (selectedWidget === id) setSelectedWidget(null);
+  };
+
+  const handleWidgetBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedWidget) return;
+    const reader = new FileReader();
+    reader.onload = () => updateWidget(selectedWidget, { bgImage: reader.result as string });
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   const addScript = () => {
@@ -667,10 +769,21 @@ export function LiveDJ() {
       {tab === 'controller' && (
         <div className="flex-1 flex overflow-hidden">
           {/* Widget surface */}
-          <div className="flex-1 relative overflow-hidden" ref={surfaceRef}>
+          <div className="flex-1 relative overflow-hidden" ref={surfaceRef}
+            onClick={(e) => {
+              if (e.target === e.currentTarget || (e.target as HTMLElement).dataset.surface) {
+                setSelectedWidget(null);
+              }
+            }}
+          >
             {/* Grid background */}
-            <div className="absolute inset-0"
+            <div className="absolute inset-0" data-surface="true"
               style={{ backgroundImage: 'radial-gradient(circle, hsl(var(--border) / 0.15) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+
+            {/* STOKIO watermark logo */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <img src={stokioLogo} alt="" className="w-[300px] h-[300px] object-contain opacity-[0.04]" />
+            </div>
 
             {widgets.map(w => (
               <ControlWidget
@@ -679,8 +792,8 @@ export function LiveDJ() {
                 isSelected={selectedWidget === w.id}
                 onSelect={() => setSelectedWidget(w.id)}
                 onUpdate={(updates) => updateWidget(w.id, updates)}
-                onPress={() => { /* future: send DMX values */ }}
-                onRelease={() => { /* future: release override */ }}
+                onPress={() => { }}
+                onRelease={() => { }}
               />
             ))}
 
@@ -692,8 +805,11 @@ export function LiveDJ() {
             )}
           </div>
 
-          {/* Widget palette + audio/BPM + properties */}
-          <div className="w-64 border-l border-border/30 flex flex-col overflow-y-auto">
+          {/* Right panel: Audio/BPM + Add widget + Properties */}
+          <div className="w-72 border-l border-border/30 flex flex-col overflow-y-auto">
+            {/* Hidden file input for widget bg */}
+            <input ref={imgInputRef} type="file" accept="image/*" className="hidden" onChange={handleWidgetBgUpload} />
+
             {/* ── Audio Input Section ── */}
             <div className="p-3 border-b border-border/20 space-y-2">
               <span className="text-[9px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
@@ -748,9 +864,7 @@ export function LiveDJ() {
                   style={{
                     borderColor: bpmState.flashOn ? '#ff2d78' : 'hsl(var(--border) / 0.3)',
                     boxShadow: bpmState.flashOn ? '0 0 25px #ff2d7860, inset 0 0 15px #ff2d7820' : 'none',
-                    background: bpmState.flashOn
-                      ? 'radial-gradient(circle at center, #ff2d7815, transparent)'
-                      : undefined,
+                    background: bpmState.flashOn ? 'radial-gradient(circle at center, #ff2d7815, transparent)' : undefined,
                   }}
                 >
                   <span className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold">TAP</span>
@@ -780,7 +894,6 @@ export function LiveDJ() {
                   </div>
                 </div>
               </div>
-              {/* BPM-synced widgets */}
               <div>
                 <label className="text-[7px] uppercase text-muted-foreground">Sync to Widgets</label>
                 <div className="flex flex-wrap gap-1 mt-1">
@@ -832,7 +945,7 @@ export function LiveDJ() {
                 </div>
 
                 <div>
-                  <label className="text-[7px] uppercase text-muted-foreground">Color</label>
+                  <label className="text-[7px] uppercase text-muted-foreground">Background Color</label>
                   <div className="flex gap-1">
                     <Input type="color" value={selectedWidgetData.color}
                       onChange={e => updateWidget(selectedWidgetData.id, { color: e.target.value })}
@@ -843,6 +956,45 @@ export function LiveDJ() {
                   </div>
                 </div>
 
+                {/* Background Image */}
+                <div>
+                  <label className="text-[7px] uppercase text-muted-foreground">Background Image</label>
+                  <div className="flex gap-1 mt-1">
+                    <Button variant="outline" size="sm" className="h-6 text-[8px] gap-1 flex-1"
+                      onClick={() => imgInputRef.current?.click()}>
+                      <ImagePlus size={10} /> Upload
+                    </Button>
+                    {selectedWidgetData.bgImage && (
+                      <Button variant="ghost" size="sm" className="h-6 text-[8px] text-destructive"
+                        onClick={() => updateWidget(selectedWidgetData.id, { bgImage: null })}>
+                        <X size={10} />
+                      </Button>
+                    )}
+                  </div>
+                  {selectedWidgetData.bgImage && (
+                    <div className="mt-1 h-10 rounded border border-border/20 overflow-hidden">
+                      <img src={selectedWidgetData.bgImage} alt="" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Position */}
+                <div className="grid grid-cols-2 gap-1">
+                  <div>
+                    <label className="text-[7px] uppercase text-muted-foreground">X</label>
+                    <Input type="number" value={Math.round(selectedWidgetData.x)}
+                      onChange={e => updateWidget(selectedWidgetData.id, { x: Number(e.target.value) })}
+                      className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
+                  </div>
+                  <div>
+                    <label className="text-[7px] uppercase text-muted-foreground">Y</label>
+                    <Input type="number" value={Math.round(selectedWidgetData.y)}
+                      onChange={e => updateWidget(selectedWidgetData.id, { y: Number(e.target.value) })}
+                      className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
+                  </div>
+                </div>
+
+                {/* Size */}
                 <div className="grid grid-cols-2 gap-1">
                   <div>
                     <label className="text-[7px] uppercase text-muted-foreground">Width</label>
@@ -855,6 +1007,28 @@ export function LiveDJ() {
                     <Input type="number" value={selectedWidgetData.height}
                       onChange={e => updateWidget(selectedWidgetData.id, { height: Number(e.target.value) })}
                       className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
+                  </div>
+                </div>
+
+                {/* Axis Lock */}
+                <div>
+                  <label className="text-[7px] uppercase text-muted-foreground flex items-center gap-1">
+                    <Move size={9} /> Movement Axis Lock
+                  </label>
+                  <div className="flex gap-1 mt-1">
+                    {(['none', 'x', 'y'] as const).map(axis => (
+                      <button key={axis}
+                        onClick={() => updateWidget(selectedWidgetData.id, { lockAxis: axis })}
+                        className={`flex-1 h-6 rounded text-[9px] font-semibold border transition-all flex items-center justify-center gap-1 ${
+                          selectedWidgetData.lockAxis === axis
+                            ? 'bg-primary/10 border-primary/30 text-primary'
+                            : 'border-border/20 text-muted-foreground hover:border-border/40'
+                        }`}>
+                        {axis === 'none' ? <><Unlock size={9} /> Free</> :
+                         axis === 'x' ? <><Lock size={9} /> Lock Y</> :
+                         <><Lock size={9} /> Lock X</>}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -976,7 +1150,7 @@ export function LiveDJ() {
 
           <div className="glass-panel p-3 mb-3">
             <div className="text-[9px] text-muted-foreground">
-              Scripts are step-based sequences (like QLC+ functions). Each step sets a fixture property and waits a specified duration before the next step. 
+              Scripts are step-based sequences (like QLC+ functions). Each step sets a fixture property and waits a specified duration before the next step.
               Link fixtures to a script, then run it — steps execute in order. Enable <strong>Loop</strong> for continuous playback.
             </div>
           </div>
