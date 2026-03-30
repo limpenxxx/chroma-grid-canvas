@@ -1296,6 +1296,7 @@ export function LiveDJ() {
                     </div>
                   )}
 
+                  <div className="grid grid-cols-2 gap-1">
                     <div>
                       <label className="text-[7px] uppercase text-muted-foreground">X</label>
                       <Input type="number" value={Math.round(selectedWidgetData.x)}
