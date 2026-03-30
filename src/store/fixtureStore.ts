@@ -222,63 +222,76 @@ interface FixtureStore {
   importLibrary: (json: string) => void;
 }
 
-export const useFixtureStore = create<FixtureStore>((set, get) => ({
-  definitions: [...BUILT_IN_FIXTURES],
-  instances: [
-    {
-      id: 'inst-1', definitionId: 'generic-moving-head-spot', name: 'MH-1',
-      universe: 1, dmxAddress: 1, modeId: 'm1',
-      onStage: false, stageX: 300, stageY: 100, stageWidth: 40, stageHeight: 40,
-    },
-    {
-      id: 'inst-2', definitionId: 'generic-moving-head-spot', name: 'MH-2',
-      universe: 1, dmxAddress: 17, modeId: 'm1',
-      onStage: false, stageX: 400, stageY: 100, stageWidth: 40, stageHeight: 40,
-    },
-    {
-      id: 'inst-3', definitionId: 'generic-rgb-par', name: 'PAR-1',
-      universe: 1, dmxAddress: 33, modeId: 'm2',
-      onStage: false, stageX: 200, stageY: 300, stageWidth: 30, stageHeight: 30,
-    },
-    {
-      id: 'inst-4', definitionId: 'generic-rgbw-par', name: 'PAR-2',
-      universe: 1, dmxAddress: 40, modeId: 'm1',
-      onStage: false, stageX: 450, stageY: 300, stageWidth: 30, stageHeight: 30,
-    },
-    {
-      id: 'inst-5', definitionId: 'generic-color-wheel-spot', name: 'SPOT-1',
-      universe: 1, dmxAddress: 44, modeId: 'm1',
-      onStage: false, stageX: 350, stageY: 200, stageWidth: 36, stageHeight: 36,
-    },
-  ],
-  addDefinition: (def) => set(s => ({ definitions: [...s.definitions, def] })),
-  removeDefinition: (id) => set(s => ({ definitions: s.definitions.filter(d => d.id !== id) })),
-  updateDefinition: (id, updates) => set(s => ({
-    definitions: s.definitions.map(d => d.id === id ? { ...d, ...updates } : d),
-  })),
-  addInstance: (inst) => set(s => ({ instances: [...s.instances, inst] })),
-  removeInstance: (id) => set(s => ({ instances: s.instances.filter(i => i.id !== id) })),
-  updateInstance: (id, updates) => set(s => ({
-    instances: s.instances.map(i => i.id === id ? { ...i, ...updates } : i),
-  })),
-  exportLibrary: () => {
-    const { definitions } = get();
-    return JSON.stringify({ stokioFixtureLibrary: true, version: 1, definitions }, null, 2);
+const DEFAULT_INSTANCES: FixtureInstance[] = [
+  {
+    id: 'inst-1', definitionId: 'generic-moving-head-spot', name: 'MH-1',
+    universe: 1, dmxAddress: 1, modeId: 'm1',
+    onStage: false, stageX: 300, stageY: 100, stageWidth: 40, stageHeight: 40,
   },
-  importLibrary: (json) => {
-    try {
-      const data = JSON.parse(json);
-      if (data.stokioFixtureLibrary && Array.isArray(data.definitions)) {
-        set(s => ({
-          definitions: [
-            ...s.definitions,
-            ...data.definitions.filter((d: FixtureDefinition) => !s.definitions.some(e => e.id === d.id)),
-          ],
-        }));
-      }
-    } catch { /* invalid JSON */ }
+  {
+    id: 'inst-2', definitionId: 'generic-moving-head-spot', name: 'MH-2',
+    universe: 1, dmxAddress: 17, modeId: 'm1',
+    onStage: false, stageX: 400, stageY: 100, stageWidth: 40, stageHeight: 40,
   },
-}));
+  {
+    id: 'inst-3', definitionId: 'generic-rgb-par', name: 'PAR-1',
+    universe: 1, dmxAddress: 33, modeId: 'm2',
+    onStage: false, stageX: 200, stageY: 300, stageWidth: 30, stageHeight: 30,
+  },
+  {
+    id: 'inst-4', definitionId: 'generic-rgbw-par', name: 'PAR-2',
+    universe: 1, dmxAddress: 40, modeId: 'm1',
+    onStage: false, stageX: 450, stageY: 300, stageWidth: 30, stageHeight: 30,
+  },
+  {
+    id: 'inst-5', definitionId: 'generic-color-wheel-spot', name: 'SPOT-1',
+    universe: 1, dmxAddress: 44, modeId: 'm1',
+    onStage: false, stageX: 350, stageY: 200, stageWidth: 36, stageHeight: 36,
+  },
+];
+
+export const useFixtureStore = create<FixtureStore>()(
+  persist(
+    (set, get) => ({
+      definitions: [...BUILT_IN_FIXTURES],
+      instances: [...DEFAULT_INSTANCES],
+      addDefinition: (def) => set(s => ({ definitions: [...s.definitions, def] })),
+      removeDefinition: (id) => set(s => ({ definitions: s.definitions.filter(d => d.id !== id) })),
+      updateDefinition: (id, updates) => set(s => ({
+        definitions: s.definitions.map(d => d.id === id ? { ...d, ...updates } : d),
+      })),
+      addInstance: (inst) => set(s => ({ instances: [...s.instances, inst] })),
+      removeInstance: (id) => set(s => ({ instances: s.instances.filter(i => i.id !== id) })),
+      updateInstance: (id, updates) => set(s => ({
+        instances: s.instances.map(i => i.id === id ? { ...i, ...updates } : i),
+      })),
+      exportLibrary: () => {
+        const { definitions } = get();
+        return JSON.stringify({ stokioFixtureLibrary: true, version: 1, definitions }, null, 2);
+      },
+      importLibrary: (json) => {
+        try {
+          const data = JSON.parse(json);
+          if (data.stokioFixtureLibrary && Array.isArray(data.definitions)) {
+            set(s => ({
+              definitions: [
+                ...s.definitions,
+                ...data.definitions.filter((d: FixtureDefinition) => !s.definitions.some(e => e.id === d.id)),
+              ],
+            }));
+          }
+        } catch { /* invalid JSON */ }
+      },
+    }),
+    {
+      name: 'stokio-fixtures-v1',
+      partialize: (state) => ({
+        definitions: state.definitions,
+        instances: state.instances,
+      }),
+    }
+  )
+);
 
 // Helper: get channel function color for UI
 export function getChannelColor(fn: ChannelFunction): string {
