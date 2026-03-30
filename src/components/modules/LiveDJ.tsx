@@ -439,13 +439,15 @@ function ControlWidget({
           style={{ background: `radial-gradient(circle, ${widget.color || '#fff'}90, transparent)` }} />
       )}
 
-      {/* Top drag handle — larger, more visible */}
+      {/* Top drag handle — larger, more visible (hidden in fullscreen) */}
+      {!isFullscreen && (
       <div className="absolute -top-3 left-0 right-0 h-6 z-40 cursor-grab active:cursor-grabbing flex items-center justify-center"
         onMouseDown={e => startInteraction(e, 'move')}>
         <div className="bg-muted/40 group-hover:bg-muted/70 rounded-t px-3 py-0.5 transition-colors">
           <GripVertical size={12} className="text-muted-foreground/40 group-hover:text-muted-foreground/80 transition-colors" />
         </div>
       </div>
+      )}
 
       <ResizeHandle corner="resize-br" cursor="cursor-se-resize" />
       <ResizeHandle corner="resize-bl" cursor="cursor-sw-resize" />
