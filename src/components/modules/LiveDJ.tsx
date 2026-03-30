@@ -2950,10 +2950,10 @@ export function LiveDJ() {
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <label className="text-[7px] text-muted-foreground">Delay:</label>
-                                  <Input type="number" min={0} step={50} value={cfg.delayMs}
-                                    onChange={e => updateCfg({ delayMs: Number(e.target.value) })}
+                                  <Input type="number" min={0} step={0.05} value={Number((cfg.delayMs / 1000).toFixed(3))}
+                                    onChange={e => updateCfg({ delayMs: Math.round(Number(e.target.value) * 1000) })}
                                     className="h-5 w-16 text-[9px] bg-muted/20 border-border/20 font-mono px-1" />
-                                  <span className="text-[7px] text-muted-foreground/50">ms</span>
+                                  <span className="text-[7px] text-muted-foreground/50">sec</span>
                                 </div>
                               </div>
                             );
