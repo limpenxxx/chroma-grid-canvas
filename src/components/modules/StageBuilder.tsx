@@ -233,6 +233,55 @@ export function StageBuilder() {
       ctx.restore();
     });
 
+    // Draw fixture instances on stage
+    stageFixtures.forEach((inst) => {
+      const def = fixtureStore.definitions.find(d => d.id === inst.definitionId);
+      if (!def) return;
+      const isSelected = selectedFixture === inst.id;
+      const x = inst.stageX;
+      const y = inst.stageY;
+      const w2 = inst.stageWidth;
+      const h2 = inst.stageHeight;
+
+      ctx.save();
+      // Fixture body
+      ctx.fillStyle = isSelected ? 'rgba(255,45,120,0.25)' : 'rgba(255,255,255,0.08)';
+      ctx.strokeStyle = isSelected ? '#ff2d78' : 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = isSelected ? 2 : 1;
+      ctx.beginPath();
+      ctx.arc(x + w2 / 2, y + h2 / 2, w2 / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Glow
+      if (isSelected) {
+        ctx.shadowColor = '#ff2d78';
+        ctx.shadowBlur = 12;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      // Type icon
+      ctx.fillStyle = isSelected ? '#ff2d78' : 'rgba(255,255,255,0.7)';
+      ctx.font = `${Math.max(10, w2 * 0.45)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(getFixtureTypeIcon(def.type), x + w2 / 2, y + h2 / 2);
+
+      // Label
+      ctx.fillStyle = isSelected ? '#ff2d78' : 'rgba(255,255,255,0.5)';
+      ctx.font = '8px Inter, sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.fillText(inst.name, x + w2 / 2, y + h2 + 3);
+
+      // DMX address
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.font = '7px monospace';
+      ctx.fillText(`U${inst.universe}.${inst.dmxAddress}`, x + w2 / 2, y + h2 + 12);
+
+      ctx.restore();
+    });
+
     // Coord readout
     if (selectedNode) {
       const sel = nodes.find(n => n.id === selectedNode);
@@ -251,7 +300,7 @@ export function StageBuilder() {
 
     ctx.restore();
     animRef.current = requestAnimationFrame(drawCanvas);
-  }, [nodes, selectedNode, showGrid]);
+  }, [nodes, selectedNode, selectedFixture, showGrid, stageFixtures, fixtureStore.definitions]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
