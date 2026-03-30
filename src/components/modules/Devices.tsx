@@ -107,6 +107,7 @@ export function Devices() {
       manufacturer: '',
       model: '',
       type: 'par',
+      colorSystem: 'rgb',
       createdAt: Date.now(),
       modes: [{
         id: `mode-${Date.now()}`,
