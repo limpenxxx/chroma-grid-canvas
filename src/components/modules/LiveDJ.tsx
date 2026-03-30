@@ -558,7 +558,7 @@ function ControlWidget({
             <span className="absolute left-0.5 top-1/2 -translate-y-1/2 text-[7px] text-muted-foreground/40 -rotate-90">TILT</span>
           </div>
 
-          {/* On-widget MH controls */}
+          {/* Zero fixture button + MH controls */}
           {(() => {
             const s = Math.min(widget.width, widget.height);
             const btnFs = Math.max(10, Math.min(16, s * 0.07));
