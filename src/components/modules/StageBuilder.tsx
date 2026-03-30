@@ -628,11 +628,18 @@ export function StageBuilder() {
           return;
         }
       }
-      if (mx >= n.x && mx <= n.x + n.width && my >= n.y && my <= n.y + n.height) {
+      // Only allow move from center anchor
+      if (isCenterAnchor(mx, my, n)) {
         setSelectionType('node');
         setSelectedId(n.id);
         setDragging({ type: 'node', id: n.id });
         setDragOffset({ x: mx - n.x, y: my - n.y });
+        return;
+      }
+      // Click to select (but not drag)
+      if (mx >= n.x && mx <= n.x + n.width && my >= n.y && my <= n.y + n.height) {
+        setSelectionType('node');
+        setSelectedId(n.id);
         return;
       }
     }
