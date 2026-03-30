@@ -69,7 +69,7 @@ interface MHFixtureConfig {
 
 interface MHProgram {
   pattern: MHPattern;
-  speed: number; // 1-100
+  speed: number; // 0-255 (DMX-style)
   size: number; // 1-100 (movement range)
   bpmSync: boolean;
   running: boolean;
