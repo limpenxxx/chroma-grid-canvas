@@ -748,7 +748,14 @@ function ControlWidget({
               const rect = e.currentTarget.getBoundingClientRect();
               const x = Math.round(((e.clientX - rect.left) / rect.width) * 255);
               const y = Math.round(((e.clientY - rect.top) / rect.height) * 255);
-              onUpdate({ colorValue: { r: x, g: y, b: 128 } });
+              if (widget.selectedFixtureId && widget.linkedFixtureIds.includes(widget.selectedFixtureId)) {
+                // Only update the selected fixture's position
+                const newPositions = { ...(widget.fixturePositions || {}), [widget.selectedFixtureId]: { x, y } };
+                onUpdate({ fixturePositions: newPositions });
+              } else {
+                // Update all (global position)
+                onUpdate({ colorValue: { r: x, g: y, b: 128 } });
+              }
             }}>
             <div className="absolute left-1/2 top-0 w-px h-full bg-border/20" />
             <div className="absolute top-1/2 left-0 w-full h-px bg-border/20" />
