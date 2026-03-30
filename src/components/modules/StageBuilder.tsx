@@ -43,7 +43,7 @@ const createDefaultSegment = (index: number, start: number, count: number): WLED
 const MOCK_NODES: WLEDNode[] = [
   {
     id: '1', name: 'WLED-Main', ip: '192.168.1.100', x: 200, y: 120, width: 240, height: 135,
-    pixelsX: 16, pixelsY: 16, totalPixels: 256,
+    pixelsX: 16, pixelsY: 16, totalPixels: 256, rotation: 0,
     segments: [
       createDefaultSegment(0, 0, 128),
       createDefaultSegment(1, 128, 128),
@@ -51,12 +51,12 @@ const MOCK_NODES: WLEDNode[] = [
   },
   {
     id: '2', name: 'WLED-Left', ip: '192.168.1.101', x: 40, y: 250, width: 60, height: 180,
-    pixelsX: 8, pixelsY: 18, totalPixels: 144,
+    pixelsX: 8, pixelsY: 18, totalPixels: 144, rotation: 0,
     segments: [createDefaultSegment(0, 0, 144)],
   },
   {
     id: '3', name: 'WLED-Right', ip: '192.168.1.102', x: 520, y: 200, width: 120, height: 50,
-    pixelsX: 20, pixelsY: 3, totalPixels: 60,
+    pixelsX: 20, pixelsY: 3, totalPixels: 60, rotation: 0,
     segments: [createDefaultSegment(0, 0, 60)],
   },
 ];
