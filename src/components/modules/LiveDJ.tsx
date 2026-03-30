@@ -182,7 +182,28 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'color-wheel', label: 'Color Pick', icon: Palette, w: 140, h: 140 },
   { type: 'xy-pad', label: 'XY Pad', icon: Plus, w: 180, h: 180 },
   { type: 'preset', label: 'Pre Set', icon: Bookmark, w: 120, h: 120 },
+  { type: 'fixed-color', label: 'Fixed Color', icon: CircleDot, w: 150, h: 150 },
 ];
+
+// ── Color distance helper (Euclidean in RGB space) ──
+function rgbDistance(a: { r: number; g: number; b: number }, b: { r: number; g: number; b: number }) {
+  return Math.sqrt((a.r - b.r) ** 2 + (a.g - b.g) ** 2 + (a.b - b.b) ** 2);
+}
+
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace('#', '');
+  return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
+}
+
+function findClosestSlot(rgb: { r: number; g: number; b: number }, slots: { color: string; dmxValue: number; name: string }[]) {
+  let best = slots[0];
+  let bestDist = Infinity;
+  for (const slot of slots) {
+    const d = rgbDistance(rgb, hexToRgb(slot.color));
+    if (d < bestDist) { bestDist = d; best = slot; }
+  }
+  return best;
+}
 
 const STEP_TYPES: { value: ScriptStep['type']; label: string }[] = [
   { value: 'set-color', label: 'Set Color' },
