@@ -826,6 +826,9 @@ function persistLayouts(layouts: SavedLayout[]) {
 export function LiveDJ() {
   const store = useFixtureStore();
   const [tab, setTab] = useState<Tab>('controller');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [editingPageId, setEditingPageId] = useState<string | null>(null);
+  const [editingPageName, setEditingPageName] = useState('');
 
   // ── Pages ──
   const [pages, setPages] = useState<LayoutPage[]>([
