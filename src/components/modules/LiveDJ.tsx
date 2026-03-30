@@ -1291,14 +1291,140 @@ export function LiveDJ() {
                   </div>
 
                   {selectedWidgetData.type === 'button' && (
-                    <div>
-                      <label className="text-[7px] uppercase text-muted-foreground">Behavior</label>
-                      <select value={selectedWidgetData.flash ? 'flash' : 'toggle'}
-                        onChange={e => updateWidget(selectedWidgetData.id, { flash: e.target.value === 'flash' })}
-                        className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground">
-                        <option value="flash">Flash (hold)</option>
-                        <option value="toggle">Toggle</option>
-                      </select>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Behavior</label>
+                        <select value={selectedWidgetData.flash ? 'flash' : 'toggle'}
+                          onChange={e => updateWidget(selectedWidgetData.id, { flash: e.target.value === 'flash' })}
+                          className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground">
+                          <option value="flash">Flash (hold) · long-press to lock</option>
+                          <option value="toggle">Toggle (click on/off)</option>
+                        </select>
+                      </div>
+                      <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                        {selectedWidgetData.flash
+                          ? '💡 Click & hold = momentary flash. Long-press (0.5s) = lock ON/OFF.'
+                          : '💡 Click to toggle on/off.'}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* MH Movement Programs (XY Pad only) */}
+                  {selectedWidgetData.type === 'xy-pad' && (
+                    <div className="space-y-2 border-t border-border/20 pt-2">
+                      <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold">MH Movement Program</label>
+
+                      {/* Pattern selector */}
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">Pattern</label>
+                        <select
+                          value={selectedWidgetData.mhProgram?.pattern || 'circle'}
+                          onChange={e => updateWidget(selectedWidgetData.id, {
+                            mhProgram: {
+                              ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
+                              pattern: e.target.value as MHPattern,
+                            },
+                          })}
+                          className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground">
+                          {MH_PATTERNS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                        </select>
+                      </div>
+
+                      {/* Speed & Size */}
+                      <div className="grid grid-cols-2 gap-1">
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Speed</label>
+                          <Slider value={[selectedWidgetData.mhProgram?.speed || 50]}
+                            onValueChange={([v]) => updateWidget(selectedWidgetData.id, {
+                              mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }), speed: v },
+                            })} max={100} className="mt-1" />
+                          <span className="text-[7px] font-mono text-muted-foreground/50">{selectedWidgetData.mhProgram?.speed || 50}%</span>
+                        </div>
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Size</label>
+                          <Slider value={[selectedWidgetData.mhProgram?.size || 50]}
+                            onValueChange={([v]) => updateWidget(selectedWidgetData.id, {
+                              mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }), size: v },
+                            })} max={100} className="mt-1" />
+                          <span className="text-[7px] font-mono text-muted-foreground/50">{selectedWidgetData.mhProgram?.size || 50}%</span>
+                        </div>
+                      </div>
+
+                      {/* Controls */}
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant={selectedWidgetData.mhProgram?.running ? 'destructive' : 'default'}
+                          className="h-6 text-[9px] gap-1 flex-1"
+                          onClick={() => updateWidget(selectedWidgetData.id, {
+                            mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
+                              running: !selectedWidgetData.mhProgram?.running },
+                          })}>
+                          {selectedWidgetData.mhProgram?.running ? <><Square size={9} /> Stop</> : <><Play size={9} /> Run</>}
+                        </Button>
+                        <Button size="sm" variant="outline" className={`h-6 text-[9px] gap-1 ${selectedWidgetData.mhProgram?.bpmSync ? 'bg-stokio-pink/10 text-stokio-pink border-stokio-pink/30' : ''}`}
+                          onClick={() => updateWidget(selectedWidgetData.id, {
+                            mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
+                              bpmSync: !selectedWidgetData.mhProgram?.bpmSync },
+                          })}>
+                          {selectedWidgetData.mhProgram?.bpmSync ? '🎵 BPM Sync ON' : '🎵 BPM Sync'}
+                        </Button>
+                      </div>
+
+                      {/* Per-fixture configs: mirror, reverse, delay */}
+                      <div className="border-t border-border/10 pt-2">
+                        <label className="text-[7px] uppercase text-muted-foreground">Per-Fixture Settings</label>
+                        <div className="space-y-1 mt-1">
+                          {selectedWidgetData.linkedFixtureIds.map(fid => {
+                            const inst = fixturesWithDefs.find(f => f.inst.id === fid);
+                            if (!inst) return null;
+                            const cfg = selectedWidgetData.mhProgram?.fixtureConfigs?.find(c => c.fixtureId === fid) || {
+                              fixtureId: fid, reversePan: false, reverseTilt: false, mirrorPan: false, mirrorTilt: false, delayMs: 0,
+                            };
+                            const updateCfg = (updates: Partial<MHFixtureConfig>) => {
+                              const existing = selectedWidgetData.mhProgram?.fixtureConfigs || [];
+                              const updated = existing.find(c => c.fixtureId === fid)
+                                ? existing.map(c => c.fixtureId === fid ? { ...c, ...updates } : c)
+                                : [...existing, { ...cfg, ...updates }];
+                              updateWidget(selectedWidgetData.id, {
+                                mhProgram: { ...(selectedWidgetData.mhProgram || { pattern: 'circle', speed: 50, size: 50, bpmSync: false, running: false, fixtureConfigs: [] }),
+                                  fixtureConfigs: updated },
+                              });
+                            };
+                            return (
+                              <div key={fid} className="glass-panel p-2 rounded space-y-1">
+                                <div className="text-[8px] font-semibold flex items-center gap-1">
+                                  <span>{getFixtureTypeIcon(inst.def.type)}</span> {inst.inst.name}
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {[
+                                    { key: 'reversePan', label: '↔ Rev Pan', val: cfg.reversePan },
+                                    { key: 'reverseTilt', label: '↕ Rev Tilt', val: cfg.reverseTilt },
+                                    { key: 'mirrorPan', label: '🪞 Mirror Pan', val: cfg.mirrorPan },
+                                    { key: 'mirrorTilt', label: '🪞 Mirror Tilt', val: cfg.mirrorTilt },
+                                  ].map(opt => (
+                                    <button key={opt.key}
+                                      onClick={() => updateCfg({ [opt.key]: !opt.val })}
+                                      className={`text-[7px] px-1.5 py-0.5 rounded border transition-all ${
+                                        opt.val ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border/20 text-muted-foreground hover:border-border/40'
+                                      }`}>{opt.label}</button>
+                                  ))}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <label className="text-[7px] text-muted-foreground">Delay:</label>
+                                  <Input type="number" min={0} step={50} value={cfg.delayMs}
+                                    onChange={e => updateCfg({ delayMs: Number(e.target.value) })}
+                                    className="h-5 w-16 text-[9px] bg-muted/20 border-border/20 font-mono px-1" />
+                                  <span className="text-[7px] text-muted-foreground/50">ms</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {selectedWidgetData.linkedFixtureIds.length === 0 && (
+                            <div className="text-[8px] text-muted-foreground/40 text-center py-2">Link fixtures above to configure per-fixture MH settings</div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
 
