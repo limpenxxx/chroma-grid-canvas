@@ -32,12 +32,15 @@ type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'f
 // ── Preset Scene Entry ──
 interface PresetSceneEntry {
   targetId: string; // fixture instance ID or group ID
-  targetType: 'fixture' | 'group';
+  targetType: 'fixture' | 'group' | 'wled';
   dimmer: number; // 0-255
   color?: { r: number; g: number; b: number };
   strobe?: number; // 0-255
   pan?: number;
   tilt?: number;
+  // WLED-specific
+  wledPresetId?: number; // trigger a saved preset from the WLED device
+  wledPresetName?: string;
 }
 
 // ── MH Movement Programs ──
