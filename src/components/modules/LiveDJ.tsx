@@ -294,7 +294,7 @@ function ModeBadge({ mode }: { mode: ControlMode }) {
 type DragMode = 'none' | 'move' | 'resize-br' | 'resize-bl' | 'resize-tr' | 'resize-tl';
 
 function ControlWidget({
-  widget, isSelected, onSelect, onUpdate, onPress, onRelease, allWidgets, fixtureData, isFullscreen = false,
+  widget, isSelected, onSelect, onUpdate, onPress, onRelease, allWidgets, fixtureData, isFullscreen = false, bpm = 120,
 }: {
   widget: DJWidget;
   isSelected: boolean;
@@ -305,6 +305,7 @@ function ControlWidget({
   allWidgets: DJWidget[];
   fixtureData: { inst: FixtureInstance; def: FixtureDefinition }[];
   isFullscreen?: boolean;
+  bpm?: number;
 }) {
   const dragRef = useRef<{
     mode: DragMode;
@@ -344,7 +345,10 @@ function ControlWidget({
 
     const prog = widget.mhProgram;
     const sizeScale = (prog.size || 50) / 100;
-    const speedMs = Math.max(800, 1000 + (255 - (prog.speed || 128)) * 100); // period in ms: 255=fast(1s), 0=slow(~26s)
+    // BPM sync: one full cycle per beat; otherwise use speed slider
+    const speedMs = prog.bpmSync && bpm > 0
+      ? (60000 / bpm)
+      : Math.max(800, 1000 + (255 - (prog.speed || 128)) * 100);
     const startTime = performance.now();
 
     const computePos = (t: number): { x: number; y: number } => {
@@ -388,7 +392,7 @@ function ControlWidget({
     };
     patternAnimRef.current = requestAnimationFrame(animate);
     return () => { if (patternAnimRef.current) cancelAnimationFrame(patternAnimRef.current); };
-  }, [widget.type, widget.mhProgram?.running, widget.mhProgram?.pattern, widget.mhProgram?.speed, widget.mhProgram?.size]);
+  }, [widget.type, widget.mhProgram?.running, widget.mhProgram?.pattern, widget.mhProgram?.speed, widget.mhProgram?.size, widget.mhProgram?.bpmSync, bpm]);
 
   // Color program animation
   const colorProgAnimRef = useRef<number | null>(null);
@@ -398,23 +402,28 @@ function ControlWidget({
       return;
     }
     const prog = widget.colorProgram;
-    const speedMs = Math.max(200, 300 + (255 - (prog.speed || 128)) * 40);
-    const startTime = performance.now();
-    const colors = prog.colors;
+    const colors = [...prog.colors]; // snapshot to avoid stale refs
     const n = colors.length;
+    // BPM sync: use beat interval; otherwise use speed slider
+    const speedMs = prog.bpmSync && bpm > 0
+      ? (60000 / bpm) // one color per beat
+      : Math.max(200, 300 + (255 - (prog.speed || 128)) * 40);
+    const startTime = performance.now();
 
     const animate = (t: number) => {
       const elapsed = t - startTime;
       const totalCycle = speedMs * n;
       const pos = (elapsed % totalCycle) / speedMs;
       const idx = Math.floor(pos) % n;
+      const c = colors[idx];
+      if (!c) { colorProgAnimRef.current = requestAnimationFrame(animate); return; }
 
       if (prog.mode === 'switch') {
-        onUpdate({ colorValue: colors[idx] });
+        onUpdate({ colorValue: { r: c.r, g: c.g, b: c.b } });
       } else if (prog.mode === 'fade') {
         const frac = pos - idx;
-        const next = (idx + 1) % n;
-        const c = colors[idx], cn = colors[next];
+        const cn = colors[(idx + 1) % n];
+        if (!cn) { colorProgAnimRef.current = requestAnimationFrame(animate); return; }
         onUpdate({
           colorValue: {
             r: Math.round(c.r + (cn.r - c.r) * frac),
@@ -427,7 +436,7 @@ function ControlWidget({
     };
     colorProgAnimRef.current = requestAnimationFrame(animate);
     return () => { if (colorProgAnimRef.current) cancelAnimationFrame(colorProgAnimRef.current); };
-  }, [widget.type, widget.colorProgram?.running, widget.colorProgram?.mode, widget.colorProgram?.speed, widget.colorProgram?.colors?.length]);
+  }, [widget.type, widget.colorProgram?.running, widget.colorProgram?.mode, widget.colorProgram?.speed, widget.colorProgram?.bpmSync, widget.colorProgram?.colors?.length, bpm]);
 
   const startInteraction = useCallback((e: React.MouseEvent, mode: DragMode) => {
     e.stopPropagation();
@@ -2072,6 +2081,7 @@ export function LiveDJ() {
                   allWidgets={widgets}
                   fixtureData={fixturesWithDefs}
                   isFullscreen={isFullscreen}
+                  bpm={bpmState.bpm}
                 />
               ))}
 
