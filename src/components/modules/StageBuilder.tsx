@@ -701,8 +701,19 @@ export function StageBuilder() {
     if (!video) return;
     video.loop = videoLoop;
     if (isVideoPlaying && activeItem) {
-      const newSrc = activeItem.src || (activeItem.externalUrl ?? '');
-      if (video.src !== newSrc && newSrc) {
+      // YouTube/Vimeo can't be played in a <video> element — skip them
+      if (activeItem.sourceType === 'youtube' || activeItem.sourceType === 'vimeo') {
+        // Nothing to do — these are iframe-only; canvas can't capture them
+        return;
+      }
+      const newSrc = activeItem.src || '';
+      if (newSrc && video.src !== newSrc) {
+        // For external URLs, set crossOrigin to allow canvas sampling
+        if (activeItem.sourceType === 'url') {
+          video.crossOrigin = 'anonymous';
+        } else {
+          video.removeAttribute('crossorigin');
+        }
         video.src = newSrc;
       }
       if (newSrc) {
@@ -1083,6 +1094,11 @@ export function StageBuilder() {
                 onChange={e => {
                   const val = e.target.value;
                   if (val) {
+                    const item = mediaStore.items.find(i => i.id === val);
+                    if (item && (item.sourceType === 'youtube' || item.sourceType === 'vimeo')) {
+                      toast.error('YouTube/Vimeo videos cannot be used in pixel mapping due to browser restrictions. Use a direct video URL or local file instead.');
+                      return;
+                    }
                     stageStore.setSelectedMediaItemId(val);
                     stageStore.setSelectedPlaylistId(null);
                     mediaStore.playItem(val);
@@ -1093,8 +1109,8 @@ export function StageBuilder() {
                 className="h-7 text-[8px] bg-muted/30 border border-border/30 rounded px-1 text-foreground max-w-[140px]"
               >
                 <option value="">Select media...</option>
-                {mediaStore.items.filter(i => i.type === 'video').map(item => (
-                  <option key={item.id} value={item.id}>🎬 {item.name}</option>
+                {mediaStore.items.filter(i => i.type === 'video' && i.sourceType !== 'youtube' && i.sourceType !== 'vimeo').map(item => (
+                  <option key={item.id} value={item.id}>{item.sourceType === 'url' ? '🔗' : '🎬'} {item.name}</option>
                 ))}
               </select>
               {mediaStore.playlists.length > 0 && (
