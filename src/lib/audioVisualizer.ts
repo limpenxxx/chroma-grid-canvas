@@ -908,51 +908,17 @@ export class AudioVisualizerEngine {
   }
 
   private renderRetroGrid(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, t: number) {
-    // ── Sunset gradient background: orange → pink → deep purple ──
+    // ── Sunset gradient: orange top → deep purple bottom ──
     const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
-    bgGrad.addColorStop(0, '#ff8c00');   // warm orange top
-    bgGrad.addColorStop(0.3, '#ff5e6c'); // coral pink
-    bgGrad.addColorStop(0.55, '#d4247b');// hot pink
-    bgGrad.addColorStop(0.8, '#6a0d83'); // deep purple
-    bgGrad.addColorStop(1, '#1a0030');   // dark bottom
+    bgGrad.addColorStop(0, '#ff8c00');
+    bgGrad.addColorStop(0.4, '#cc3a00');
+    bgGrad.addColorStop(0.7, '#6a0d83');
+    bgGrad.addColorStop(1, '#1a0030');
     ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, w, h);
 
     const horizon = h * 0.45;
     const mid = this.freqData.length > 0 ? Array.from(this.freqData.slice(Math.floor(this.freqData.length * 0.15), Math.floor(this.freqData.length * 0.5))).reduce((a, b) => a + b, 0) / (this.freqData.length * 0.35) / 255 * this._sensitivity : 0;
-    const treble = this.freqData.length > 0 ? Array.from(this.freqData.slice(Math.floor(this.freqData.length * 0.5))).reduce((a, b) => a + b, 0) / (this.freqData.length * 0.5) / 255 * this._sensitivity : 0;
-
-    // ── Mirrored EQ bars (furthest back layer) ──
-    const barCount = 48;
-    const barW = w / barCount;
-    const totalBins = this.freqData.length || 128;
-    const step = Math.max(1, Math.floor(totalBins / barCount));
-    for (let i = 0; i < barCount; i++) {
-      const val = (this.freqData[i * step] || 0) / 255 * this._sensitivity;
-      const barH = val * h * 0.4;
-      const hue = (280 + i * 3 + this._colorShift) % 360;
-      // Bars growing UP from horizon
-      const gradUp = ctx.createLinearGradient(0, horizon - barH, 0, horizon);
-      gradUp.addColorStop(0, `hsla(${hue}, 90%, 60%, ${0.15 + val * 0.35})`);
-      gradUp.addColorStop(1, `hsla(${hue}, 80%, 40%, 0.05)`);
-      ctx.fillStyle = gradUp;
-      ctx.fillRect(i * barW + 1, horizon - barH, barW - 2, barH);
-      // Mirror: bars growing DOWN from horizon
-      const gradDown = ctx.createLinearGradient(0, horizon, 0, horizon + barH);
-      gradDown.addColorStop(0, `hsla(${hue}, 80%, 40%, 0.05)`);
-      gradDown.addColorStop(1, `hsla(${hue}, 90%, 60%, ${0.1 + val * 0.25})`);
-      ctx.fillStyle = gradDown;
-      ctx.fillRect(i * barW + 1, horizon, barW - 2, barH);
-      // Glow on peaks
-      if (val > 0.5) {
-        ctx.shadowColor = `hsl(${hue}, 90%, 60%)`;
-        ctx.shadowBlur = val * 18;
-        ctx.fillStyle = `hsla(${hue}, 90%, 60%, ${val * 0.3})`;
-        ctx.fillRect(i * barW + 1, horizon - barH, barW - 2, barH);
-        ctx.fillRect(i * barW + 1, horizon, barW - 2, barH);
-        ctx.shadowBlur = 0;
-      }
-    }
 
     // ── Neon green oscilloscope behind the sun ──
     ctx.save();
@@ -975,24 +941,23 @@ export class AudioVisualizerEngine {
     ctx.stroke();
     ctx.restore();
 
-    // ── Sun – deep red, reactive to bass ──
+    // ── Sun – deep RED, reactive to bass ──
     const baseSunR = Math.min(w, h) * 0.12;
     const sunR = baseSunR + bass * baseSunR * 0.8 + energy * baseSunR * 0.3;
-    const sunHue = 5 + bass * 10;  // deep red, shifts slightly with bass
-    const sunLum = 40 + mid * 12;
+    const sunHue = 0 + bass * 8;
+    const sunLum = 35 + mid * 10;
     const sunGrad = ctx.createRadialGradient(w / 2, horizon, 0, w / 2, horizon, sunR * 1.5);
     sunGrad.addColorStop(0, `hsla(${sunHue}, 100%, ${sunLum + 15}%, 1)`);
-    sunGrad.addColorStop(0.3, `hsla(${sunHue - 5}, 95%, ${sunLum}%, 0.9)`);
+    sunGrad.addColorStop(0.3, `hsla(${sunHue}, 95%, ${sunLum}%, 0.9)`);
     sunGrad.addColorStop(0.6, `hsla(${sunHue - 5}, 85%, ${sunLum - 10}%, 0.5)`);
     sunGrad.addColorStop(1, 'transparent');
     ctx.save();
-    ctx.shadowColor = `hsl(${sunHue}, 100%, 50%)`;
+    ctx.shadowColor = `hsl(${sunHue}, 100%, 45%)`;
     ctx.shadowBlur = 30 + bass * 50;
     ctx.fillStyle = sunGrad;
     ctx.beginPath(); ctx.arc(w / 2, horizon, sunR * 1.3, 0, Math.PI * 2); ctx.fill();
-    // Inner bright core
     const coreGrad = ctx.createRadialGradient(w / 2, horizon, 0, w / 2, horizon, sunR * 0.4);
-    coreGrad.addColorStop(0, `hsla(${sunHue + 15}, 100%, 75%, 1)`);
+    coreGrad.addColorStop(0, `hsla(${sunHue + 10}, 100%, 70%, 1)`);
     coreGrad.addColorStop(1, 'transparent');
     ctx.fillStyle = coreGrad;
     ctx.beginPath(); ctx.arc(w / 2, horizon, sunR * 0.4, 0, Math.PI * 2); ctx.fill();
