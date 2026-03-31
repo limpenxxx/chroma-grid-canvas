@@ -1588,6 +1588,8 @@ function ControlWidget({
                             style={{ background: `rgb(${fx.color2.r},${fx.color2.g},${fx.color2.b})` }} />}
                         </div>
                       )}
+                      {/* 16x16 Pixel Matrix Preview */}
+                      <PixelMatrixPreview fx={fx} arConfig={arConfig} bpm={bpm} />
                     </div>
                   );
                 })
