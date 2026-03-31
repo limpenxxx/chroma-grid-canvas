@@ -743,6 +743,7 @@ export function StageBuilder() {
   }, [mappingFixtures, magicStore.proxyUrl]);
 
 
+  useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
