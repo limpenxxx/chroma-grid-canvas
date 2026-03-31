@@ -686,12 +686,12 @@ export function StageBuilder() {
         lastNodeOutputRef.current[node.id] = signature;
         const segmentPayload = offset > 0 ? [offset, ...payloadFrame] : payloadFrame;
 
-        return [
-          setWledState(fixture.deviceIp, {
-            on: true,
-            seg: [{ id: fixture.segmentId, i: segmentPayload }],
-          }).catch(() => {})
-        ];
+        // Route through engine server instead of direct HTTP
+        sendWledOutput(fixture.deviceIp, {
+          on: true,
+          seg: [{ id: fixture.segmentId, i: segmentPayload }],
+        });
+        return [];
       });
 
       void Promise.all(pendingSends);
