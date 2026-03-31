@@ -657,7 +657,12 @@ export function StageBuilder() {
 
     nodeOutputFramesRef.current = nextNodeFrames;
     ctx.restore();
-    animRef.current = requestAnimationFrame(drawCanvas);
+    // Use setTimeout fallback when tab is hidden (RAF pauses in background)
+    if (document.hidden) {
+      animRef.current = window.setTimeout(drawCanvas, 33) as unknown as number;
+    } else {
+      animRef.current = requestAnimationFrame(drawCanvas);
+    }
   }, [nodes, selectionType, selectedId, showGrid, stageFixtures, mappingFixtures, fixtureStore, hueStore, magicStore, isVideoPlaying, bgSource]);
 
   useEffect(() => {
