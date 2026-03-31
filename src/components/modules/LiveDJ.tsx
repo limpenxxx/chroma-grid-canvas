@@ -2529,7 +2529,7 @@ export function LiveDJ() {
   }>({ beatCount: 0, lastBeatTime: 0, currentLevel: {}, colorIdx: {}, posToggle: {}, presetIdx: {}, chasePos: {} });
 
   useEffect(() => {
-    // Get audio analyser from mic or system audio
+    // Get audio analyser dynamically (mic/system audio are created async)
     const getAnalyser = (): AnalyserNode | null => {
       if (audioConfig.source === 'browser-mic') return micBpmRef.current?.analyser || null;
       if (audioConfig.source === 'system-audio') return sysAudioRef.current?.analyser || null;
@@ -2540,42 +2540,17 @@ export function LiveDJ() {
     const arWidgets = widgets.filter(w => w.type === 'audio-reactive' && w.audioReactive?.running);
     if (arWidgets.length === 0) return;
 
-    const analyser = getAnalyser();
     // Even without an analyser, BPM-based effects can still work from tap-tempo
     const arState = arStateRef.current;
     let raf = 0;
     let lastFrameTime = 0;
 
-    // Helper: get frequency band energy from analyser
-    const getBandEnergy = (freqData: Uint8Array | null, band: string, sampleRate: number, binCount: number): number => {
-      if (!freqData || freqData.length === 0) return 0;
-      const binHz = (sampleRate / 2) / binCount;
-      let lo = 0, hi = freqData.length;
-      if (band === 'bass') { lo = Math.floor(30 / binHz); hi = Math.ceil(200 / binHz); }
-      else if (band === 'mid') { lo = Math.floor(200 / binHz); hi = Math.ceil(2000 / binHz); }
-      else if (band === 'high') { lo = Math.floor(2000 / binHz); hi = Math.ceil(12000 / binHz); }
-      let sum = 0, count = 0;
-      for (let i = Math.max(0, lo); i < Math.min(freqData.length, hi); i++) { sum += freqData[i]; count++; }
-      return count > 0 ? sum / count : 0;
-    };
-
-    // HSL to RGB helper
-    const hslToRgb = (h: number, s: number, l: number): { r: number; g: number; b: number } => {
-      const hh = ((h % 360) + 360) % 360;
-      const c = (1 - Math.abs(2 * l - 1)) * s;
-      const x = c * (1 - Math.abs((hh / 60) % 2 - 1));
-      const m = l - c / 2;
-      let r = 0, g = 0, b = 0;
-      if (hh < 60) { r = c; g = x; } else if (hh < 120) { r = x; g = c; }
-      else if (hh < 180) { g = c; b = x; } else if (hh < 240) { g = x; b = c; }
-      else if (hh < 300) { r = x; b = c; } else { r = c; b = x; }
-      return { r: Math.round((r + m) * 255), g: Math.round((g + m) * 255), b: Math.round((b + m) * 255) };
-    };
-
     const tick = (now: number) => {
       if (now - lastFrameTime < 30) { raf = requestAnimationFrame(tick); return; } // ~33fps
       lastFrameTime = now;
 
+      // Read analyser each frame so async mic/system audio is picked up
+      const analyser = getAnalyser();
       let freqData: Uint8Array | null = null;
       let sampleRate = 44100;
       let binCount = 512;
