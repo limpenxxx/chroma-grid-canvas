@@ -136,6 +136,9 @@ interface BPMState {
   isSynced: boolean;
   linkedWidgetIds: string[];
   flashOn: boolean;
+  bpmMode: 'manual' | 'auto';
+  autoBpm: number;    // BPM detected by audio analysis
+  audioLevel: number; // 0-255 current audio input level
 }
 
 const AUDIO_SOURCES: { value: AudioSource; label: string; description: string }[] = [
