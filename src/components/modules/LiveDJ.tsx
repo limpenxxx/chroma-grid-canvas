@@ -1349,6 +1349,100 @@ function ControlWidget({
           </div>
         );
       })()}
+
+      {/* WLED FIXTURE WIDGET */}
+      {widget.type === 'wled-fixture' && (() => {
+        const wledStore2 = useWledStore.getState();
+        const linkedDeviceId = widget.wledFixtureDeviceId;
+        const device = linkedDeviceId ? wledStore2.devices.find(d => d.id === linkedDeviceId) : undefined;
+        const color = widget.wledFixtureColor || { r: 255, g: 0, b: 0 };
+        const brightness = widget.wledFixtureBrightness ?? 128;
+        const activePresetId = widget.wledFixtureActivePresetId;
+        const presets = widget.wledPresets || [];
+
+        const handleColor = (c: { r: number; g: number; b: number }) => {
+          onUpdate({ wledFixtureColor: c });
+          if (device?.online) {
+            void setWledState(device.ip, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+          }
+        };
+        const handleBri = (bri: number) => {
+          onUpdate({ wledFixtureBrightness: bri });
+          if (device?.online) {
+            void setWledState(device.ip, { on: bri > 0, bri }).catch(() => {});
+          }
+        };
+        const handlePreset = (presetId: number) => {
+          onUpdate({ wledFixtureActivePresetId: presetId });
+          if (device?.online) {
+            void setWledPreset(device.ip, presetId).catch(() => {});
+          }
+        };
+
+        const s = Math.min(widget.width, widget.height);
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-[#ff6600]/30 flex flex-col overflow-hidden relative"
+            style={{ ...bgStyle }} onClick={onSelect}>
+            {/* Header */}
+            <div className="px-2 py-1.5 flex items-center gap-1.5 border-b border-border/20 shrink-0" style={{ background: 'rgba(255,102,0,0.08)' }}>
+              <Wifi size={10} className="text-[#ff6600]" />
+              <span className="text-[9px] font-semibold truncate flex-1" style={{ color: '#ff6600' }}>{widget.label}</span>
+              <div className={`w-2 h-2 rounded-full ${device?.online ? 'bg-green-500 shadow-[0_0_6px_#22c55e]' : 'bg-red-500'}`} />
+              <span className="text-[7px] text-muted-foreground/50">{device?.online ? 'ON' : 'OFF'}</span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+              {!device ? (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground/40 text-center">
+                  <Wifi size={18} />
+                  <span className="text-[8px] mt-1">Select WLED device in properties</span>
+                </div>
+              ) : (
+                <>
+                  {/* Color preview + picker */}
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full border border-border/30 cursor-pointer shrink-0"
+                      style={{ background: `rgb(${color.r},${color.g},${color.b})`, boxShadow: `0 0 12px rgb(${color.r},${color.g},${color.b})` }}
+                    />
+                    <div className="flex-1 flex flex-wrap gap-0.5">
+                      {QUICK_COLORS.slice(0, 8).map(qc => (
+                        <button key={qc.label} onClick={e => { e.stopPropagation(); handleColor(qc.color); }}
+                          className="w-5 h-5 rounded border border-border/20 hover:scale-110 transition-transform"
+                          style={{ background: `rgb(${qc.color.r},${qc.color.g},${qc.color.b})` }}
+                          title={qc.label} />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Brightness */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[7px] text-muted-foreground uppercase w-6 shrink-0">BRI</span>
+                    <input type="range" min={0} max={255} value={brightness}
+                      onClick={e => e.stopPropagation()}
+                      onChange={e => { e.stopPropagation(); handleBri(Number(e.target.value)); }}
+                      className="flex-1 accent-[#ff6600] h-2 cursor-pointer" />
+                    <span className="text-[8px] font-mono text-muted-foreground w-6 text-right">{brightness}</span>
+                  </div>
+
+                  {/* Presets */}
+                  {presets.length > 0 && (
+                    <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.floor(widget.width / 55))}, 1fr)` }}>
+                      {presets.slice(0, 12).map(p => (
+                        <button key={p.id} onClick={e => { e.stopPropagation(); handlePreset(p.id); }}
+                          className={`px-1 py-0.5 rounded text-[7px] font-medium border truncate transition-all ${
+                            activePresetId === p.id
+                              ? 'bg-[#ff6600]/20 border-[#ff6600]/40 text-[#ff6600]'
+                              : 'border-border/20 text-muted-foreground hover:border-[#ff6600]/30'
+                          }`}>{p.name}</button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
