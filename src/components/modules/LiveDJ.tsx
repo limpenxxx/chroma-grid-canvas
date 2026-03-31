@@ -3584,11 +3584,57 @@ export function LiveDJ() {
                 )}
               </div>
 
-              {/* BPM / Tap Tempo — visible for TAP-TEMPO, WLED UDP Sync, Browser Mic, and System Audio */}
-              {(audioConfig.source === 'tap-tempo' || audioConfig.source === 'wled-udp-sync' || audioConfig.source === 'browser-mic' || audioConfig.source === 'system-audio') && <div className="p-3 border-b border-border/20 space-y-2">
+              {/* BPM / Tap Tempo — visible for all audio sources except 'none' */}
+              {audioConfig.source !== 'none' && <div className="p-3 border-b border-border/20 space-y-2">
                 <span className="text-[9px] uppercase tracking-widest text-stokio-pink font-semibold flex items-center gap-1">
                   <Activity size={10} /> BPM / Tap Tempo
                 </span>
+
+                {/* Auto / Manual toggle */}
+                <div className="flex rounded-md border border-border/20 overflow-hidden">
+                  <button
+                    className={`flex-1 text-[8px] py-1 font-semibold transition-all ${bpmState.bpmMode === 'manual' ? 'bg-stokio-pink/20 text-stokio-pink' : 'text-muted-foreground hover:bg-muted/20'}`}
+                    onClick={() => setBpmState(prev => ({ ...prev, bpmMode: 'manual' }))}>
+                    <Hand size={9} className="inline mr-0.5" /> MANUAL TAP
+                  </button>
+                  <button
+                    className={`flex-1 text-[8px] py-1 font-semibold transition-all ${bpmState.bpmMode === 'auto' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-muted/20'}`}
+                    onClick={() => setBpmState(prev => ({ ...prev, bpmMode: 'auto' }))}>
+                    <Sparkles size={9} className="inline mr-0.5" /> AUTO DETECT
+                  </button>
+                </div>
+
+                {/* Audio Input Level Meter */}
+                {audioConfig.source !== 'tap-tempo' && (
+                  <div className="space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[7px] uppercase text-muted-foreground tracking-wider">Input Level</span>
+                      <span className="text-[7px] font-mono text-muted-foreground/60">{bpmState.audioLevel}/255</span>
+                    </div>
+                    <div className="h-3 rounded-full bg-muted/30 overflow-hidden border border-border/10">
+                      <motion.div className="h-full rounded-full"
+                        animate={{ width: `${Math.round((bpmState.audioLevel / 255) * 100)}%` }}
+                        transition={{ duration: 0.05 }}
+                        style={{
+                          background: bpmState.audioLevel > 200 ? 'linear-gradient(90deg, #00ff66, #ff4444)' :
+                            bpmState.audioLevel > 100 ? 'linear-gradient(90deg, #00ff66, #ffaa00)' :
+                            'linear-gradient(90deg, #00ff6640, #00ff66)',
+                        }} />
+                    </div>
+                    {bpmState.autoBpm > 0 && (
+                      <div className="text-[8px] text-muted-foreground/60 font-mono mt-1">
+                        AI Detected: <span className="text-primary font-semibold">{bpmState.autoBpm}</span> BPM
+                        {bpmState.bpmMode === 'manual' && (
+                          <button className="ml-1 text-primary/60 hover:text-primary underline"
+                            onClick={() => setBpmState(prev => ({ ...prev, bpm: prev.autoBpm, isSynced: true }))}>
+                            Use
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2">
                   <motion.button whileTap={{ scale: 0.9 }} onClick={handleTap}
                     className="w-16 h-16 rounded-full control-glossy border-2 flex flex-col items-center justify-center transition-all"
@@ -3596,6 +3642,7 @@ export function LiveDJ() {
                       borderColor: bpmState.flashOn ? '#ff2d78' : 'hsl(var(--border) / 0.3)',
                       boxShadow: bpmState.flashOn ? '0 0 25px #ff2d7860, inset 0 0 15px #ff2d7820' : 'none',
                       background: bpmState.flashOn ? 'radial-gradient(circle at center, #ff2d7815, transparent)' : undefined,
+                      opacity: bpmState.bpmMode === 'auto' && audioConfig.source !== 'tap-tempo' ? 0.4 : 1,
                     }}>
                     <span className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold">TAP</span>
                     <span className="text-xs font-bold text-primary font-mono">{bpmState.bpm}</span>
