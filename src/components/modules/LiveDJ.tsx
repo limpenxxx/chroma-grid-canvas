@@ -1544,8 +1544,31 @@ function loadSavedLayouts(): SavedLayout[] {
   } catch { return []; }
 }
 
+function stripLargeImages(layouts: SavedLayout[]): SavedLayout[] {
+  return layouts.map(layout => ({
+    ...layout,
+    pages: layout.pages.map(page => ({
+      ...page,
+      bgImage: page.bgImage && page.bgImage.length > 50000 ? null : page.bgImage,
+      widgets: page.widgets.map(w => ({
+        ...w,
+        bgImage: w.bgImage && w.bgImage.length > 50000 ? null : w.bgImage,
+      })),
+    })),
+  }));
+}
+
 function persistLayouts(layouts: SavedLayout[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts));
+  } catch {
+    // Quota exceeded — strip large base64 images and retry
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stripLargeImages(layouts)));
+    } catch {
+      console.warn('Could not save layouts: storage quota exceeded');
+    }
+  }
 }
 
 /** Create a virtual FixtureInstance + FixtureDefinition for a WLED device-list fixture so LiveDJ can treat it like any other fixture */
