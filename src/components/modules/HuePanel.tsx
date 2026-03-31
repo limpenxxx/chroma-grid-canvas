@@ -114,11 +114,11 @@ export function HuePanel() {
         const scenes = hueStore.scenes[bridge.id] || [];
 
         return (
-          <div key={bridge.id} className={`glass-panel overflow-hidden transition-all ${isPaired ? 'border-primary/20' : 'border-yellow-500/30'}`}>
+          <div key={bridge.id} className={`glass-panel overflow-hidden transition-all ${isPaired ? 'border-purple-400/20' : 'border-yellow-500/30'}`}>
             {/* Bridge header */}
             <div className="flex items-center gap-3 p-3 cursor-pointer" onClick={() => setExpandedBridge(isExpanded ? null : bridge.id)}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-lg ${
-                isPaired ? 'bg-primary/10 border border-primary/30' : 'bg-yellow-500/10 border border-yellow-500/30'
+                isPaired ? 'bg-purple-400/10 border border-purple-400/30' : 'bg-yellow-500/10 border border-yellow-500/30'
               }`}>
                 💡
               </div>
