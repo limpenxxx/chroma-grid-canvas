@@ -14,7 +14,7 @@ import {
 import { useWledStore, type WledFixture } from '@/store/wledStore';
 import { WledPanel } from './WledPanel';
 
-type Tab = 'instances' | 'library' | 'editor' | 'wled';
+type Tab = 'instances' | 'library' | 'editor' | 'wled' | 'io';
 
 const FIXTURE_TYPES: FixtureDefinition['type'][] = [
   'moving-head', 'par', 'strip', 'wash', 'spot', 'beam', 'strobe', 'laser', 'effect', 'dimmer', 'other',
