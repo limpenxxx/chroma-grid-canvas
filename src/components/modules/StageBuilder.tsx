@@ -1056,14 +1056,51 @@ export function StageBuilder() {
 
   const selectedNode = selectionType === 'node' ? nodes.find(n => n.id === selectedId) : null;
   const selectedMF = selectionType === 'mapping-fixture' ? mappingFixtures.find(mf => mf.id === selectedId) : null;
-  const selectedMFInst = selectedMF ? fixtureStore.instances.find(i => i.id === selectedMF.fixtureInstanceId) : null;
+  const selectedMFInst = selectedMF?.sourceType === 'dmx' ? fixtureStore.instances.find(i => i.id === selectedMF.fixtureInstanceId) : null;
   const selectedMFDef = selectedMFInst ? fixtureStore.definitions.find(d => d.id === selectedMFInst.definitionId) : null;
+
+  // Resolve name/info for any mapping fixture type
+  const getMFLabel = (mf: MappingFixture): string => {
+    if (mf.sourceType === 'dmx') {
+      const inst = fixtureStore.instances.find(i => i.id === mf.fixtureInstanceId);
+      return inst?.name || 'DMX';
+    }
+    if (mf.sourceType === 'hue') {
+      const lights = mf.hueBridgeId ? hueStore.lights[mf.hueBridgeId] : [];
+      const light = lights?.find(l => l.id === mf.hueLightId);
+      return light?.name || 'Hue Light';
+    }
+    if (mf.sourceType === 'magichome') {
+      const dev = magicStore.devices.find(d => d.id === mf.magicDeviceId);
+      return dev?.name || 'MagicHome';
+    }
+    return '?';
+  };
+
+  const getMFIcon = (mf: MappingFixture): string => {
+    if (mf.sourceType === 'dmx') {
+      const inst = fixtureStore.instances.find(i => i.id === mf.fixtureInstanceId);
+      const def = inst ? fixtureStore.definitions.find(d => d.id === inst.definitionId) : null;
+      return def ? getFixtureTypeIcon(def.type) : '●';
+    }
+    if (mf.sourceType === 'hue') return '💡';
+    if (mf.sourceType === 'magichome') return '✦';
+    return '●';
+  };
 
   // Get RGBW-capable fixtures for adding to mapping
   const rgbwFixtures = fixtureStore.instances.filter(inst => {
     const def = fixtureStore.definitions.find(d => d.id === inst.definitionId);
     return def && ['rgb', 'rgbw', 'rgbww', 'rgbwc'].includes(def.colorSystem);
   });
+
+  // Get paired Hue lights
+  const hueLights = hueStore.bridges.filter(b => b.apiKey).flatMap(b =>
+    (hueStore.lights[b.id] || []).map(l => ({ bridgeId: b.id, light: l }))
+  );
+
+  // Get MagicHome devices
+  const magicDevices = magicStore.devices;
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
