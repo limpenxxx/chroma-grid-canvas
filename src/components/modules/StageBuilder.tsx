@@ -1125,40 +1125,34 @@ export function StageBuilder() {
         </Button>
 
         {/* Add DMX fixture dropdown */}
-        {rgbwFixtures.length > 0 && (
-          <select className="h-7 text-[9px] bg-muted/30 border border-border/30 rounded px-2 text-foreground"
-            value="" onChange={e => { if (e.target.value) addMappingFixture(e.target.value); }}>
-            <option value="" disabled>+ DMX Fixture</option>
-            {rgbwFixtures.filter(f => !mappingFixtures.some(mf => mf.sourceType === 'dmx' && mf.fixtureInstanceId === f.id)).map(f => (
-              <option key={f.id} value={f.id}>{f.name}</option>
-            ))}
-          </select>
-        )}
+        <select className="h-7 text-[9px] bg-muted/30 border border-border/30 rounded px-2 text-foreground"
+          value="" onChange={e => { if (e.target.value) addMappingFixture(e.target.value); }}>
+          <option value="" disabled>+ 🎛 DMX{rgbwFixtures.length === 0 ? ' (none patched)' : ''}</option>
+          {rgbwFixtures.filter(f => !mappingFixtures.some(mf => mf.sourceType === 'dmx' && mf.fixtureInstanceId === f.id)).map(f => (
+            <option key={f.id} value={f.id}>{f.name}</option>
+          ))}
+        </select>
 
         {/* Add Hue light dropdown */}
-        {hueLights.length > 0 && (
-          <select className="h-7 text-[9px] bg-muted/30 border border-border/30 rounded px-2 text-foreground"
-            value="" onChange={e => {
-              const [bId, lId] = e.target.value.split('::');
-              if (bId && lId) addHueMappingFixture(bId, lId);
-            }}>
-            <option value="" disabled>+ 💡 Hue Light</option>
-            {hueLights.filter(h => !mappingFixtures.some(mf => mf.sourceType === 'hue' && mf.hueBridgeId === h.bridgeId && mf.hueLightId === h.light.id)).map(h => (
-              <option key={`${h.bridgeId}::${h.light.id}`} value={`${h.bridgeId}::${h.light.id}`}>{h.light.name}</option>
-            ))}
-          </select>
-        )}
+        <select className="h-7 text-[9px] bg-muted/30 border border-purple-500/40 rounded px-2 text-purple-300"
+          value="" onChange={e => {
+            const [bId, lId] = e.target.value.split('::');
+            if (bId && lId) addHueMappingFixture(bId, lId);
+          }}>
+          <option value="" disabled>+ 💡 Hue{hueLights.length === 0 ? ' (pair bridge first)' : ''}</option>
+          {hueLights.filter(h => !mappingFixtures.some(mf => mf.sourceType === 'hue' && mf.hueBridgeId === h.bridgeId && mf.hueLightId === h.light.id)).map(h => (
+            <option key={`${h.bridgeId}::${h.light.id}`} value={`${h.bridgeId}::${h.light.id}`}>{h.light.name}</option>
+          ))}
+        </select>
 
         {/* Add MagicHome device dropdown */}
-        {magicDevices.length > 0 && (
-          <select className="h-7 text-[9px] bg-muted/30 border border-border/30 rounded px-2 text-foreground"
-            value="" onChange={e => { if (e.target.value) addMagicMappingFixture(e.target.value); }}>
-            <option value="" disabled>+ ✦ MagicHome</option>
-            {magicDevices.filter(d => !mappingFixtures.some(mf => mf.sourceType === 'magichome' && mf.magicDeviceId === d.id)).map(d => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
-          </select>
-        )}
+        <select className="h-7 text-[9px] bg-muted/30 border border-yellow-500/40 rounded px-2 text-yellow-300"
+          value="" onChange={e => { if (e.target.value) addMagicMappingFixture(e.target.value); }}>
+          <option value="" disabled>+ ✦ MagicHome{magicDevices.length === 0 ? ' (discover first)' : ''}</option>
+          {magicDevices.filter(d => !mappingFixtures.some(mf => mf.sourceType === 'magichome' && mf.magicDeviceId === d.id)).map(d => (
+            <option key={d.id} value={d.id}>{d.name}</option>
+          ))}
+        </select>
 
         <Button variant="outline" size="sm" onClick={rotateSelected} disabled={selectionType !== 'node'} className="h-7 text-[10px] gap-1">
           <RotateCw size={12} /> Rotate
