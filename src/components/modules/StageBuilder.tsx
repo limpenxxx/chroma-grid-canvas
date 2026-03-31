@@ -74,6 +74,7 @@ export function StageBuilder() {
   const [showBgPanel, setShowBgPanel] = useState(false);
   const [videoLoop, setVideoLoop] = useState(true);
   const [videoPlaying, setVideoPlaying] = useState(false);
+  const [directUrl, setDirectUrl] = useState('');
 
   // Get active media item for video background — use stage store selection or fallback to media store
   const stageMediaItemId = stageStore.selectedMediaItemId;
