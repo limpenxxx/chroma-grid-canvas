@@ -49,6 +49,8 @@ const ALL_FUNCTIONS: ChannelFunction[] = Object.keys(CHANNEL_FUNCTION_LABELS) as
 export function Devices() {
   const store = useFixtureStore();
   const wledStore = useWledStore();
+  const hueStore = useHueStore();
+  const magicStore = useMagicHomeStore();
   const [tab, setTab] = useState<Tab>('instances');
   const [search, setSearch] = useState('');
   const [editingDef, setEditingDef] = useState<FixtureDefinition | null>(null);
