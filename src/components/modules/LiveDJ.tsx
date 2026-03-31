@@ -1771,6 +1771,119 @@ function ControlWidget({
           </div>
         );
       })()}
+
+      {/* TAP / AUDIO IN WIDGET */}
+      {widget.type === 'tap-bpm' && (() => {
+        const bs = bpmStateProp || { bpm: 120, tapTimes: [], isSynced: false, linkedWidgetIds: [], flashOn: false, bpmMode: 'auto' as const, autoBpm: 0, audioLevel: 0 };
+        const ac = audioConfigProp || { source: 'none' as AudioSource, squelch: 10, gain: 128, udpPort: 11988, wledIp: '', sensitivity: 128, freqLow: 60, freqHigh: 200 };
+        const levelPct = Math.round((bs.audioLevel / 255) * 100);
+        const sourceLabel = AUDIO_SOURCES.find(s => s.value === ac.source)?.label || 'None';
+        const s = Math.min(widget.width, widget.height);
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col overflow-hidden relative"
+            style={{ ...bgStyle, borderColor: bs.flashOn ? '#ff2d78' : undefined, boxShadow: bs.flashOn ? '0 0 20px #ff2d7840' : undefined }}
+            onClick={onSelect}>
+
+            {/* Header */}
+            <div className="px-2 py-1 flex items-center gap-1.5 border-b border-border/20 shrink-0" style={{ background: 'rgba(255,45,120,0.06)' }}>
+              <Activity size={10} className="text-stokio-pink" />
+              <span className="text-[9px] font-semibold truncate flex-1 text-stokio-pink">{widget.label}</span>
+              <span className="text-[7px] font-mono text-muted-foreground/50">{sourceLabel}</span>
+            </div>
+
+            <div className="flex-1 p-2 space-y-2 overflow-y-auto">
+              {/* Mode toggle */}
+              <div className="flex rounded-md border border-border/20 overflow-hidden">
+                <button
+                  className={`flex-1 text-[8px] py-1 font-semibold transition-all ${bs.bpmMode === 'manual' ? 'bg-stokio-pink/20 text-stokio-pink' : 'text-muted-foreground hover:bg-muted/20'}`}
+                  onClick={e => { e.stopPropagation(); setBpmStateProp?.(prev => ({ ...prev, bpmMode: 'manual' })); }}>
+                  <Hand size={9} className="inline mr-0.5" /> MANUAL
+                </button>
+                <button
+                  className={`flex-1 text-[8px] py-1 font-semibold transition-all ${bs.bpmMode === 'auto' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-muted/20'}`}
+                  onClick={e => { e.stopPropagation(); setBpmStateProp?.(prev => ({ ...prev, bpmMode: 'auto' })); }}>
+                  <Sparkles size={9} className="inline mr-0.5" /> AUTO
+                </button>
+              </div>
+
+              {/* BPM display + Tap button */}
+              <div className="flex items-center gap-2">
+                <motion.button whileTap={{ scale: 0.9 }}
+                  onClick={e => { e.stopPropagation(); handleTapProp?.(); }}
+                  className="w-12 h-12 rounded-full control-glossy border-2 flex flex-col items-center justify-center transition-all shrink-0"
+                  style={{
+                    borderColor: bs.flashOn ? '#ff2d78' : 'hsl(var(--border) / 0.3)',
+                    boxShadow: bs.flashOn ? '0 0 20px #ff2d7860, inset 0 0 10px #ff2d7820' : 'none',
+                    opacity: bs.bpmMode === 'auto' ? 0.4 : 1,
+                  }}>
+                  <span className="text-[7px] uppercase text-muted-foreground font-semibold">TAP</span>
+                  <span className="text-[10px] font-bold text-primary font-mono">{bs.bpm}</span>
+                </motion.button>
+
+                <div className="flex-1 space-y-1">
+                  <div className="text-base font-bold font-mono text-foreground flex items-center gap-1">
+                    {bs.bpm} <span className="text-[8px] text-muted-foreground font-normal">BPM</span>
+                    {bs.isSynced && (
+                      <motion.div className="w-2 h-2 rounded-full"
+                        animate={{ backgroundColor: bs.flashOn ? '#ff2d78' : '#00ff66', boxShadow: bs.flashOn ? '0 0 8px #ff2d78' : '0 0 4px #00ff6660' }}
+                        transition={{ duration: 0.05 }} />
+                    )}
+                  </div>
+                  {bs.autoBpm > 0 && (
+                    <div className="text-[8px] text-muted-foreground/60 font-mono">
+                      AI Detect: <span className="text-primary">{bs.autoBpm}</span> BPM
+                    </div>
+                  )}
+                  <div className="flex gap-0.5">
+                    <Button variant="outline" size="sm" className="h-4 text-[7px] px-1"
+                      onClick={() => setBpmStateProp?.(prev => ({ ...prev, bpm: Math.max(20, prev.bpm - 1) }))}>-1</Button>
+                    <Button variant="outline" size="sm" className="h-4 text-[7px] px-1"
+                      onClick={() => setBpmStateProp?.(prev => ({ ...prev, bpm: Math.min(300, prev.bpm + 1) }))}>+1</Button>
+                    <Button variant="outline" size="sm" className="h-4 text-[7px] px-1"
+                      onClick={() => setBpmStateProp?.(prev => ({ ...prev, bpm: Math.round(prev.bpm / 2) }))}>÷2</Button>
+                    <Button variant="outline" size="sm" className="h-4 text-[7px] px-1"
+                      onClick={() => setBpmStateProp?.(prev => ({ ...prev, bpm: Math.min(300, prev.bpm * 2) }))}>×2</Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Audio Level Meter */}
+              <div className="space-y-0.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[7px] uppercase text-muted-foreground tracking-wider">Input Level</span>
+                  <span className="text-[7px] font-mono text-muted-foreground/60">{bs.audioLevel}</span>
+                </div>
+                <div className="h-3 rounded-full bg-muted/30 overflow-hidden border border-border/10 relative">
+                  <motion.div
+                    className="h-full rounded-full"
+                    animate={{ width: `${levelPct}%` }}
+                    transition={{ duration: 0.05 }}
+                    style={{
+                      background: levelPct > 80
+                        ? 'linear-gradient(90deg, #00ff66, #ff4444)'
+                        : levelPct > 40
+                          ? 'linear-gradient(90deg, #00ff66, #ffaa00)'
+                          : 'linear-gradient(90deg, #00ff6640, #00ff66)',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Audio Source selector */}
+              <div>
+                <span className="text-[7px] uppercase text-muted-foreground tracking-wider">Source</span>
+                <select value={ac.source}
+                  onChange={e => { e.stopPropagation(); setAudioConfigProp?.(prev => ({ ...prev, source: e.target.value as AudioSource })); }}
+                  className="w-full h-5 rounded bg-muted/20 border border-border/20 text-[8px] px-1 text-foreground mt-0.5"
+                  onClick={e => e.stopPropagation()}>
+                  {AUDIO_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
