@@ -36,6 +36,7 @@ const PATTERN_LABELS: Record<string, string> = {
 export function MagicHomePanel() {
   const store = useMagicHomeStore();
   const [addIp, setAddIp] = useState('');
+  const [addMac, setAddMac] = useState('');
   const [expandedDevice, setExpandedDevice] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [proxyInput, setProxyInput] = useState(store.proxyUrl);
