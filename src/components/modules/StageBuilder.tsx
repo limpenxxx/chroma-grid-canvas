@@ -1789,7 +1789,7 @@ export function StageBuilder() {
           className="p-2 border-t border-border/30 flex items-center justify-between px-4">
           <div className="text-[10px] text-muted-foreground">
             Selected: <span className="text-primary font-semibold">
-              {selectedNode?.name || selectedMFInst?.name || '—'}
+              {selectedNode?.name || (selectedMF ? getMFLabel(selectedMF) : '—')}
             </span>
           </div>
           <Button variant="ghost" size="sm" className="h-5 text-[9px]" onClick={() => setShowProperties(true)}>
