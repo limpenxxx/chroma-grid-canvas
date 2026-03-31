@@ -855,6 +855,7 @@ export function Devices() {
       {tab === 'hue' && <HuePanel />}
 
       {/* I/O SETUP TAB */}
+      {tab === 'io' && (
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div className="glass-panel p-4 space-y-3">
             <div className="text-[10px] uppercase tracking-widest text-primary font-semibold">Input / Output Configuration</div>
