@@ -1788,7 +1788,7 @@ function ControlWidget({
 
       {/* TAP / AUDIO IN WIDGET */}
       {widget.type === 'tap-bpm' && (() => {
-        const bs = bpmStateProp || { bpm: 120, tapTimes: [], isSynced: false, linkedWidgetIds: [], flashOn: false, bpmMode: 'auto' as const, autoBpm: 0, audioLevel: 0 };
+        const bs = bpmStateProp || { bpm: 120, tapTimes: [], isSynced: false, linkedWidgetIds: [], flashOn: false, bpmMode: 'auto' as const, autoBpm: 0, audioLevel: 0, pioneerDecks: {} as Record<number, PioneerDeckLocal>, pioneerSyncDeck: 0 };
         const ac = audioConfigProp || { source: 'none' as AudioSource, squelch: 10, gain: 128, udpPort: 11988, wledIp: '', sensitivity: 128, freqLow: 60, freqHigh: 200 };
         const levelPct = Math.round((bs.audioLevel / 255) * 100);
         const sourceLabel = AUDIO_SOURCES.find(s => s.value === ac.source)?.label || 'None';
