@@ -244,6 +244,10 @@ export class AudioVisualizerEngine {
       case 'disco-ball': this.renderDisco(ctx, w, h, energy, bass, treble, t); break;
       case 'northern-lights': this.renderAurora(ctx, w, h, energy, bass, treble, t); break;
       case 'retro-grid': this.renderRetroGrid(ctx, w, h, energy, bass, t); break;
+      case 'retro-grid-2': this.renderRetroGrid2(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'retro-grid-3': this.renderRetroGrid3(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'retro-grid-4': this.renderRetroGrid4(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'retro-grid-5': this.renderRetroGrid5(ctx, w, h, energy, bass, mid, treble, t); break;
       case 'dna-helix': this.renderDNA(ctx, w, h, energy, bass, treble, t); break;
       case 'starburst': this.renderStarburst(ctx, w, h, energy, bass, treble, t); break;
       case 'glitch-wave': this.renderGlitch(ctx, w, h, energy, bass, treble, t); break;
