@@ -36,6 +36,7 @@ const PATTERN_LABELS: Record<string, string> = {
 export function MagicHomePanel() {
   const store = useMagicHomeStore();
   const [addIp, setAddIp] = useState('');
+  const [addMac, setAddMac] = useState('');
   const [expandedDevice, setExpandedDevice] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [proxyInput, setProxyInput] = useState(store.proxyUrl);
@@ -51,10 +52,12 @@ export function MagicHomePanel() {
 
   const handleAddManual = () => {
     const ip = addIp.trim();
-    if (!ip) return;
-    store.addDevice(ip);
+    const mac = addMac.trim();
+    if (!ip && !mac) return;
+    store.addDevice(ip || 'N/A', undefined, mac || undefined);
     setAddIp('');
-    toast.success(`Device added: ${ip}`);
+    setAddMac('');
+    toast.success(`Device added: ${mac || ip}`);
   };
 
   const handleSaveProxy = () => {
@@ -108,17 +111,31 @@ export function MagicHomePanel() {
         </AnimatePresence>
 
         {/* Manual add */}
-        <div className="flex gap-2">
-          <Input
-            placeholder="Device IP (e.g. 192.168.1.200)"
-            value={addIp}
-            onChange={e => setAddIp(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAddManual()}
-            className="h-7 text-xs bg-muted/30 border-border/30 flex-1"
-          />
-          <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1" onClick={handleAddManual}>
-            <Plus size={12} /> Add
-          </Button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              placeholder="IP address (e.g. 192.168.1.200)"
+              value={addIp}
+              onChange={e => setAddIp(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddManual()}
+              className="h-7 text-xs bg-muted/30 border-border/30 flex-1"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Input
+              placeholder="MAC address (e.g. F4:CF:A2:12:08:67)"
+              value={addMac}
+              onChange={e => setAddMac(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddManual()}
+              className="h-7 text-xs bg-muted/30 border-border/30 flex-1 font-mono"
+            />
+            <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1" onClick={handleAddManual}>
+              <Plus size={12} /> Add
+            </Button>
+          </div>
+          <div className="text-[8px] text-muted-foreground/50">
+            Enter IP, MAC, or both. MAC is used as device ID for the proxy API.
+          </div>
         </div>
       </div>
 
@@ -151,7 +168,10 @@ export function MagicHomePanel() {
                 }} />
               <div className="flex-1 min-w-0">
                 <div className="text-[11px] font-semibold truncate">{device.name}</div>
-                <div className="text-[9px] text-muted-foreground font-mono">{device.address}</div>
+                <div className="text-[9px] text-muted-foreground font-mono">
+                  {device.mac && <span className="text-yellow-400/70">{device.mac} • </span>}
+                  {device.address}
+                </div>
               </div>
               <span className={`text-[8px] px-2 py-0.5 rounded-full border ${
                 device.online
