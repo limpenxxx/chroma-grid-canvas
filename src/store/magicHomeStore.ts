@@ -114,6 +114,9 @@ export const useMagicHomeStore = create<MagicHomeStore>()(
             } : d),
           }));
         }
+        // Send to engine for persistent output
+        const color = device.state?.color || { r: 0, g: 0, b: 0 };
+        sendMagicSet(id, get().proxyUrl, on, color.r, color.g, color.b);
       },
 
       setColor: async (id, r, g, b) => {
@@ -125,6 +128,8 @@ export const useMagicHomeStore = create<MagicHomeStore>()(
             ...d, state: { ...d.state, color: { r, g, b }, on: true },
           } : d),
         }));
+        // Send to engine for persistent output
+        sendMagicSet(id, get().proxyUrl, true, r, g, b);
       },
 
       setBrightness: async (id, brightness) => {
