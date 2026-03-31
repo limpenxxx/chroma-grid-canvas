@@ -30,7 +30,43 @@ interface FixtureAssignment {
   mode: ControlMode;
 }
 
-type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset';
+type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset' | 'audio-reactive';
+
+// ── Audio Reactive Effect Types ──
+type AudioReactiveEffectType =
+  | 'color-pulse'     // Pump a color on beat
+  | 'dimmer-pump'     // Dimmer pulses to beat
+  | 'strobe-beat'     // Strobe on each beat
+  | 'pos-alternate'   // MH alternates between 2 positions on beat
+  | 'color-cycle'     // Cycle through colors each beat
+  | 'bass-color-shift'// Shift hue with bass intensity
+  | 'wled-preset-cycle'// Cycle WLED presets each beat
+  | 'wled-pixel-chase' // Color travels along strip per beat with fade
+  | 'intensity-map'   // Map audio level to brightness
+  | 'hue-sweep'       // Sweep through hue based on frequency
+  | 'size-pulse';     // Pulse zoom/iris on beat
+
+interface AudioReactiveFixtureEffect {
+  fixtureId: string;
+  effect: AudioReactiveEffectType;
+  enabled: boolean;
+  // Effect params
+  color1?: { r: number; g: number; b: number };
+  color2?: { r: number; g: number; b: number };
+  intensity?: number;  // 0-255 effect strength
+  decay?: number;      // 0-255 how fast it fades
+  posA?: { pan: number; tilt: number };
+  posB?: { pan: number; tilt: number };
+  wledPresets?: number[];    // preset IDs to cycle
+  triggerBand?: 'bass' | 'mid' | 'high' | 'all'; // which frequency reacts
+}
+
+interface AudioReactiveConfig {
+  running: boolean;
+  effects: AudioReactiveFixtureEffect[];
+  globalDecay: number;  // 0-255
+  sensitivity: number;  // 0-255
+}
 
 // ── Preset Scene Entry ──
 interface PresetSceneEntry {
