@@ -155,9 +155,15 @@ interface DJWidget {
   // Fader-specific
   bgColor?: string;              // separate background color for fader widget
   faderColorSyncWidgetId?: string | null; // sync fader color with a color-wheel widget
+  faderFixtureFunction?: string;  // what the fader controls: 'dimmer', 'preset', 'color', 'brightness', 'pan', 'strobe', etc.
   // XY pad: per-fixture positions and selected fixture for individual control
   selectedFixtureId?: string | null;
   fixturePositions?: Record<string, { x: number; y: number }>;
+  // WLED Fixture widget
+  wledFixtureDeviceId?: string;
+  wledFixtureBrightness?: number;
+  wledFixtureColor?: { r: number; g: number; b: number };
+  wledFixtureActivePresetId?: number;
 }
 
 type ColorProgramMode = 'static' | 'switch' | 'fade';
