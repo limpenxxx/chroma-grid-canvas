@@ -20,7 +20,7 @@ import { useMediaStore } from '@/store/mediaStore';
 import { useWledStore, type WledDevice, type WledFixture } from '@/store/wledStore';
 import { setWledPreset, setWledState } from '@/lib/wledApi';
 import { fetchWledPresets, isWledDeviceTargetId, wledDeviceToFixture } from '@/lib/wledUtils';
-import { sendDmxChannel } from '@/lib/wsSync';
+import { sendDmxChannel, onPioneerData, type PioneerData } from '@/lib/wsSync';
 
 // ── Types ──
 
