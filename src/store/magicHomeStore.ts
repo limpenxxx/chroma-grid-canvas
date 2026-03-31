@@ -10,6 +10,7 @@ import {
 import { sendMagicSet } from '@/lib/wsSync';
 
 interface StoredDevice extends MagicHomeDevice {
+  mac?: string;
   state: MagicHomeDeviceState | null;
   online: boolean;
 }
