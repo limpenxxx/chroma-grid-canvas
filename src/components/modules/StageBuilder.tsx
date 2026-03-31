@@ -8,7 +8,7 @@ import { useFixtureStore, getFixtureTypeIcon, getChannelColor, getFixtureIconEmo
 import { useWledStore } from '@/store/wledStore';
 import { useHueStore } from '@/store/hueStore';
 import { useMagicHomeStore } from '@/store/magicHomeStore';
-import { setWledState } from '@/lib/wledApi';
+import { sendWledOutput } from '@/lib/wsSync';
 import { useMediaStore, getEmbedUrl } from '@/store/mediaStore';
 import { useStageStore, createDefaultSegment, type WLEDNode, type WLEDSegment, type MappingFixture, type BackgroundSource, type TestPattern } from '@/store/stageStore';
 import { AudioVisualizerEngine, PRESET_LABELS, INPUT_LABELS, type VisualizerPreset, type AudioInputSource } from '@/lib/audioVisualizer';
