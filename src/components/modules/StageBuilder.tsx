@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown, Film, Droplets, Music, Mic, Volume2, Monitor, Save, FolderOpen, ListMusic } from 'lucide-react';
+import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown, Film, Droplets, Music, Mic, Volume2, Monitor, Save, FolderOpen, ListMusic, Play, Square, Repeat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
@@ -68,6 +68,8 @@ export function StageBuilder() {
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
   const [showBgPanel, setShowBgPanel] = useState(false);
+  const [videoLoop, setVideoLoop] = useState(true);
+  const [videoPlaying, setVideoPlaying] = useState(false);
 
   // Get active media item for video background — use stage store selection or fallback to media store
   const stageMediaItemId = stageStore.selectedMediaItemId;
@@ -75,9 +77,7 @@ export function StageBuilder() {
   const activeItem = stageMediaItemId
     ? mediaStore.items.find(i => i.id === stageMediaItemId)
     : mediaStore.items.find(i => i.id === mediaStore.activeItemId);
-  const isVideoPlaying = bgSource === 'video' && activeItem?.type === 'video';
-
-  // No auto-switch — user manually selects video source
+  const isVideoPlaying = bgSource === 'video' && !!activeItem;
 
   // Load audio devices
   useEffect(() => {
@@ -216,15 +216,51 @@ export function StageBuilder() {
           ctx.fillRect(0, 0, w, h);
         }
       } else if (testPattern === 'scanlines') {
-        // Static scanlines
-        for (let y2 = 0; y2 < h; y2 += 4) {
-          ctx.fillStyle = y2 % 8 === 0 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.3)';
+        // Subtle background scanlines
+        for (let y2 = 0; y2 < h; y2 += 6) {
+          ctx.fillStyle = y2 % 12 === 0 ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.2)';
           ctx.fillRect(0, y2, w, 2);
         }
-        // Bright moving line
-        const scanY = ((time * 40) % h);
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        ctx.fillRect(0, scanY, w, 3);
+        const lineThickness = 8;
+        const speed = time * 80; // mid speed
+
+        // Horizontal moving line — red/magenta
+        const hY = ((speed * 0.6) % (h + lineThickness * 2)) - lineThickness;
+        const hGrad = ctx.createLinearGradient(0, hY - lineThickness, 0, hY + lineThickness);
+        hGrad.addColorStop(0, 'transparent');
+        hGrad.addColorStop(0.3, 'rgba(255,30,80,0.7)');
+        hGrad.addColorStop(0.5, 'rgba(255,60,120,0.9)');
+        hGrad.addColorStop(0.7, 'rgba(255,30,80,0.7)');
+        hGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = hGrad;
+        ctx.fillRect(0, hY - lineThickness, w, lineThickness * 2);
+
+        // Vertical moving line — cyan/blue
+        const vX = ((speed * 0.45) % (w + lineThickness * 2)) - lineThickness;
+        const vGrad = ctx.createLinearGradient(vX - lineThickness, 0, vX + lineThickness, 0);
+        vGrad.addColorStop(0, 'transparent');
+        vGrad.addColorStop(0.3, 'rgba(0,200,255,0.7)');
+        vGrad.addColorStop(0.5, 'rgba(0,230,255,0.9)');
+        vGrad.addColorStop(0.7, 'rgba(0,200,255,0.7)');
+        vGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = vGrad;
+        ctx.fillRect(vX - lineThickness, 0, lineThickness * 2, h);
+
+        // 45° diagonal moving line — green/lime
+        ctx.save();
+        const diagLen = Math.sqrt(w * w + h * h);
+        const diagOffset = ((speed * 0.5) % (diagLen + lineThickness * 4)) - lineThickness * 2;
+        ctx.translate(w / 2, h / 2);
+        ctx.rotate(Math.PI / 4);
+        const dGrad = ctx.createLinearGradient(0, diagOffset - lineThickness, 0, diagOffset + lineThickness);
+        dGrad.addColorStop(0, 'transparent');
+        dGrad.addColorStop(0.3, 'rgba(0,255,100,0.7)');
+        dGrad.addColorStop(0.5, 'rgba(80,255,120,0.9)');
+        dGrad.addColorStop(0.7, 'rgba(0,255,100,0.7)');
+        dGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = dGrad;
+        ctx.fillRect(-diagLen, diagOffset - lineThickness, diagLen * 2, lineThickness * 2);
+        ctx.restore();
       } else if (testPattern === 'test-picture') {
         // Color bars (top 70%)
         const barColors = ['#ffffff', '#ffff00', '#00ffff', '#00ff00', '#ff00ff', '#ff0000', '#0000ff', '#000000'];
@@ -663,15 +699,60 @@ export function StageBuilder() {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (isVideoPlaying && activeItem && (activeItem.sourceType === 'file' || activeItem.sourceType === 'url')) {
-      if (video.src !== activeItem.src) {
-        video.src = activeItem.src;
+    video.loop = videoLoop;
+    if (isVideoPlaying && activeItem) {
+      const newSrc = activeItem.src || (activeItem.externalUrl ?? '');
+      if (video.src !== newSrc && newSrc) {
+        video.src = newSrc;
       }
-      video.play().catch(() => {});
+      if (newSrc) {
+        video.play().then(() => setVideoPlaying(true)).catch(() => {});
+      }
     } else if (!isVideoPlaying) {
       video.pause();
+      setVideoPlaying(false);
     }
-  }, [isVideoPlaying, activeItem]);
+  }, [isVideoPlaying, activeItem, videoLoop]);
+
+  const handleVideoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    // Add to media store as a file item
+    const id = `vid-${Date.now()}`;
+    mediaStore.addItem({
+      id,
+      name: file.name,
+      type: 'video',
+      sourceType: 'file',
+      src: url,
+      duration: 0,
+      crossfade: 0,
+      createdAt: Date.now(),
+    });
+    stageStore.setSelectedMediaItemId(id);
+    stageStore.setSelectedPlaylistId(null);
+    setBgSource('video');
+  };
+
+  const toggleVideoPlayback = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      video.play().then(() => setVideoPlaying(true)).catch(() => {});
+    } else {
+      video.pause();
+      setVideoPlaying(false);
+    }
+  };
+
+  const stopVideo = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.pause();
+    video.currentTime = 0;
+    setVideoPlaying(false);
+  };
 
   const getResizeHandle = (mx: number, my: number, node: WLEDNode): ResizeHandle => {
     const tol = 14;
@@ -1004,7 +1085,6 @@ export function StageBuilder() {
                   if (val) {
                     stageStore.setSelectedMediaItemId(val);
                     stageStore.setSelectedPlaylistId(null);
-                    // Also start playing in media store
                     mediaStore.playItem(val);
                   } else {
                     stageStore.setSelectedMediaItemId(null);
@@ -1038,6 +1118,22 @@ export function StageBuilder() {
                   ))}
                 </select>
               )}
+              <label className="h-7 text-[8px] bg-muted/30 border border-border/30 rounded px-2 text-foreground flex items-center gap-1 cursor-pointer hover:bg-muted/50 transition-colors">
+                📂 File
+                <input type="file" accept="video/*" className="hidden" onChange={handleVideoFileSelect} />
+              </label>
+              <div className="w-px h-5 bg-border/30" />
+              <Button variant={videoPlaying ? 'secondary' : 'outline'} size="sm" className="h-7 w-7 p-0" onClick={toggleVideoPlayback}
+                title={videoPlaying ? 'Pause' : 'Play'}>
+                {videoPlaying ? <Square size={10} /> : <Play size={10} />}
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={stopVideo} title="Stop">
+                <Square size={10} className="text-destructive" />
+              </Button>
+              <Button variant={videoLoop ? 'secondary' : 'outline'} size="sm" className="h-7 w-7 p-0"
+                onClick={() => setVideoLoop(!videoLoop)} title={videoLoop ? 'Loop ON' : 'Loop OFF'}>
+                <Repeat size={10} />
+              </Button>
             </div>
           )}
           <Button variant={bgSource === 'visualizer' ? 'secondary' : 'outline'} size="sm"
