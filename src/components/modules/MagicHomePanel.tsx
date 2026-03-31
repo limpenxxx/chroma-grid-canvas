@@ -111,17 +111,31 @@ export function MagicHomePanel() {
         </AnimatePresence>
 
         {/* Manual add */}
-        <div className="flex gap-2">
-          <Input
-            placeholder="Device IP (e.g. 192.168.1.200)"
-            value={addIp}
-            onChange={e => setAddIp(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAddManual()}
-            className="h-7 text-xs bg-muted/30 border-border/30 flex-1"
-          />
-          <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1" onClick={handleAddManual}>
-            <Plus size={12} /> Add
-          </Button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              placeholder="IP address (e.g. 192.168.1.200)"
+              value={addIp}
+              onChange={e => setAddIp(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddManual()}
+              className="h-7 text-xs bg-muted/30 border-border/30 flex-1"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Input
+              placeholder="MAC address (e.g. F4:CF:A2:12:08:67)"
+              value={addMac}
+              onChange={e => setAddMac(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAddManual()}
+              className="h-7 text-xs bg-muted/30 border-border/30 flex-1 font-mono"
+            />
+            <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1" onClick={handleAddManual}>
+              <Plus size={12} /> Add
+            </Button>
+          </div>
+          <div className="text-[8px] text-muted-foreground/50">
+            Enter IP, MAC, or both. MAC is used as device ID for the proxy API.
+          </div>
         </div>
       </div>
 
