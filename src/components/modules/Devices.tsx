@@ -19,7 +19,7 @@ import { WledPanel } from './WledPanel';
 import { HuePanel } from './HuePanel';
 import { MagicHomePanel } from './MagicHomePanel';
 
-type Tab = 'instances' | 'library' | 'editor' | 'wled' | 'hue' | 'magichome' | 'io';
+type Tab = 'instances' | 'library' | 'editor' | 'wled' | 'hue' | 'magichome' | 'io' | 'mixer';
 
 const FIXTURE_TYPES: FixtureDefinition['type'][] = [
   'moving-head', 'par', 'strip', 'wash', 'spot', 'beam', 'strobe', 'laser', 'effect', 'dimmer', 'other',
