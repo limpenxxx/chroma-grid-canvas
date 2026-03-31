@@ -127,7 +127,7 @@ export function HuePanel() {
                 <div className="text-[9px] text-muted-foreground font-mono">{bridge.ip}</div>
               </div>
               {isPaired ? (
-                <span className="text-[8px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                <span className="text-[8px] px-2 py-0.5 rounded-full bg-purple-400/10 text-purple-400 border border-purple-400/20">
                   ✓ Paired • {lights.length} lights
                 </span>
               ) : (
