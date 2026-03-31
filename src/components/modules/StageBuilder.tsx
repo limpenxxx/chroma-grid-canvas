@@ -1687,23 +1687,36 @@ export function StageBuilder() {
                 )}
 
                 {/* ── Mapping Fixture Properties ── */}
-                {selectedMF && selectedMFInst && selectedMFDef && (
+                {selectedMF && (
                   <>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase tracking-widest text-stokio-cyan font-semibold">DMX Fixture Mapping</span>
+                      <span className="text-[10px] uppercase tracking-widest text-stokio-cyan font-semibold">
+                        {selectedMF.sourceType === 'hue' ? '💡 Hue' : selectedMF.sourceType === 'magichome' ? '✦ MagicHome' : 'DMX'} Fixture Mapping
+                      </span>
                       <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setShowProperties(false)}>
                         <ChevronDown size={12} className="rotate-90" />
                       </Button>
                     </div>
 
                     <div className="glass-panel p-3 space-y-2">
-                      <div className="text-[10px] font-semibold">{selectedMFInst.name}</div>
+                      <div className="text-[10px] font-semibold">{getMFLabel(selectedMF)}</div>
                       <div className="text-[8px] text-muted-foreground">
-                        {selectedMFDef.manufacturer} {selectedMFDef.model} • U{selectedMFInst.universe}.{selectedMFInst.dmxAddress}
+                        {selectedMF.sourceType === 'dmx' && selectedMFInst && selectedMFDef && (
+                          <>{selectedMFDef.manufacturer} {selectedMFDef.model} • U{selectedMFInst.universe}.{selectedMFInst.dmxAddress}</>
+                        )}
+                        {selectedMF.sourceType === 'hue' && <>Philips Hue • Bridge {selectedMF.hueBridgeId?.slice(0, 8)}</>}
+                        {selectedMF.sourceType === 'magichome' && <>MagicHome • {magicStore.devices.find(d => d.id === selectedMF.magicDeviceId)?.address || '?'}</>}
                       </div>
-                      <div className="text-[8px] text-muted-foreground">
-                        Color: <span className="text-stokio-cyan uppercase">{selectedMFDef.colorSystem}</span>
-                      </div>
+                      {selectedMF.sourceType === 'dmx' && selectedMFDef && (
+                        <div className="text-[8px] text-muted-foreground">
+                          Color: <span className="text-stokio-cyan uppercase">{selectedMFDef.colorSystem}</span>
+                        </div>
+                      )}
+                      {selectedMF.sourceType !== 'dmx' && (
+                        <div className="text-[8px] text-muted-foreground">
+                          Color: <span className="text-stokio-cyan uppercase">RGB</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Position & Size */}
