@@ -942,6 +942,268 @@ export class AudioVisualizerEngine {
     ctx.beginPath(); ctx.arc(w / 2, horizon, sunR, 0, Math.PI * 2); ctx.fill();
   }
 
+
+  // ── Retro Grid 2: Bass EQ — bass-reactive EQ bars behind the grid ──
+  private renderRetroGrid2(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    ctx.fillStyle = '#0a0015';
+    ctx.fillRect(0, 0, w, h);
+    const horizon = h * 0.5;
+
+    // EQ bars in background — bass-reactive only
+    const barCount = 32;
+    const barW = w / barCount;
+    const bassRange = Math.floor(this.freqData.length * 0.15);
+    const step = Math.max(1, Math.floor(bassRange / barCount));
+    for (let i = 0; i < barCount; i++) {
+      const val = (this.freqData[i * step] || 0) / 255 * this._sensitivity;
+      const barH = val * horizon * 0.9;
+      const hue = (300 + i * 3 + this._colorShift) % 360;
+      const grad = ctx.createLinearGradient(0, horizon - barH, 0, horizon);
+      grad.addColorStop(0, `hsla(${hue}, 90%, 60%, ${0.6 + val * 0.4})`);
+      grad.addColorStop(1, `hsla(${hue}, 80%, 30%, 0.1)`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(i * barW + 1, horizon - barH, barW - 2, barH);
+      // Glow on strong hits
+      if (val > 0.6) {
+        ctx.shadowColor = `hsl(${hue}, 90%, 60%)`;
+        ctx.shadowBlur = val * 15;
+        ctx.fillRect(i * barW + 1, horizon - barH, barW - 2, barH);
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    // Synthwave grid (perspective floor)
+    const hLines = 15;
+    for (let i = 0; i < hLines; i++) {
+      const p = (i / hLines + t * 0.1) % 1;
+      const y = horizon + (p * p) * (h - horizon);
+      const alpha = p * (0.5 + bass * 0.5);
+      ctx.strokeStyle = `hsla(${300 + this._colorShift}, 80%, 50%, ${alpha})`;
+      ctx.lineWidth = 1 + bass * p * 2;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    }
+    const vLines = 20;
+    for (let i = 0; i < vLines; i++) {
+      const nx = i / (vLines - 1);
+      ctx.strokeStyle = `hsla(${300 + this._colorShift}, 80%, 50%, 0.3)`;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(nx * w, horizon); ctx.lineTo((nx - 0.5) * w * 3 + w / 2, h); ctx.stroke();
+    }
+
+    // Sun pulsing with bass
+    const sunR = 35 + bass * 40;
+    const sunGrad = ctx.createRadialGradient(w / 2, horizon, 0, w / 2, horizon, sunR);
+    sunGrad.addColorStop(0, `hsla(40, 100%, 60%, ${0.7 + bass * 0.3})`);
+    sunGrad.addColorStop(0.5, `hsla(350, 90%, 50%, 0.6)`);
+    sunGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath(); ctx.arc(w / 2, horizon, sunR, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // ── Retro Grid 3: Treble EQ — treble/high-reactive vertical EQ ──
+  private renderRetroGrid3(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    ctx.fillStyle = '#0a0015';
+    ctx.fillRect(0, 0, w, h);
+    const horizon = h * 0.5;
+
+    // Treble-reactive EQ bars rising from top
+    const barCount = 48;
+    const barW = w / barCount;
+    const trebleStart = Math.floor(this.freqData.length * 0.5);
+    const trebleLen = this.freqData.length - trebleStart;
+    const step = Math.max(1, Math.floor(trebleLen / barCount));
+    for (let i = 0; i < barCount; i++) {
+      const val = (this.freqData[trebleStart + i * step] || 0) / 255 * this._sensitivity;
+      const barH = val * horizon * 0.7;
+      const hue = (180 + i * 4 + this._colorShift) % 360;
+      ctx.fillStyle = `hsla(${hue}, 90%, 55%, ${0.3 + val * 0.6})`;
+      ctx.fillRect(i * barW + 1, 0, barW - 2, barH);
+      // Mirror reflection below horizon
+      ctx.fillStyle = `hsla(${hue}, 90%, 55%, ${0.1 + val * 0.2})`;
+      ctx.fillRect(i * barW + 1, horizon, barW - 2, barH * 0.4);
+    }
+
+    // Sparkle lines on treble hits
+    if (treble > 0.5) {
+      const sparkles = Math.floor(treble * 12);
+      for (let s = 0; s < sparkles; s++) {
+        const sx = Math.random() * w;
+        const sy = Math.random() * horizon * 0.8;
+        ctx.strokeStyle = `hsla(${(180 + this._colorShift) % 360}, 90%, 80%, ${0.4 + Math.random() * 0.4})`;
+        ctx.lineWidth = 0.5;
+        const len = 5 + Math.random() * 15;
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + len, sy); ctx.stroke();
+      }
+    }
+
+    // Grid
+    const hLines = 15;
+    for (let i = 0; i < hLines; i++) {
+      const p = (i / hLines + t * 0.08) % 1;
+      const y = horizon + (p * p) * (h - horizon);
+      ctx.strokeStyle = `hsla(${200 + this._colorShift}, 80%, 50%, ${p * 0.6})`;
+      ctx.lineWidth = 0.8 + treble * p;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    }
+    const vLines = 20;
+    for (let i = 0; i < vLines; i++) {
+      const nx = i / (vLines - 1);
+      ctx.strokeStyle = `hsla(${200 + this._colorShift}, 80%, 50%, 0.3)`;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(nx * w, horizon); ctx.lineTo((nx - 0.5) * w * 3 + w / 2, h); ctx.stroke();
+    }
+
+    // Sun — cooler cyan tint, treble shimmer
+    const sunR = 35 + treble * 25;
+    const sunGrad = ctx.createRadialGradient(w / 2, horizon, 0, w / 2, horizon, sunR);
+    sunGrad.addColorStop(0, `hsla(190, 100%, 70%, ${0.7 + treble * 0.3})`);
+    sunGrad.addColorStop(0.5, `hsla(260, 80%, 50%, 0.5)`);
+    sunGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath(); ctx.arc(w / 2, horizon, sunR, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // ── Retro Grid 4: Full EQ — bass+mid+treble with mirrored EQ ──
+  private renderRetroGrid4(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    ctx.fillStyle = '#06000f';
+    ctx.fillRect(0, 0, w, h);
+    const horizon = h * 0.45;
+
+    // Full-spectrum mirrored EQ behind grid
+    const barCount = 64;
+    const barW = w / barCount;
+    const step = Math.max(1, Math.floor(this.freqData.length / barCount));
+    for (let i = 0; i < barCount; i++) {
+      const val = (this.freqData[i * step] || 0) / 255 * this._sensitivity;
+      const barH = val * horizon * 0.85;
+      const freqPos = i / barCount;
+      // Color: bass=magenta, mid=orange, treble=cyan
+      const hue = freqPos < 0.2 ? 300 : freqPos < 0.6 ? 30 : 180;
+      const sat = 85;
+      const light = 40 + val * 25;
+
+      // Upward bars
+      const grad = ctx.createLinearGradient(0, horizon - barH, 0, horizon);
+      grad.addColorStop(0, `hsla(${(hue + this._colorShift) % 360}, ${sat}%, ${light}%, ${0.7 + val * 0.3})`);
+      grad.addColorStop(1, `hsla(${(hue + this._colorShift) % 360}, ${sat}%, 20%, 0.05)`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(i * barW + 0.5, horizon - barH, barW - 1, barH);
+
+      // Downward reflection (dimmer)
+      const refGrad = ctx.createLinearGradient(0, horizon, 0, horizon + barH * 0.5);
+      refGrad.addColorStop(0, `hsla(${(hue + this._colorShift) % 360}, ${sat}%, ${light}%, 0.25)`);
+      refGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = refGrad;
+      ctx.fillRect(i * barW + 0.5, horizon, barW - 1, barH * 0.5);
+    }
+
+    // Grid with energy-reactive brightness
+    const hLines = 18;
+    for (let i = 0; i < hLines; i++) {
+      const p = (i / hLines + t * 0.12) % 1;
+      const y = horizon + (p * p) * (h - horizon);
+      const lineEnergy = bass * 0.5 + mid * 0.3 + treble * 0.2;
+      ctx.strokeStyle = `hsla(${(280 + this._colorShift) % 360}, 80%, 50%, ${p * (0.3 + lineEnergy * 0.5)})`;
+      ctx.lineWidth = 1 + lineEnergy * p * 3;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    }
+    const vLines = 24;
+    for (let i = 0; i < vLines; i++) {
+      const nx = i / (vLines - 1);
+      ctx.strokeStyle = `hsla(${(280 + this._colorShift) % 360}, 80%, 50%, ${0.2 + energy * 0.3})`;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(nx * w, horizon); ctx.lineTo((nx - 0.5) * w * 3 + w / 2, h); ctx.stroke();
+    }
+
+    // Sun — multi-colored reacting to all bands
+    const sunR = 30 + bass * 25 + treble * 15;
+    const sunGrad = ctx.createRadialGradient(w / 2, horizon, 0, w / 2, horizon, sunR);
+    sunGrad.addColorStop(0, `hsla(50, 100%, 65%, ${0.8 + energy * 0.2})`);
+    sunGrad.addColorStop(0.4, `hsla(${(330 + this._colorShift) % 360}, 90%, 50%, 0.6)`);
+    sunGrad.addColorStop(0.7, `hsla(${(270 + this._colorShift) % 360}, 80%, 40%, 0.3)`);
+    sunGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath(); ctx.arc(w / 2, horizon, sunR, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // ── Retro Grid 5: Neon Pulse — bass shakes grid, treble sparks neon lines ──
+  private renderRetroGrid5(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    ctx.fillStyle = '#050012';
+    ctx.fillRect(0, 0, w, h);
+    const horizon = h * 0.5;
+    const bassShake = bass > 0.5 ? (Math.random() - 0.5) * bass * 6 : 0;
+
+    // Neon mountain silhouette — bass reactive
+    ctx.beginPath();
+    ctx.moveTo(0, horizon);
+    const peaks = 12;
+    for (let i = 0; i <= peaks; i++) {
+      const px = (i / peaks) * w;
+      const peakH = (Math.sin(i * 1.7 + 0.5) * 0.5 + 0.5) * horizon * 0.35 * (0.7 + bass * 0.6);
+      const py = horizon - peakH;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.lineTo(w, horizon);
+    ctx.closePath();
+    ctx.fillStyle = `hsla(${(280 + this._colorShift) % 360}, 60%, 8%, 0.9)`;
+    ctx.fill();
+    ctx.strokeStyle = `hsla(${(300 + this._colorShift) % 360}, 90%, 60%, ${0.5 + bass * 0.5})`;
+    ctx.lineWidth = 1.5 + bass * 2;
+    ctx.stroke();
+
+    // Grid with bass-shake offset
+    const hLines = 15;
+    for (let i = 0; i < hLines; i++) {
+      const p = (i / hLines + t * 0.1) % 1;
+      const y = horizon + (p * p) * (h - horizon) + bassShake;
+      ctx.strokeStyle = `hsla(${(300 + this._colorShift) % 360}, 80%, 50%, ${p * 0.7})`;
+      ctx.lineWidth = 1 + bass * p * 2;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    }
+    const vLines = 20;
+    for (let i = 0; i < vLines; i++) {
+      const nx = i / (vLines - 1);
+      ctx.strokeStyle = `hsla(${(300 + this._colorShift) % 360}, 80%, 50%, 0.35)`;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(nx * w, horizon + bassShake); ctx.lineTo((nx - 0.5) * w * 3 + w / 2, h); ctx.stroke();
+    }
+
+    // Neon laser lines on treble hits
+    if (treble > 0.3) {
+      const lineCount = Math.floor(treble * 6);
+      for (let i = 0; i < lineCount; i++) {
+        const ly = Math.random() * horizon * 0.8;
+        const hue = (180 + Math.random() * 60 + this._colorShift) % 360;
+        ctx.strokeStyle = `hsla(${hue}, 100%, 70%, ${0.3 + treble * 0.6})`;
+        ctx.lineWidth = 0.5 + treble;
+        ctx.shadowColor = `hsl(${hue}, 100%, 70%)`;
+        ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.moveTo(0, ly); ctx.lineTo(w, ly); ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    // Stars twinkling with treble
+    const starCount = 30 + Math.floor(treble * 40);
+    for (let i = 0; i < starCount; i++) {
+      const sx = (Math.sin(i * 127.1 + t * 0.1) * 0.5 + 0.5) * w;
+      const sy = (Math.cos(i * 311.7 + t * 0.05) * 0.5 + 0.5) * horizon * 0.8;
+      const bright = (Math.sin(t * 3 + i * 2.3) * 0.5 + 0.5) * (0.3 + treble * 0.7);
+      ctx.fillStyle = `rgba(255,255,255,${bright})`;
+      ctx.fillRect(sx, sy, 1.5, 1.5);
+    }
+
+    // Sun — bass pulse
+    const sunR = 40 + bass * 30;
+    const sunGrad = ctx.createRadialGradient(w / 2, horizon, 0, w / 2, horizon, sunR);
+    sunGrad.addColorStop(0, `hsla(40, 100%, 60%, ${0.8 + bass * 0.2})`);
+    sunGrad.addColorStop(0.4, `hsla(350, 90%, 50%, 0.6)`);
+    sunGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath(); ctx.arc(w / 2, horizon, sunR, 0, Math.PI * 2); ctx.fill();
+  }
+
   private renderDNA(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, treble: number, t: number) {
     ctx.fillStyle = 'rgba(0,0,8,0.15)';
     ctx.fillRect(0, 0, w, h);
