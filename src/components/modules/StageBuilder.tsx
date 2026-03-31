@@ -699,15 +699,60 @@ export function StageBuilder() {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (isVideoPlaying && activeItem && (activeItem.sourceType === 'file' || activeItem.sourceType === 'url')) {
-      if (video.src !== activeItem.src) {
-        video.src = activeItem.src;
+    video.loop = videoLoop;
+    if (isVideoPlaying && activeItem) {
+      const newSrc = activeItem.src || (activeItem.externalUrl ?? '');
+      if (video.src !== newSrc && newSrc) {
+        video.src = newSrc;
       }
-      video.play().catch(() => {});
+      if (newSrc) {
+        video.play().then(() => setVideoPlaying(true)).catch(() => {});
+      }
     } else if (!isVideoPlaying) {
       video.pause();
+      setVideoPlaying(false);
     }
-  }, [isVideoPlaying, activeItem]);
+  }, [isVideoPlaying, activeItem, videoLoop]);
+
+  const handleVideoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    // Add to media store as a file item
+    const id = `vid-${Date.now()}`;
+    mediaStore.addItem({
+      id,
+      name: file.name,
+      type: 'video',
+      sourceType: 'file',
+      src: url,
+      duration: 0,
+      crossfade: 0,
+      createdAt: Date.now(),
+    });
+    stageStore.setSelectedMediaItemId(id);
+    stageStore.setSelectedPlaylistId(null);
+    setBgSource('video');
+  };
+
+  const toggleVideoPlayback = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      video.play().then(() => setVideoPlaying(true)).catch(() => {});
+    } else {
+      video.pause();
+      setVideoPlaying(false);
+    }
+  };
+
+  const stopVideo = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.pause();
+    video.currentTime = 0;
+    setVideoPlaying(false);
+  };
 
   const getResizeHandle = (mx: number, my: number, node: WLEDNode): ResizeHandle => {
     const tol = 14;
