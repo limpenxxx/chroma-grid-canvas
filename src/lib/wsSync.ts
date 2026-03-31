@@ -42,6 +42,7 @@ export interface EngineStatus {
 let ws: WebSocket | null = null;
 let listeners: SyncListener[] = [];
 let engineStatusListeners: EngineStatusListener[] = [];
+let pioneerListeners: PioneerListener[] = [];
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let isRemoteUpdate = false;
 let _engineConnected = false;
