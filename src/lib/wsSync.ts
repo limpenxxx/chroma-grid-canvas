@@ -6,6 +6,27 @@
 
 type SyncListener = (state: Record<string, unknown>) => void;
 type EngineStatusListener = (status: EngineStatus) => void;
+type PioneerListener = (data: PioneerData) => void;
+
+export interface PioneerDeck {
+  name: string;
+  deviceNumber: number;
+  bpm: number;
+  beat: number;
+  playing: boolean;
+  master: boolean;
+  ip: string;
+  lastSeen: number;
+}
+
+export interface PioneerData {
+  type: 'pioneer-decks' | 'pioneer-beat';
+  decks?: Record<number, PioneerDeck>;
+  deviceNumber?: number;
+  bpm?: number;
+  beat?: number;
+  name?: string;
+}
 
 export interface EngineStatus {
   running: boolean;
@@ -15,6 +36,7 @@ export interface EngineStatus {
   magicDevices: number;
   masterDimmer?: number;
   blackout?: boolean;
+  pioneerDecks?: Record<number, PioneerDeck>;
 }
 
 let ws: WebSocket | null = null;
