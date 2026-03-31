@@ -628,6 +628,12 @@ export function FixtureControls() {
             }`}>
             <Wifi size={10} /> WLED
           </button>
+          <button onClick={() => setFixtureTab('hue')}
+            className={`px-3 py-1 rounded text-[10px] font-semibold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+              fixtureTab === 'hue' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
+            }`}>
+            <Lightbulb size={10} /> HUE
+          </button>
         </div>
       </div>
 
