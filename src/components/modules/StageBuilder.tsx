@@ -916,10 +916,50 @@ export function StageBuilder() {
   };
 
   const addMappingFixture = (fixtureInstanceId: string) => {
-    if (mappingFixtures.some(mf => mf.fixtureInstanceId === fixtureInstanceId)) return;
+    if (mappingFixtures.some(mf => mf.sourceType === 'dmx' && mf.fixtureInstanceId === fixtureInstanceId)) return;
     const mf: MappingFixture = {
       id: `mf-${Date.now()}`,
+      sourceType: 'dmx',
       fixtureInstanceId,
+      x: 300 + Math.random() * 100,
+      y: 200 + Math.random() * 80,
+      radius: 20,
+      blurAmount: 25,
+      sampleRadius: 15,
+      interpolationSpeed: 50,
+    };
+    setMappingFixtures(prev => [...prev, mf]);
+    setSelectionType('mapping-fixture');
+    setSelectedId(mf.id);
+  };
+
+  const addHueMappingFixture = (bridgeId: string, lightId: string) => {
+    if (mappingFixtures.some(mf => mf.sourceType === 'hue' && mf.hueBridgeId === bridgeId && mf.hueLightId === lightId)) return;
+    const mf: MappingFixture = {
+      id: `mf-${Date.now()}`,
+      sourceType: 'hue',
+      fixtureInstanceId: '',
+      hueBridgeId: bridgeId,
+      hueLightId: lightId,
+      x: 300 + Math.random() * 100,
+      y: 200 + Math.random() * 80,
+      radius: 20,
+      blurAmount: 25,
+      sampleRadius: 15,
+      interpolationSpeed: 50,
+    };
+    setMappingFixtures(prev => [...prev, mf]);
+    setSelectionType('mapping-fixture');
+    setSelectedId(mf.id);
+  };
+
+  const addMagicMappingFixture = (deviceId: string) => {
+    if (mappingFixtures.some(mf => mf.sourceType === 'magichome' && mf.magicDeviceId === deviceId)) return;
+    const mf: MappingFixture = {
+      id: `mf-${Date.now()}`,
+      sourceType: 'magichome',
+      fixtureInstanceId: '',
+      magicDeviceId: deviceId,
       x: 300 + Math.random() * 100,
       y: 200 + Math.random() * 80,
       radius: 20,
