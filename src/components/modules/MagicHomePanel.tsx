@@ -168,7 +168,10 @@ export function MagicHomePanel() {
                 }} />
               <div className="flex-1 min-w-0">
                 <div className="text-[11px] font-semibold truncate">{device.name}</div>
-                <div className="text-[9px] text-muted-foreground font-mono">{device.address}</div>
+                <div className="text-[9px] text-muted-foreground font-mono">
+                  {device.mac && <span className="text-yellow-400/70">{device.mac} • </span>}
+                  {device.address}
+                </div>
               </div>
               <span className={`text-[8px] px-2 py-0.5 rounded-full border ${
                 device.online
