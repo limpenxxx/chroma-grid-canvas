@@ -3596,6 +3596,56 @@ export function LiveDJ() {
                     </div>
                   </>
                 )}
+                {/* Pioneer DJ (ProDJ Link) settings */}
+                {audioConfig.source === 'pioneer-dj' && (
+                  <div className="space-y-2">
+                    <div className="text-[8px] text-muted-foreground/60 bg-muted/10 rounded p-1.5 border border-border/10">
+                      🎛 Connect your Pioneer CDJ/DJM/XDJ to the same network. The engine server listens on ports 50000-50001 for ProDJ Link packets.
+                    </div>
+                    {Object.keys(bpmState.pioneerDecks).length === 0 ? (
+                      <div className="text-[9px] text-muted-foreground/40 text-center py-3">
+                        <Radio size={16} className="mx-auto mb-1 animate-pulse text-muted-foreground/30" />
+                        Waiting for Pioneer devices…
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <label className="text-[7px] uppercase text-muted-foreground tracking-wider">Detected Decks</label>
+                        {Object.values(bpmState.pioneerDecks).map((deck) => (
+                          <button key={deck.deviceNumber}
+                            onClick={() => setBpmState(prev => ({ ...prev, pioneerSyncDeck: prev.pioneerSyncDeck === deck.deviceNumber ? 0 : deck.deviceNumber }))}
+                            className={`w-full flex items-center gap-2 p-2 rounded border transition-all text-left ${
+                              bpmState.pioneerSyncDeck === deck.deviceNumber || bpmState.pioneerSyncDeck === 0
+                                ? 'border-primary/40 bg-primary/5'
+                                : 'border-border/20 bg-muted/10 opacity-50'
+                            }`}>
+                            <div className={`w-2 h-2 rounded-full ${deck.playing ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-muted-foreground/30'}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[9px] font-semibold text-foreground truncate">{deck.name}</div>
+                              <div className="text-[7px] text-muted-foreground/60 font-mono">{deck.ip} • CH {deck.deviceNumber}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-bold font-mono text-primary">{deck.bpm > 0 ? deck.bpm.toFixed(1) : '—'}</div>
+                              <div className="text-[6px] uppercase text-muted-foreground">BPM</div>
+                            </div>
+                            {deck.playing && deck.beat > 0 && (
+                              <div className="flex gap-0.5">
+                                {[1, 2, 3, 4].map(b => (
+                                  <div key={b} className={`w-1.5 h-1.5 rounded-full transition-all ${
+                                    b === deck.beat ? 'bg-primary shadow-[0_0_4px_hsl(var(--primary))]' : 'bg-muted-foreground/20'
+                                  }`} />
+                                ))}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                        <div className="text-[7px] text-muted-foreground/40">
+                          {bpmState.pioneerSyncDeck === 0 ? '🔗 Syncing from any playing deck' : `🔗 Syncing from CH ${bpmState.pioneerSyncDeck} only`}
+                          {' — click a deck to toggle'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {(audioConfig.source === 'browser-mic' || audioConfig.source === 'system-audio') && (
                   <div className="space-y-2">
                     {audioConfig.source === 'system-audio' && systemAudioSourceName && (
