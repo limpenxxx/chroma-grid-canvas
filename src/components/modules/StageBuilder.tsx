@@ -712,7 +712,7 @@ export function StageBuilder() {
     canvas.height = ch * 2;
     canvasDims.current = { w: cw, h: ch };
     drawCanvas();
-    return () => cancelAnimationFrame(animRef.current);
+    return () => { cancelAnimationFrame(animRef.current); clearTimeout(animRef.current); };
   }, [drawCanvas, zoom]);
 
   // Video element sync
