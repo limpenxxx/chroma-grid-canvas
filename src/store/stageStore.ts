@@ -32,9 +32,15 @@ export interface WLEDNode {
   interpolationSpeed: number;
 }
 
+export type MappingFixtureSource = 'dmx' | 'hue' | 'magichome';
+
 export interface MappingFixture {
   id: string;
-  fixtureInstanceId: string;
+  sourceType: MappingFixtureSource;
+  fixtureInstanceId: string; // for 'dmx'
+  hueBridgeId?: string;      // for 'hue'
+  hueLightId?: string;       // for 'hue'
+  magicDeviceId?: string;    // for 'magichome'
   x: number;
   y: number;
   radius: number;
