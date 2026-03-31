@@ -2280,7 +2280,7 @@ export function LiveDJ() {
 
   useEffect(() => {
     if (wledPollRef.current) { clearInterval(wledPollRef.current); wledPollRef.current = null; }
-    if (audioConfig.source !== 'wled-udp-sync' || !audioConfig.wledIp) return;
+    if (!audioConfig.source.startsWith('wled') || !audioConfig.wledIp) return;
 
     const ip = audioConfig.wledIp;
     const beatData = wledBeatRef.current;
