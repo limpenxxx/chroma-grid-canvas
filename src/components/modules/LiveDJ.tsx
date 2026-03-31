@@ -350,6 +350,155 @@ function ModeBadge({ mode }: { mode: ControlMode }) {
   );
 }
 
+// ── 16x16 Pixel Matrix Preview for Audio Reactive Effects ──
+
+function PixelMatrixPreview({ fx, arConfig, bpm }: {
+  fx: AudioReactiveFixtureEffect;
+  arConfig: AudioReactiveConfig;
+  bpm: number;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animRef = useRef<number>(0);
+  const stateRef = useRef({ phase: 0, chasePos: 0, colorIdx: 0, lastBeat: 0, beatToggle: false });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !fx.enabled || !arConfig.running) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const GRID = 16;
+    const PX = 3;
+    canvas.width = GRID * PX;
+    canvas.height = GRID * PX;
+
+    const st = stateRef.current;
+    const beatMs = bpm > 0 ? 60000 / bpm : 500;
+    const decay = (fx.decay || arConfig.globalDecay) / 255;
+    const c1 = fx.color1 || { r: 255, g: 0, b: 0 };
+    const c2 = fx.color2 || { r: 0, g: 0, b: 255 };
+
+    const draw = (now: number) => {
+      const isBeat = now - st.lastBeat >= beatMs;
+      if (isBeat) {
+        st.lastBeat = now;
+        st.beatToggle = !st.beatToggle;
+        st.chasePos = (st.chasePos + 1) % GRID;
+        st.colorIdx = (st.colorIdx + 1) % 2;
+      }
+      const beatProgress = Math.min(1, (now - st.lastBeat) / beatMs);
+      const pulse = Math.max(0, 1 - beatProgress * (1 + (1 - decay) * 3));
+
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let y = 0; y < GRID; y++) {
+        for (let x = 0; x < GRID; x++) {
+          let r = 0, g = 0, b = 0, a = 0.08;
+          switch (fx.effect) {
+            case 'color-pulse':
+            case 'dimmer-pump': {
+              r = c1.r; g = c1.g; b = c1.b;
+              a = 0.05 + pulse * 0.95;
+              break;
+            }
+            case 'strobe-beat': {
+              r = 255; g = 255; b = 255;
+              a = pulse > 0.5 ? 1 : 0.03;
+              break;
+            }
+            case 'color-cycle': {
+              const cc = st.colorIdx === 0 ? c1 : c2;
+              r = cc.r; g = cc.g; b = cc.b;
+              a = 0.15 + pulse * 0.85;
+              break;
+            }
+            case 'bass-color-shift': {
+              r = Math.round(255 * (1 - pulse));
+              g = Math.round(255 * pulse);
+              b = 0;
+              a = 0.3 + pulse * 0.7;
+              break;
+            }
+            case 'hue-sweep': {
+              const hue = ((x + y * GRID) / (GRID * GRID) * 360 + now * 0.1) % 360;
+              const hp = hue / 60;
+              const ch = 1 - Math.abs(hp % 2 - 1);
+              if (hp < 1) { r = 255; g = Math.round(ch * 255); }
+              else if (hp < 2) { r = Math.round(ch * 255); g = 255; }
+              else if (hp < 3) { g = 255; b = Math.round(ch * 255); }
+              else if (hp < 4) { g = Math.round(ch * 255); b = 255; }
+              else if (hp < 5) { r = Math.round(ch * 255); b = 255; }
+              else { r = 255; b = Math.round(ch * 255); }
+              a = 0.3 + pulse * 0.7;
+              break;
+            }
+            case 'wled-pixel-chase': {
+              const pixIdx = y * GRID + x;
+              const totalPx = GRID * GRID;
+              const headPos = (st.chasePos / GRID) * totalPx + beatProgress * (totalPx / GRID);
+              const dist = (pixIdx - headPos + totalPx) % totalPx;
+              const trail = Math.max(0, 1 - dist / (totalPx * 0.25));
+              r = c1.r; g = c1.g; b = c1.b;
+              a = trail * 0.95 + 0.02;
+              break;
+            }
+            case 'intensity-map': {
+              const barH = Math.round(pulse * GRID);
+              const rowFromBottom = GRID - 1 - y;
+              if (rowFromBottom < barH) {
+                const t = rowFromBottom / GRID;
+                r = Math.round(50 + t * 200); g = Math.round(255 * (1 - t)); b = 50;
+                a = 0.5 + pulse * 0.5;
+              }
+              break;
+            }
+            case 'pos-alternate': {
+              const isLeft = x < GRID / 2;
+              const active = st.beatToggle ? isLeft : !isLeft;
+              const cc = active ? c1 : c2;
+              r = cc.r; g = cc.g; b = cc.b;
+              a = active ? (0.4 + pulse * 0.6) : 0.08;
+              break;
+            }
+            case 'wled-preset-cycle': {
+              const checker = (x + y) % 2 === st.colorIdx;
+              r = checker ? c1.r : 40; g = checker ? c1.g : 40; b = checker ? c1.b : 40;
+              a = 0.2 + (checker ? pulse * 0.8 : 0);
+              break;
+            }
+            case 'size-pulse': {
+              const cx = GRID / 2, cy = GRID / 2;
+              const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+              const radius = 2 + pulse * (GRID / 2 - 2);
+              if (dist < radius) {
+                r = c1.r; g = c1.g; b = c1.b;
+                a = 0.3 + (1 - dist / radius) * pulse * 0.7;
+              }
+              break;
+            }
+          }
+          ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
+          ctx.fillRect(x * PX, y * PX, PX - 0.5, PX - 0.5);
+        }
+      }
+      animRef.current = requestAnimationFrame(draw);
+    };
+    animRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [fx.effect, fx.enabled, fx.color1, fx.color2, fx.decay, arConfig.running, arConfig.globalDecay, bpm]);
+
+  if (!fx.enabled || !arConfig.running) return null;
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="mt-1 rounded-sm border border-border/10"
+      style={{ width: 48, height: 48, imageRendering: 'pixelated' }}
+    />
+  );
+}
+
 // ── Draggable + Resizable Widget ──
 
 type DragMode = 'none' | 'move' | 'resize-br' | 'resize-bl' | 'resize-tr' | 'resize-tl';
@@ -1588,6 +1737,8 @@ function ControlWidget({
                             style={{ background: `rgb(${fx.color2.r},${fx.color2.g},${fx.color2.b})` }} />}
                         </div>
                       )}
+                      {/* 16x16 Pixel Matrix Preview */}
+                      <PixelMatrixPreview fx={fx} arConfig={arConfig} bpm={bpm} />
                     </div>
                   );
                 })
