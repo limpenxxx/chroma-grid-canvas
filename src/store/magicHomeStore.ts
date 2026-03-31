@@ -22,7 +22,7 @@ interface MagicHomeStore {
 
   setProxyUrl: (url: string) => void;
   discover: () => Promise<void>;
-  addDevice: (address: string, name?: string) => void;
+  addDevice: (address: string, name?: string, mac?: string) => void;
   removeDevice: (id: string) => void;
   renameDevice: (id: string, name: string) => void;
   refreshDevice: (id: string) => Promise<void>;
