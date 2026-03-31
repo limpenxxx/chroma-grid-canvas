@@ -764,10 +764,6 @@ export function StageBuilder() {
   const handleDirectUrlLoad = () => {
     const url = directUrl.trim();
     if (!url) return;
-    if (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('vimeo.com')) {
-      toast.error('YouTube/Vimeo cannot be used for pixel mapping. Use a direct video file URL (.mp4, .webm).');
-      return;
-    }
     const id = `url-${Date.now()}`;
     mediaStore.addItem({
       id,
