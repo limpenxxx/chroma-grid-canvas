@@ -5,7 +5,6 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Slider } from '@/components/ui/slider';
 import {
   useFixtureStore, type FixtureDefinition, type FixtureInstance, type FixtureMode,
   type FixtureChannel, type ChannelFunction, type ColorSystem, type ColorWheelSlot,
@@ -13,7 +12,6 @@ import {
   FIXTURE_ICON_OPTIONS, getFixtureIconEmoji, type FixtureIcon,
 } from '@/store/fixtureStore';
 import { useWledStore, type WledFixture } from '@/store/wledStore';
-import { useHueStore } from '@/store/hueStore';
 import { WledPanel } from './WledPanel';
 import { HuePanel } from './HuePanel';
 
