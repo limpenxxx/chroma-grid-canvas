@@ -739,11 +739,82 @@ export function FixtureControls() {
               </button>
             );
           })}
+          {/* MagicHome devices */}
+          {fixtureTab === 'magichome' && magicHomeStore.devices.length === 0 && (
+            <div className="text-[10px] text-muted-foreground text-center py-4">
+              No MagicHome devices.<br />Go to Devices → MagicHome tab.
+            </div>
+          )}
+          {fixtureTab === 'magichome' && magicHomeStore.devices.map(dev => {
+            const id = `mh-${dev.id}`;
+            const col = dev.state?.color || { r: 40, g: 40, b: 40 };
+            const previewColor = dev.state?.on ? `rgb(${col.r},${col.g},${col.b})` : '#282828';
+            return (
+              <button
+                key={id}
+                onClick={() => setSelectedId(id)}
+                className={`w-full flex items-center gap-2 p-2 rounded text-xs transition-all ${
+                  selectedId === id ? 'bg-green-500/10 border border-green-500/30 text-green-500' : 'hover:bg-muted/50 text-muted-foreground'
+                }`}
+              >
+                <span className="text-sm">🏠</span>
+                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: previewColor, boxShadow: dev.state?.on ? `0 0 6px ${previewColor}` : 'none' }} />
+                <div className="flex-1 text-left min-w-0">
+                  <div className="truncate text-[10px] font-semibold">{dev.name}</div>
+                  <div className="text-[8px] text-muted-foreground/60">{dev.address}</div>
+                  <div className={`text-[7px] ${dev.online ? 'text-green-500' : 'text-red-500'}`}>
+                    {dev.online ? '● Online' : '○ Offline'}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Controls */}
         <div className="flex-1 p-6 overflow-y-auto">
-          {selectedHueLight ? (
+          {fixtureTab === 'magichome' && selectedId.startsWith('mh-') ? (() => {
+            const devId = selectedId.replace('mh-', '');
+            const dev = magicHomeStore.devices.find(d => d.id === devId);
+            if (!dev) return <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Select a device</div>;
+            const col = dev.state?.color || { r: 0, g: 0, b: 0 };
+            const briPercent = dev.state?.on ? Math.round((Math.max(col.r, col.g, col.b) / 255) * 100) : 0;
+            return (
+              <div className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full border border-border/30"
+                    style={{ backgroundColor: dev.state?.on ? `rgb(${col.r},${col.g},${col.b})` : '#282828',
+                      boxShadow: dev.state?.on ? `0 0 15px rgb(${col.r},${col.g},${col.b})` : 'none' }} />
+                  <div>
+                    <div className="text-sm font-semibold">{dev.name}</div>
+                    <div className="text-[9px] text-muted-foreground font-mono">{dev.address}</div>
+                  </div>
+                  <Button variant={dev.state?.on ? 'secondary' : 'outline'} size="sm" className="ml-auto h-8 text-[10px] gap-1"
+                    onClick={() => magicHomeStore.setPower(dev.id, !dev.state?.on)}>
+                    {dev.state?.on ? '⚡ ON' : '○ OFF'}
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground block">COLOR</label>
+                  <ColorWheel color={col} onChange={c => magicHomeStore.setColor(dev.id, c.r, c.g, c.b)} />
+                  {['r', 'g', 'b'].map(ch => (
+                    <div key={ch} className="flex items-center gap-2">
+                      <span className="text-[9px] text-muted-foreground w-4 uppercase font-semibold">{ch}</span>
+                      <Slider value={[col[ch as keyof typeof col]]} onValueChange={([v]) => {
+                        const newCol = { ...col, [ch]: v };
+                        magicHomeStore.setColor(dev.id, newCol.r, newCol.g, newCol.b);
+                      }} max={255} className="flex-1" />
+                      <span className="text-[9px] font-mono text-muted-foreground w-6">{col[ch as keyof typeof col]}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground block">BRIGHTNESS: {briPercent}%</label>
+                  <Slider value={[briPercent]} onValueChange={([v]) => magicHomeStore.setBrightness(dev.id, v)} max={100} />
+                </div>
+              </div>
+            );
+          })() : selectedHueLight ? (
             <HueLightPanel
               bridgeId={selectedHueLight.bridgeId}
               lightId={selectedHueLight.lightId}
