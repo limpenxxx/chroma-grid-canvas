@@ -2516,7 +2516,313 @@ export function LiveDJ() {
     updateWidget(selectedWidget, { linkedFixtureIds: [...new Set([...selectedWidgetData!.linkedFixtureIds, ...group.fixtureIds])] });
   };
 
-  // ── Real WLED output: send state to physical devices when widgets change ──
+  // ── Audio Reactive Engine Loop ──
+  const arStateRef = useRef<{
+    beatCount: number;
+    lastBeatTime: number;
+    currentLevel: Record<string, number>; // per-band energy levels
+    colorIdx: Record<string, number>; // per-effect color cycle index
+    posToggle: Record<string, boolean>; // per-effect position toggle
+    presetIdx: Record<string, number>; // per-effect WLED preset index
+    chasePos: Record<string, number>; // per-effect pixel chase position
+  }>({ beatCount: 0, lastBeatTime: 0, currentLevel: {}, colorIdx: {}, posToggle: {}, presetIdx: {}, chasePos: {} });
+
+  useEffect(() => {
+    // Get audio analyser from mic or system audio
+    const getAnalyser = (): AnalyserNode | null => {
+      if (audioConfig.source === 'browser-mic') return micBpmRef.current?.analyser || null;
+      if (audioConfig.source === 'system-audio') return sysAudioRef.current?.analyser || null;
+      return null;
+    };
+
+    // Find all active audio-reactive widgets
+    const arWidgets = widgets.filter(w => w.type === 'audio-reactive' && w.audioReactive?.running);
+    if (arWidgets.length === 0) return;
+
+    const analyser = getAnalyser();
+    // Even without an analyser, BPM-based effects can still work from tap-tempo
+    const arState = arStateRef.current;
+    let raf = 0;
+    let lastFrameTime = 0;
+
+    // Helper: get frequency band energy from analyser
+    const getBandEnergy = (freqData: Uint8Array | null, band: string, sampleRate: number, binCount: number): number => {
+      if (!freqData) return 0;
+      const binHz = (sampleRate / 2) / binCount;
+      let lo = 0, hi = freqData.length;
+      if (band === 'bass') { lo = Math.floor(30 / binHz); hi = Math.ceil(200 / binHz); }
+      else if (band === 'mid') { lo = Math.floor(200 / binHz); hi = Math.ceil(2000 / binHz); }
+      else if (band === 'high') { lo = Math.floor(2000 / binHz); hi = Math.ceil(12000 / binHz); }
+      let sum = 0, count = 0;
+      for (let i = Math.max(0, lo); i < Math.min(freqData.length, hi); i++) { sum += freqData[i]; count++; }
+      return count > 0 ? sum / count : 0;
+    };
+
+    // HSL to RGB helper
+    const hslToRgb = (h: number, s: number, l: number): { r: number; g: number; b: number } => {
+      const hh = ((h % 360) + 360) % 360;
+      const c = (1 - Math.abs(2 * l - 1)) * s;
+      const x = c * (1 - Math.abs((hh / 60) % 2 - 1));
+      const m = l - c / 2;
+      let r = 0, g = 0, b = 0;
+      if (hh < 60) { r = c; g = x; } else if (hh < 120) { r = x; g = c; }
+      else if (hh < 180) { g = c; b = x; } else if (hh < 240) { g = x; b = c; }
+      else if (hh < 300) { r = x; b = c; } else { r = c; b = x; }
+      return { r: Math.round((r + m) * 255), g: Math.round((g + m) * 255), b: Math.round((b + m) * 255) };
+    };
+
+    const tick = (now: number) => {
+      if (now - lastFrameTime < 30) { raf = requestAnimationFrame(tick); return; } // ~33fps
+      lastFrameTime = now;
+
+      let freqData: Uint8Array | null = null;
+      let sampleRate = 44100;
+      let binCount = 512;
+
+      if (analyser) {
+        freqData = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(freqData);
+        sampleRate = analyser.context.sampleRate;
+        binCount = analyser.frequencyBinCount;
+      }
+
+      // Beat detection from BPM state
+      const beatInterval = bpmState.bpm > 0 ? 60000 / bpmState.bpm : 500;
+      const isBeat = now - arState.lastBeatTime >= beatInterval;
+      if (isBeat) {
+        arState.lastBeatTime = now;
+        arState.beatCount++;
+      }
+
+      // Process each AR widget
+      arWidgets.forEach(w => {
+        const arConfig = w.audioReactive!;
+        const sensitivity = arConfig.sensitivity / 255;
+
+        arConfig.effects.filter(fx => fx.enabled).forEach((fx, fxIdx) => {
+          const fxKey = `${w.id}-${fxIdx}`;
+          const band = fx.triggerBand || 'all';
+          const energy = getBandEnergy(freqData, band, sampleRate, binCount) * sensitivity;
+          const normalizedEnergy = Math.min(1, energy / 180); // 0-1
+          const decayRate = (fx.decay || arConfig.globalDecay) / 255;
+          const intensityScale = (fx.intensity || 200) / 255;
+
+          // Find fixture
+          const instData = allFixturesWithDefs.find(f => f.inst.id === fx.fixtureId);
+          if (!instData) return;
+          const isWled = instData.def.category === 'wled';
+
+          // Smooth current level
+          const prevLevel = arState.currentLevel[fxKey] || 0;
+          const targetLevel = normalizedEnergy * intensityScale;
+          arState.currentLevel[fxKey] = Math.max(targetLevel, prevLevel * decayRate);
+          const level = arState.currentLevel[fxKey];
+
+          switch (fx.effect) {
+            case 'dimmer-pump': {
+              const dmxVal = Math.round(level * 255);
+              if (isWled) {
+                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                if (wledFix) void setWledState(wledFix.deviceIp, { on: dmxVal > 5, bri: Math.max(1, dmxVal) }).catch(() => {});
+              } else {
+                const inst = instData.inst;
+                const def = instData.def;
+                const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                const dimCh = mode?.channels.find(c => c.function === 'dimmer');
+                if (dimCh) {
+                  sendDmxChannel(inst.universe, inst.dmxAddress + dimCh.number - 1, dmxVal);
+                }
+              }
+              break;
+            }
+            case 'color-pulse': {
+              if (isBeat && fx.color1) {
+                const c = fx.color1;
+                if (isWled) {
+                  const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                  if (wledFix) void setWledState(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+                } else {
+                  const inst = instData.inst;
+                  const def = instData.def;
+                  const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                  const rCh = mode?.channels.find(ch => ch.function === 'red');
+                  const gCh = mode?.channels.find(ch => ch.function === 'green');
+                  const bCh = mode?.channels.find(ch => ch.function === 'blue');
+                  if (rCh) sendDmxChannel(inst.universe, inst.dmxAddress + rCh.number - 1, c.r);
+                  if (gCh) sendDmxChannel(inst.universe, inst.dmxAddress + gCh.number - 1, c.g);
+                  if (bCh) sendDmxChannel(inst.universe, inst.dmxAddress + bCh.number - 1, c.b);
+                  const dimCh = mode?.channels.find(ch => ch.function === 'dimmer');
+                  if (dimCh) sendDmxChannel(inst.universe, inst.dmxAddress + dimCh.number - 1, 255);
+                }
+              }
+              break;
+            }
+            case 'strobe-beat': {
+              if (isBeat) {
+                if (!isWled) {
+                  const inst = instData.inst;
+                  const def = instData.def;
+                  const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                  const strobeCh = mode?.channels.find(c => c.function === 'strobe');
+                  const dimCh = mode?.channels.find(c => c.function === 'dimmer');
+                  if (strobeCh) sendDmxChannel(inst.universe, inst.dmxAddress + strobeCh.number - 1, 200);
+                  if (dimCh) sendDmxChannel(inst.universe, inst.dmxAddress + dimCh.number - 1, 255);
+                  setTimeout(() => {
+                    if (strobeCh) sendDmxChannel(inst.universe, inst.dmxAddress + strobeCh.number - 1, 0);
+                  }, 80);
+                } else {
+                  const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                  if (wledFix) {
+                    void setWledState(wledFix.deviceIp, { on: true, bri: 255 }).catch(() => {});
+                    setTimeout(() => { void setWledState(wledFix.deviceIp, { bri: 0 }).catch(() => {}); }, 80);
+                  }
+                }
+              }
+              break;
+            }
+            case 'pos-alternate': {
+              if (isBeat) {
+                arState.posToggle[fxKey] = !arState.posToggle[fxKey];
+                const pos = arState.posToggle[fxKey] ? fx.posA : fx.posB;
+                if (pos && !isWled) {
+                  const inst = instData.inst;
+                  const def = instData.def;
+                  const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                  const panCh = mode?.channels.find(c => c.function === 'pan');
+                  const tiltCh = mode?.channels.find(c => c.function === 'tilt');
+                  if (panCh) sendDmxChannel(inst.universe, inst.dmxAddress + panCh.number - 1, pos.pan);
+                  if (tiltCh) sendDmxChannel(inst.universe, inst.dmxAddress + tiltCh.number - 1, pos.tilt);
+                }
+              }
+              break;
+            }
+            case 'color-cycle': {
+              if (isBeat && fx.color1 && fx.color2) {
+                arState.colorIdx[fxKey] = ((arState.colorIdx[fxKey] || 0) + 1) % 2;
+                const c = arState.colorIdx[fxKey] === 0 ? fx.color1 : fx.color2;
+                if (isWled) {
+                  const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                  if (wledFix) void setWledState(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+                } else {
+                  const inst = instData.inst;
+                  const def = instData.def;
+                  const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                  const rCh = mode?.channels.find(ch => ch.function === 'red');
+                  const gCh = mode?.channels.find(ch => ch.function === 'green');
+                  const bCh = mode?.channels.find(ch => ch.function === 'blue');
+                  if (rCh) sendDmxChannel(inst.universe, inst.dmxAddress + rCh.number - 1, c.r);
+                  if (gCh) sendDmxChannel(inst.universe, inst.dmxAddress + gCh.number - 1, c.g);
+                  if (bCh) sendDmxChannel(inst.universe, inst.dmxAddress + bCh.number - 1, c.b);
+                }
+              }
+              break;
+            }
+            case 'bass-color-shift': {
+              const hue = normalizedEnergy * 120; // shifts from red(0) to green(120) with bass
+              const c = hslToRgb(hue, 1, 0.5);
+              if (isWled) {
+                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                if (wledFix) void setWledState(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+              } else {
+                const inst = instData.inst;
+                const def = instData.def;
+                const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                const rCh = mode?.channels.find(ch => ch.function === 'red');
+                const gCh = mode?.channels.find(ch => ch.function === 'green');
+                const bCh = mode?.channels.find(ch => ch.function === 'blue');
+                if (rCh) sendDmxChannel(inst.universe, inst.dmxAddress + rCh.number - 1, c.r);
+                if (gCh) sendDmxChannel(inst.universe, inst.dmxAddress + gCh.number - 1, c.g);
+                if (bCh) sendDmxChannel(inst.universe, inst.dmxAddress + bCh.number - 1, c.b);
+              }
+              break;
+            }
+            case 'wled-preset-cycle': {
+              if (isBeat && isWled && fx.wledPresets && fx.wledPresets.length > 0) {
+                arState.presetIdx[fxKey] = ((arState.presetIdx[fxKey] || 0) + 1) % fx.wledPresets.length;
+                const presetId = fx.wledPresets[arState.presetIdx[fxKey]];
+                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                if (wledFix) void setWledPreset(wledFix.deviceIp, presetId).catch(() => {});
+              }
+              break;
+            }
+            case 'wled-pixel-chase': {
+              if (isBeat && isWled && fx.color1) {
+                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                if (wledFix) {
+                  const dev = wledStore.devices.find(d => d.id === wledFix.deviceId);
+                  const ledCount = dev?.info?.leds?.count || instData.def.wledConfig?.ledCount || 30;
+                  arState.chasePos[fxKey] = 0;
+                  const c = fx.color1;
+                  // Send chase effect: use WLED effect 45 (Scan) with the color
+                  void setWledState(wledFix.deviceIp, {
+                    on: true,
+                    seg: [{ id: 0, col: [[c.r, c.g, c.b], [0, 0, 0]], fx: 45, sx: 200, ix: Math.round(intensityScale * 255) }],
+                  }).catch(() => {});
+                }
+              }
+              break;
+            }
+            case 'intensity-map': {
+              const dmxVal = Math.round(level * 255);
+              if (isWled) {
+                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                if (wledFix) void setWledState(wledFix.deviceIp, { on: dmxVal > 5, bri: Math.max(1, dmxVal) }).catch(() => {});
+              } else {
+                const inst = instData.inst;
+                const def = instData.def;
+                const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                const dimCh = mode?.channels.find(c => c.function === 'dimmer');
+                if (dimCh) sendDmxChannel(inst.universe, inst.dmxAddress + dimCh.number - 1, dmxVal);
+              }
+              break;
+            }
+            case 'hue-sweep': {
+              const hue = normalizedEnergy * 360;
+              const c = hslToRgb(hue, 1, 0.5);
+              if (isWled) {
+                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                if (wledFix) void setWledState(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+              } else {
+                const inst = instData.inst;
+                const def = instData.def;
+                const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                const rCh = mode?.channels.find(ch => ch.function === 'red');
+                const gCh = mode?.channels.find(ch => ch.function === 'green');
+                const bCh = mode?.channels.find(ch => ch.function === 'blue');
+                if (rCh) sendDmxChannel(inst.universe, inst.dmxAddress + rCh.number - 1, c.r);
+                if (gCh) sendDmxChannel(inst.universe, inst.dmxAddress + gCh.number - 1, c.g);
+                if (bCh) sendDmxChannel(inst.universe, inst.dmxAddress + bCh.number - 1, c.b);
+              }
+              break;
+            }
+            case 'size-pulse': {
+              if (!isWled) {
+                const dmxVal = Math.round(level * 255);
+                const inst = instData.inst;
+                const def = instData.def;
+                const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                const zoomCh = mode?.channels.find(c => c.function === 'zoom');
+                const irisCh = mode?.channels.find(c => c.function === 'iris');
+                if (zoomCh) sendDmxChannel(inst.universe, inst.dmxAddress + zoomCh.number - 1, dmxVal);
+                else if (irisCh) sendDmxChannel(inst.universe, inst.dmxAddress + irisCh.number - 1, dmxVal);
+              }
+              break;
+            }
+          }
+        });
+      });
+
+      if (document.hidden) {
+        raf = window.setTimeout(tick, 33) as unknown as number;
+      } else {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => { cancelAnimationFrame(raf); clearTimeout(raf); };
+  }, [widgets, audioConfig.source, bpmState.bpm, allFixturesWithDefs, wledStore.devices, wledStore.fixtures]);
+
   useEffect(() => {
     const nextSent: Record<string, string> = {};
     const wledOutputFixtures = [
