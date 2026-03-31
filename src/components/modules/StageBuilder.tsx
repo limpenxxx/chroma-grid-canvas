@@ -1094,6 +1094,11 @@ export function StageBuilder() {
                 onChange={e => {
                   const val = e.target.value;
                   if (val) {
+                    const item = mediaStore.items.find(i => i.id === val);
+                    if (item && (item.sourceType === 'youtube' || item.sourceType === 'vimeo')) {
+                      toast.error('YouTube/Vimeo videos cannot be used in pixel mapping due to browser restrictions. Use a direct video URL or local file instead.');
+                      return;
+                    }
                     stageStore.setSelectedMediaItemId(val);
                     stageStore.setSelectedPlaylistId(null);
                     mediaStore.playItem(val);
