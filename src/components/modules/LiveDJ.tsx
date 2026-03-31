@@ -31,7 +31,7 @@ interface FixtureAssignment {
   mode: ControlMode;
 }
 
-type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset' | 'audio-reactive';
+type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset' | 'audio-reactive' | 'tap-bpm';
 
 // ── Audio Reactive Effect Types ──
 type AudioReactiveEffectType =
@@ -136,6 +136,9 @@ interface BPMState {
   isSynced: boolean;
   linkedWidgetIds: string[];
   flashOn: boolean;
+  bpmMode: 'manual' | 'auto';
+  autoBpm: number;    // BPM detected by audio analysis
+  audioLevel: number; // 0-255 current audio input level
 }
 
 const AUDIO_SOURCES: { value: AudioSource; label: string; description: string }[] = [
@@ -298,6 +301,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'wled-fixture', label: 'WLED Fixture', icon: Wifi, w: 200, h: 260 },
   { type: 'dmx-reset', label: 'DMX Reset', icon: Square, w: 120, h: 80 },
   { type: 'audio-reactive', label: 'Audio Reactive', icon: Radio, w: 260, h: 320 },
+  { type: 'tap-bpm', label: 'Tap / Audio In', icon: Activity, w: 220, h: 200 },
 ];
 
 // ── Color distance helper (Euclidean in RGB space) ──
@@ -505,6 +509,7 @@ type DragMode = 'none' | 'move' | 'resize-br' | 'resize-bl' | 'resize-tr' | 'res
 
 function ControlWidget({
   widget, isSelected, onSelect, onUpdate, onPress, onRelease, allWidgets, fixtureData, isFullscreen = false, bpm = 120,
+  bpmState: bpmStateProp, audioConfig: audioConfigProp, handleTap: handleTapProp, setBpmState: setBpmStateProp, setAudioConfig: setAudioConfigProp,
 }: {
   widget: DJWidget;
   isSelected: boolean;
@@ -516,6 +521,11 @@ function ControlWidget({
   fixtureData: { inst: FixtureInstance; def: FixtureDefinition }[];
   isFullscreen?: boolean;
   bpm?: number;
+  bpmState?: BPMState;
+  audioConfig?: AudioConfig;
+  handleTap?: () => void;
+  setBpmState?: React.Dispatch<React.SetStateAction<BPMState>>;
+  setAudioConfig?: React.Dispatch<React.SetStateAction<AudioConfig>>;
 }) {
   const dragRef = useRef<{
     mode: DragMode;
@@ -1761,6 +1771,119 @@ function ControlWidget({
           </div>
         );
       })()}
+
+      {/* TAP / AUDIO IN WIDGET */}
+      {widget.type === 'tap-bpm' && (() => {
+        const bs = bpmStateProp || { bpm: 120, tapTimes: [], isSynced: false, linkedWidgetIds: [], flashOn: false, bpmMode: 'auto' as const, autoBpm: 0, audioLevel: 0 };
+        const ac = audioConfigProp || { source: 'none' as AudioSource, squelch: 10, gain: 128, udpPort: 11988, wledIp: '', sensitivity: 128, freqLow: 60, freqHigh: 200 };
+        const levelPct = Math.round((bs.audioLevel / 255) * 100);
+        const sourceLabel = AUDIO_SOURCES.find(s => s.value === ac.source)?.label || 'None';
+        const s = Math.min(widget.width, widget.height);
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col overflow-hidden relative"
+            style={{ ...bgStyle, borderColor: bs.flashOn ? '#ff2d78' : undefined, boxShadow: bs.flashOn ? '0 0 20px #ff2d7840' : undefined }}
+            onClick={onSelect}>
+
+            {/* Header */}
+            <div className="px-2 py-1 flex items-center gap-1.5 border-b border-border/20 shrink-0" style={{ background: 'rgba(255,45,120,0.06)' }}>
+              <Activity size={10} className="text-stokio-pink" />
+              <span className="text-[9px] font-semibold truncate flex-1 text-stokio-pink">{widget.label}</span>
+              <span className="text-[7px] font-mono text-muted-foreground/50">{sourceLabel}</span>
+            </div>
+
+            <div className="flex-1 p-2 space-y-2 overflow-y-auto">
+              {/* Mode toggle */}
+              <div className="flex rounded-md border border-border/20 overflow-hidden">
+                <button
+                  className={`flex-1 text-[8px] py-1 font-semibold transition-all ${bs.bpmMode === 'manual' ? 'bg-stokio-pink/20 text-stokio-pink' : 'text-muted-foreground hover:bg-muted/20'}`}
+                  onClick={e => { e.stopPropagation(); setBpmStateProp?.(prev => ({ ...prev, bpmMode: 'manual' })); }}>
+                  <Hand size={9} className="inline mr-0.5" /> MANUAL
+                </button>
+                <button
+                  className={`flex-1 text-[8px] py-1 font-semibold transition-all ${bs.bpmMode === 'auto' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-muted/20'}`}
+                  onClick={e => { e.stopPropagation(); setBpmStateProp?.(prev => ({ ...prev, bpmMode: 'auto' })); }}>
+                  <Sparkles size={9} className="inline mr-0.5" /> AUTO
+                </button>
+              </div>
+
+              {/* BPM display + Tap button */}
+              <div className="flex items-center gap-2">
+                <motion.button whileTap={{ scale: 0.9 }}
+                  onClick={e => { e.stopPropagation(); handleTapProp?.(); }}
+                  className="w-12 h-12 rounded-full control-glossy border-2 flex flex-col items-center justify-center transition-all shrink-0"
+                  style={{
+                    borderColor: bs.flashOn ? '#ff2d78' : 'hsl(var(--border) / 0.3)',
+                    boxShadow: bs.flashOn ? '0 0 20px #ff2d7860, inset 0 0 10px #ff2d7820' : 'none',
+                    opacity: bs.bpmMode === 'auto' ? 0.4 : 1,
+                  }}>
+                  <span className="text-[7px] uppercase text-muted-foreground font-semibold">TAP</span>
+                  <span className="text-[10px] font-bold text-primary font-mono">{bs.bpm}</span>
+                </motion.button>
+
+                <div className="flex-1 space-y-1">
+                  <div className="text-base font-bold font-mono text-foreground flex items-center gap-1">
+                    {bs.bpm} <span className="text-[8px] text-muted-foreground font-normal">BPM</span>
+                    {bs.isSynced && (
+                      <motion.div className="w-2 h-2 rounded-full"
+                        animate={{ backgroundColor: bs.flashOn ? '#ff2d78' : '#00ff66', boxShadow: bs.flashOn ? '0 0 8px #ff2d78' : '0 0 4px #00ff6660' }}
+                        transition={{ duration: 0.05 }} />
+                    )}
+                  </div>
+                  {bs.autoBpm > 0 && (
+                    <div className="text-[8px] text-muted-foreground/60 font-mono">
+                      AI Detect: <span className="text-primary">{bs.autoBpm}</span> BPM
+                    </div>
+                  )}
+                  <div className="flex gap-0.5">
+                    <Button variant="outline" size="sm" className="h-4 text-[7px] px-1"
+                      onClick={() => setBpmStateProp?.(prev => ({ ...prev, bpm: Math.max(20, prev.bpm - 1) }))}>-1</Button>
+                    <Button variant="outline" size="sm" className="h-4 text-[7px] px-1"
+                      onClick={() => setBpmStateProp?.(prev => ({ ...prev, bpm: Math.min(300, prev.bpm + 1) }))}>+1</Button>
+                    <Button variant="outline" size="sm" className="h-4 text-[7px] px-1"
+                      onClick={() => setBpmStateProp?.(prev => ({ ...prev, bpm: Math.round(prev.bpm / 2) }))}>÷2</Button>
+                    <Button variant="outline" size="sm" className="h-4 text-[7px] px-1"
+                      onClick={() => setBpmStateProp?.(prev => ({ ...prev, bpm: Math.min(300, prev.bpm * 2) }))}>×2</Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Audio Level Meter */}
+              <div className="space-y-0.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[7px] uppercase text-muted-foreground tracking-wider">Input Level</span>
+                  <span className="text-[7px] font-mono text-muted-foreground/60">{bs.audioLevel}</span>
+                </div>
+                <div className="h-3 rounded-full bg-muted/30 overflow-hidden border border-border/10 relative">
+                  <motion.div
+                    className="h-full rounded-full"
+                    animate={{ width: `${levelPct}%` }}
+                    transition={{ duration: 0.05 }}
+                    style={{
+                      background: levelPct > 80
+                        ? 'linear-gradient(90deg, #00ff66, #ff4444)'
+                        : levelPct > 40
+                          ? 'linear-gradient(90deg, #00ff66, #ffaa00)'
+                          : 'linear-gradient(90deg, #00ff6640, #00ff66)',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Audio Source selector */}
+              <div>
+                <span className="text-[7px] uppercase text-muted-foreground tracking-wider">Source</span>
+                <select value={ac.source}
+                  onChange={e => { e.stopPropagation(); setAudioConfigProp?.(prev => ({ ...prev, source: e.target.value as AudioSource })); }}
+                  className="w-full h-5 rounded bg-muted/20 border border-border/20 text-[8px] px-1 text-foreground mt-0.5"
+                  onClick={e => e.stopPropagation()}>
+                  {AUDIO_SOURCES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -2121,6 +2244,7 @@ export function LiveDJ() {
   });
   const [bpmState, setBpmState] = useState<BPMState>({
     bpm: 120, tapTimes: [], isSynced: false, linkedWidgetIds: [], flashOn: false,
+    bpmMode: 'auto', autoBpm: 0, audioLevel: 0,
   });
   const bpmFlashRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -2156,7 +2280,7 @@ export function LiveDJ() {
 
   useEffect(() => {
     if (wledPollRef.current) { clearInterval(wledPollRef.current); wledPollRef.current = null; }
-    if (audioConfig.source !== 'wled-udp-sync' || !audioConfig.wledIp) return;
+    if (!audioConfig.source.startsWith('wled') || !audioConfig.wledIp) return;
 
     const ip = audioConfig.wledIp;
     const beatData = wledBeatRef.current;
@@ -2173,9 +2297,12 @@ export function LiveDJ() {
         // or data.um?.AudioReactive?.volumeSmth or similar
         const um = data?.um;
         const ar = um?.['AudioReactive'] || um?.['audioreactive'] || {};
-        const vol = ar?.volumeSmth ?? ar?.volume ?? ar?.inputLevel ?? data?.leds?.lx ?? 0;
+        const vol = Math.min(255, Math.max(0, ar?.volumeSmth ?? ar?.volume ?? ar?.inputLevel ?? data?.leds?.lx ?? 0));
         const now = Date.now();
         const threshold = audioConfig.squelch * 0.5 + 20;
+
+        // Update audio level
+        setBpmState(prev => ({ ...prev, audioLevel: vol }));
 
         // Simple beat detection: rising edge above threshold
         if (vol > threshold && beatData.lastVol <= threshold && now - beatData.lastPeakTime > 200) {
@@ -2187,7 +2314,10 @@ export function LiveDJ() {
             const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
             const detectedBpm = Math.round(60000 / avgInterval);
             if (detectedBpm >= 40 && detectedBpm <= 300) {
-              setBpmState(prev => ({ ...prev, bpm: detectedBpm, isSynced: true }));
+              setBpmState(prev => ({
+                ...prev, autoBpm: detectedBpm,
+                ...(prev.bpmMode === 'auto' ? { bpm: detectedBpm, isSynced: true } : {}),
+              }));
             }
           }
         }
@@ -2250,7 +2380,10 @@ export function LiveDJ() {
           }
           const energy = count > 0 ? sum / count : 0;
 
-          const threshold = (255 - audioConfig.sensitivity) * 0.6 + 15; // higher sensitivity = lower threshold
+          // Update audio level
+          setBpmState(prev => ({ ...prev, audioLevel: Math.round(energy) }));
+
+          const threshold = (255 - audioConfig.sensitivity) * 0.6 + 15;
           const now = Date.now();
 
           // Rising edge detection
@@ -2263,7 +2396,10 @@ export function LiveDJ() {
               const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
               const detectedBpm = Math.round(60000 / avgInterval);
               if (detectedBpm >= 40 && detectedBpm <= 300) {
-                setBpmState(prev => ({ ...prev, bpm: detectedBpm, isSynced: true }));
+                setBpmState(prev => ({
+                  ...prev, autoBpm: detectedBpm,
+                  ...(prev.bpmMode === 'auto' ? { bpm: detectedBpm, isSynced: true } : {}),
+                }));
               }
             }
           }
@@ -2337,6 +2473,7 @@ export function LiveDJ() {
           let sum = 0, count = 0;
           for (let i = lowBin; i <= highBin; i++) { sum += freqData[i]; count++; }
           const energy = count > 0 ? sum / count : 0;
+          setBpmState(prev => ({ ...prev, audioLevel: Math.round(energy) }));
           const threshold = (255 - audioConfig.sensitivity) * 0.6 + 15;
           const now = Date.now();
           if (energy > threshold && sys.lastEnergy <= threshold && now - sys.lastPeakTime > 200) {
@@ -2347,7 +2484,10 @@ export function LiveDJ() {
               const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
               const detectedBpm = Math.round(60000 / avgInterval);
               if (detectedBpm >= 40 && detectedBpm <= 300) {
-                setBpmState(prev => ({ ...prev, bpm: detectedBpm, isSynced: true }));
+                setBpmState(prev => ({
+                  ...prev, autoBpm: detectedBpm,
+                  ...(prev.bpmMode === 'auto' ? { bpm: detectedBpm, isSynced: true } : {}),
+                }));
               }
             }
           }
@@ -3349,6 +3489,11 @@ export function LiveDJ() {
                   fixtureData={allFixturesWithDefs}
                   isFullscreen={isFullscreen}
                   bpm={bpmState.bpm}
+                  bpmState={bpmState}
+                  audioConfig={audioConfig}
+                  handleTap={handleTap}
+                  setBpmState={setBpmState}
+                  setAudioConfig={setAudioConfig}
                 />
               ))}
 
@@ -3439,11 +3584,57 @@ export function LiveDJ() {
                 )}
               </div>
 
-              {/* BPM / Tap Tempo — visible for TAP-TEMPO, WLED UDP Sync, Browser Mic, and System Audio */}
-              {(audioConfig.source === 'tap-tempo' || audioConfig.source === 'wled-udp-sync' || audioConfig.source === 'browser-mic' || audioConfig.source === 'system-audio') && <div className="p-3 border-b border-border/20 space-y-2">
+              {/* BPM / Tap Tempo — visible for all audio sources except 'none' */}
+              {audioConfig.source !== 'none' && <div className="p-3 border-b border-border/20 space-y-2">
                 <span className="text-[9px] uppercase tracking-widest text-stokio-pink font-semibold flex items-center gap-1">
                   <Activity size={10} /> BPM / Tap Tempo
                 </span>
+
+                {/* Auto / Manual toggle */}
+                <div className="flex rounded-md border border-border/20 overflow-hidden">
+                  <button
+                    className={`flex-1 text-[8px] py-1 font-semibold transition-all ${bpmState.bpmMode === 'manual' ? 'bg-stokio-pink/20 text-stokio-pink' : 'text-muted-foreground hover:bg-muted/20'}`}
+                    onClick={() => setBpmState(prev => ({ ...prev, bpmMode: 'manual' }))}>
+                    <Hand size={9} className="inline mr-0.5" /> MANUAL TAP
+                  </button>
+                  <button
+                    className={`flex-1 text-[8px] py-1 font-semibold transition-all ${bpmState.bpmMode === 'auto' ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-muted/20'}`}
+                    onClick={() => setBpmState(prev => ({ ...prev, bpmMode: 'auto' }))}>
+                    <Sparkles size={9} className="inline mr-0.5" /> AUTO DETECT
+                  </button>
+                </div>
+
+                {/* Audio Input Level Meter */}
+                {audioConfig.source !== 'tap-tempo' && (
+                  <div className="space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[7px] uppercase text-muted-foreground tracking-wider">Input Level</span>
+                      <span className="text-[7px] font-mono text-muted-foreground/60">{bpmState.audioLevel}/255</span>
+                    </div>
+                    <div className="h-3 rounded-full bg-muted/30 overflow-hidden border border-border/10">
+                      <motion.div className="h-full rounded-full"
+                        animate={{ width: `${Math.round((bpmState.audioLevel / 255) * 100)}%` }}
+                        transition={{ duration: 0.05 }}
+                        style={{
+                          background: bpmState.audioLevel > 200 ? 'linear-gradient(90deg, #00ff66, #ff4444)' :
+                            bpmState.audioLevel > 100 ? 'linear-gradient(90deg, #00ff66, #ffaa00)' :
+                            'linear-gradient(90deg, #00ff6640, #00ff66)',
+                        }} />
+                    </div>
+                    {bpmState.autoBpm > 0 && (
+                      <div className="text-[8px] text-muted-foreground/60 font-mono mt-1">
+                        AI Detected: <span className="text-primary font-semibold">{bpmState.autoBpm}</span> BPM
+                        {bpmState.bpmMode === 'manual' && (
+                          <button className="ml-1 text-primary/60 hover:text-primary underline"
+                            onClick={() => setBpmState(prev => ({ ...prev, bpm: prev.autoBpm, isSynced: true }))}>
+                            Use
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex items-center gap-2">
                   <motion.button whileTap={{ scale: 0.9 }} onClick={handleTap}
                     className="w-16 h-16 rounded-full control-glossy border-2 flex flex-col items-center justify-center transition-all"
@@ -3451,6 +3642,7 @@ export function LiveDJ() {
                       borderColor: bpmState.flashOn ? '#ff2d78' : 'hsl(var(--border) / 0.3)',
                       boxShadow: bpmState.flashOn ? '0 0 25px #ff2d7860, inset 0 0 15px #ff2d7820' : 'none',
                       background: bpmState.flashOn ? 'radial-gradient(circle at center, #ff2d7815, transparent)' : undefined,
+                      opacity: bpmState.bpmMode === 'auto' && audioConfig.source !== 'tap-tempo' ? 0.4 : 1,
                     }}>
                     <span className="text-[8px] uppercase tracking-wider text-muted-foreground font-semibold">TAP</span>
                     <span className="text-xs font-bold text-primary font-mono">{bpmState.bpm}</span>
