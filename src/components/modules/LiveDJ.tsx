@@ -2582,7 +2582,7 @@ export function LiveDJ() {
 
       if (analyser) {
         freqData = new Uint8Array(analyser.frequencyBinCount);
-        analyser.getByteFrequencyData(freqData);
+        analyser.getByteFrequencyData(freqData as any);
         sampleRate = analyser.context.sampleRate;
         binCount = analyser.frequencyBinCount;
       }
