@@ -6,6 +6,27 @@
 
 type SyncListener = (state: Record<string, unknown>) => void;
 type EngineStatusListener = (status: EngineStatus) => void;
+type PioneerListener = (data: PioneerData) => void;
+
+export interface PioneerDeck {
+  name: string;
+  deviceNumber: number;
+  bpm: number;
+  beat: number;
+  playing: boolean;
+  master: boolean;
+  ip: string;
+  lastSeen: number;
+}
+
+export interface PioneerData {
+  type: 'pioneer-decks' | 'pioneer-beat';
+  decks?: Record<number, PioneerDeck>;
+  deviceNumber?: number;
+  bpm?: number;
+  beat?: number;
+  name?: string;
+}
 
 export interface EngineStatus {
   running: boolean;
@@ -15,11 +36,13 @@ export interface EngineStatus {
   magicDevices: number;
   masterDimmer?: number;
   blackout?: boolean;
+  pioneerDecks?: Record<number, PioneerDeck>;
 }
 
 let ws: WebSocket | null = null;
 let listeners: SyncListener[] = [];
 let engineStatusListeners: EngineStatusListener[] = [];
+let pioneerListeners: PioneerListener[] = [];
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let isRemoteUpdate = false;
 let _engineConnected = false;
@@ -47,6 +70,14 @@ export function onEngineStatus(listener: EngineStatusListener): () => void {
   engineStatusListeners.push(listener);
   return () => {
     engineStatusListeners = engineStatusListeners.filter((l) => l !== listener);
+  };
+}
+
+/** Subscribe to Pioneer DJ updates */
+export function onPioneerData(listener: PioneerListener): () => void {
+  pioneerListeners.push(listener);
+  return () => {
+    pioneerListeners = pioneerListeners.filter((l) => l !== listener);
   };
 }
 
@@ -145,6 +176,10 @@ function connect() {
         } else if (msg.type === 'engine-status' || msg.type === 'engine-state') {
           for (const listener of engineStatusListeners) {
             listener(msg as EngineStatus);
+          }
+        } else if (msg.type === 'pioneer-decks' || msg.type === 'pioneer-beat') {
+          for (const listener of pioneerListeners) {
+            listener(msg as PioneerData);
           }
         }
       } catch { /* ignore bad messages */ }

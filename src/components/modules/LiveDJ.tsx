@@ -20,7 +20,7 @@ import { useMediaStore } from '@/store/mediaStore';
 import { useWledStore, type WledDevice, type WledFixture } from '@/store/wledStore';
 import { setWledPreset, setWledState } from '@/lib/wledApi';
 import { fetchWledPresets, isWledDeviceTargetId, wledDeviceToFixture } from '@/lib/wledUtils';
-import { sendDmxChannel } from '@/lib/wsSync';
+import { sendDmxChannel, onPioneerData, type PioneerData } from '@/lib/wsSync';
 
 // ── Types ──
 
@@ -117,7 +117,7 @@ interface MHProgram {
 }
 
 // ── Audio / BPM Types ──
-type AudioSource = 'none' | 'tap-tempo' | 'wled-analog' | 'wled-i2s-inmp441' | 'wled-i2s-max98357' | 'wled-i2s-sph0645' | 'wled-udp-sync' | 'browser-mic' | 'system-audio';
+type AudioSource = 'none' | 'tap-tempo' | 'pioneer-dj' | 'wled-analog' | 'wled-i2s-inmp441' | 'wled-i2s-max98357' | 'wled-i2s-sph0645' | 'wled-udp-sync' | 'browser-mic' | 'system-audio';
 
 interface AudioConfig {
   source: AudioSource;
@@ -130,6 +130,17 @@ interface AudioConfig {
   freqHigh: number;      // Hz, high cutoff for frequency filter
 }
 
+interface PioneerDeckLocal {
+  name: string;
+  deviceNumber: number;
+  bpm: number;
+  beat: number;
+  playing: boolean;
+  master: boolean;
+  ip: string;
+  lastSeen: number;
+}
+
 interface BPMState {
   bpm: number;
   tapTimes: number[];
@@ -139,11 +150,14 @@ interface BPMState {
   bpmMode: 'manual' | 'auto';
   autoBpm: number;    // BPM detected by audio analysis
   audioLevel: number; // 0-255 current audio input level
+  pioneerDecks: Record<number, PioneerDeckLocal>;
+  pioneerSyncDeck: number; // which deck to sync BPM from (0 = master)
 }
 
 const AUDIO_SOURCES: { value: AudioSource; label: string; description: string }[] = [
   { value: 'none', label: 'None', description: 'No audio input' },
   { value: 'tap-tempo', label: 'TAP-TEMPO', description: 'Manual tap tempo for BPM sync' },
+  { value: 'pioneer-dj', label: '🎛 Pioneer DJ (ProDJ Link)', description: 'Receive BPM and beat sync from Pioneer CDJ/DJM/XDJ equipment on the same network via ProDJ Link protocol' },
   { value: 'system-audio', label: 'System Audio', description: 'Capture audio from Chrome, Spotify, or any app on this computer via screen/tab sharing' },
   { value: 'browser-mic', label: 'Browser Microphone', description: "Use this device's microphone via Web Audio API" },
   { value: 'wled-analog', label: 'WLED Analog Mic', description: 'MAX4466 / MAX9814 analog microphone on WLED ESP32' },
@@ -1774,7 +1788,7 @@ function ControlWidget({
 
       {/* TAP / AUDIO IN WIDGET */}
       {widget.type === 'tap-bpm' && (() => {
-        const bs = bpmStateProp || { bpm: 120, tapTimes: [], isSynced: false, linkedWidgetIds: [], flashOn: false, bpmMode: 'auto' as const, autoBpm: 0, audioLevel: 0 };
+        const bs = bpmStateProp || { bpm: 120, tapTimes: [], isSynced: false, linkedWidgetIds: [], flashOn: false, bpmMode: 'auto' as const, autoBpm: 0, audioLevel: 0, pioneerDecks: {} as Record<number, PioneerDeckLocal>, pioneerSyncDeck: 0 };
         const ac = audioConfigProp || { source: 'none' as AudioSource, squelch: 10, gain: 128, udpPort: 11988, wledIp: '', sensitivity: 128, freqLow: 60, freqHigh: 200 };
         const levelPct = Math.round((bs.audioLevel / 255) * 100);
         const sourceLabel = AUDIO_SOURCES.find(s => s.value === ac.source)?.label || 'None';
@@ -2245,6 +2259,7 @@ export function LiveDJ() {
   const [bpmState, setBpmState] = useState<BPMState>({
     bpm: 120, tapTimes: [], isSynced: false, linkedWidgetIds: [], flashOn: false,
     bpmMode: 'auto', autoBpm: 0, audioLevel: 0,
+    pioneerDecks: {}, pioneerSyncDeck: 0,
   });
   const bpmFlashRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -2511,6 +2526,32 @@ export function LiveDJ() {
 
   // Expose system audio source name for bottom bar
   const systemAudioSourceName = sysAudioRef.current?.sourceName || '';
+
+  // ── Pioneer DJ (ProDJ Link) listener ──
+  useEffect(() => {
+    if (audioConfig.source !== 'pioneer-dj') return;
+
+    const unsub = onPioneerData((data: PioneerData) => {
+      if (data.type === 'pioneer-decks' && data.decks) {
+        setBpmState(prev => ({ ...prev, pioneerDecks: data.decks as Record<number, PioneerDeckLocal> }));
+      }
+      if (data.type === 'pioneer-beat' && data.bpm && data.bpm > 0) {
+        const syncDeckNum = bpmState.pioneerSyncDeck;
+        // Sync from specific deck or any playing deck
+        const shouldSync = syncDeckNum === 0 || data.deviceNumber === syncDeckNum;
+        if (shouldSync) {
+          setBpmState(prev => ({
+            ...prev,
+            autoBpm: data.bpm!,
+            audioLevel: Math.min(255, (data.beat || 1) * 64), // simulate beat pulse
+            ...(prev.bpmMode === 'auto' ? { bpm: Math.round(data.bpm!), isSynced: true } : {}),
+          }));
+        }
+      }
+    });
+
+    return unsub;
+  }, [audioConfig.source, bpmState.pioneerSyncDeck]);
 
   const toggleBpmWidgetLink = (widgetId: string) => {
     setBpmState(prev => ({
@@ -3554,6 +3595,56 @@ export function LiveDJ() {
                         className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
                     </div>
                   </>
+                )}
+                {/* Pioneer DJ (ProDJ Link) settings */}
+                {audioConfig.source === 'pioneer-dj' && (
+                  <div className="space-y-2">
+                    <div className="text-[8px] text-muted-foreground/60 bg-muted/10 rounded p-1.5 border border-border/10">
+                      🎛 Connect your Pioneer CDJ/DJM/XDJ to the same network. The engine server listens on ports 50000-50001 for ProDJ Link packets.
+                    </div>
+                    {Object.keys(bpmState.pioneerDecks).length === 0 ? (
+                      <div className="text-[9px] text-muted-foreground/40 text-center py-3">
+                        <Radio size={16} className="mx-auto mb-1 animate-pulse text-muted-foreground/30" />
+                        Waiting for Pioneer devices…
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <label className="text-[7px] uppercase text-muted-foreground tracking-wider">Detected Decks</label>
+                        {Object.values(bpmState.pioneerDecks).map((deck) => (
+                          <button key={deck.deviceNumber}
+                            onClick={() => setBpmState(prev => ({ ...prev, pioneerSyncDeck: prev.pioneerSyncDeck === deck.deviceNumber ? 0 : deck.deviceNumber }))}
+                            className={`w-full flex items-center gap-2 p-2 rounded border transition-all text-left ${
+                              bpmState.pioneerSyncDeck === deck.deviceNumber || bpmState.pioneerSyncDeck === 0
+                                ? 'border-primary/40 bg-primary/5'
+                                : 'border-border/20 bg-muted/10 opacity-50'
+                            }`}>
+                            <div className={`w-2 h-2 rounded-full ${deck.playing ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-muted-foreground/30'}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[9px] font-semibold text-foreground truncate">{deck.name}</div>
+                              <div className="text-[7px] text-muted-foreground/60 font-mono">{deck.ip} • CH {deck.deviceNumber}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-bold font-mono text-primary">{deck.bpm > 0 ? deck.bpm.toFixed(1) : '—'}</div>
+                              <div className="text-[6px] uppercase text-muted-foreground">BPM</div>
+                            </div>
+                            {deck.playing && deck.beat > 0 && (
+                              <div className="flex gap-0.5">
+                                {[1, 2, 3, 4].map(b => (
+                                  <div key={b} className={`w-1.5 h-1.5 rounded-full transition-all ${
+                                    b === deck.beat ? 'bg-primary shadow-[0_0_4px_hsl(var(--primary))]' : 'bg-muted-foreground/20'
+                                  }`} />
+                                ))}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                        <div className="text-[7px] text-muted-foreground/40">
+                          {bpmState.pioneerSyncDeck === 0 ? '🔗 Syncing from any playing deck' : `🔗 Syncing from CH ${bpmState.pioneerSyncDeck} only`}
+                          {' — click a deck to toggle'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
                 {(audioConfig.source === 'browser-mic' || audioConfig.source === 'system-audio') && (
                   <div className="space-y-2">
