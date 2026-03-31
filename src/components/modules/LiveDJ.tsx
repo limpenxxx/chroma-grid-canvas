@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Play, Square, GripVertical, Palette, SlidersHorizontal,
   Zap, ChevronDown, ChevronRight, Monitor, Hand, Layers,
-  Speaker, X, Save, Mic, Activity, Sparkles, Wifi,
+  Speaker, X, Save, Mic, Activity, Sparkles, Wifi, Radio,
   ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users,
   Bookmark, Settings2, CircleDot, Maximize2, Minimize2, Film, Copy, Grid3X3
 } from 'lucide-react';
