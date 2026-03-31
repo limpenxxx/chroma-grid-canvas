@@ -551,6 +551,7 @@ export function FixtureControls() {
   const store = useFixtureStore();
   const wledStore = useWledStore();
   const hueStore = useHueStore();
+  const magicHomeStore = useMagicHomeStore();
   const [states, setStates] = useState<Record<string, FixtureState>>({});
   const [selectedId, setSelectedId] = useState<string>(store.instances[0]?.id || '');
   const [fixtureTab, setFixtureTab] = useState<FixtureTab>('dmx');
