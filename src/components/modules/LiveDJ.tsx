@@ -482,10 +482,14 @@ function ControlWidget({
           },
         });
       }
-      colorProgAnimRef.current = requestAnimationFrame(animate);
+      if (document.hidden) {
+        colorProgAnimRef.current = window.setTimeout(animate, 33) as unknown as number;
+      } else {
+        colorProgAnimRef.current = requestAnimationFrame(animate);
+      }
     };
     colorProgAnimRef.current = requestAnimationFrame(animate);
-    return () => { if (colorProgAnimRef.current) cancelAnimationFrame(colorProgAnimRef.current); };
+    return () => { if (colorProgAnimRef.current) { cancelAnimationFrame(colorProgAnimRef.current); clearTimeout(colorProgAnimRef.current); } };
   }, [widget.type, widget.colorProgram?.running, widget.colorProgram?.mode, widget.colorProgram?.speed, widget.colorProgram?.bpmSync, widget.colorProgram?.colors?.length, bpm]);
 
   const startInteraction = useCallback((e: React.MouseEvent, mode: DragMode) => {
