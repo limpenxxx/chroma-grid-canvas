@@ -603,6 +603,8 @@ export function StageBuilder() {
 
       // Fixture circle — sample color from video/background
       const [mr, mg, mb] = sampleBgColor(mf.x, mf.y, mf.sampleRadius, mf.blurAmount);
+      // Store sampled color for hardware output
+      mfColorsRef.current[mf.id] = { r: mr, g: mg, b: mb };
       ctx.fillStyle = isSelected2
         ? `rgba(${mr},${mg},${mb},0.85)`
         : `rgba(${mr},${mg},${mb},0.7)`;
