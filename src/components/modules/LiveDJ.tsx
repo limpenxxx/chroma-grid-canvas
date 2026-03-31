@@ -157,6 +157,7 @@ interface BPMState {
 const AUDIO_SOURCES: { value: AudioSource; label: string; description: string }[] = [
   { value: 'none', label: 'None', description: 'No audio input' },
   { value: 'tap-tempo', label: 'TAP-TEMPO', description: 'Manual tap tempo for BPM sync' },
+  { value: 'pioneer-dj', label: '🎛 Pioneer DJ (ProDJ Link)', description: 'Receive BPM and beat sync from Pioneer CDJ/DJM/XDJ equipment on the same network via ProDJ Link protocol' },
   { value: 'system-audio', label: 'System Audio', description: 'Capture audio from Chrome, Spotify, or any app on this computer via screen/tab sharing' },
   { value: 'browser-mic', label: 'Browser Microphone', description: "Use this device's microphone via Web Audio API" },
   { value: 'wled-analog', label: 'WLED Analog Mic', description: 'MAX4466 / MAX9814 analog microphone on WLED ESP32' },
