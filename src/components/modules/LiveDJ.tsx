@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Play, Square, GripVertical, Palette, SlidersHorizontal,
   Zap, ChevronDown, ChevronRight, Monitor, Hand, Layers,
-  Speaker, X, Save, Mic, Activity, Sparkles, Wifi,
+  Speaker, X, Save, Mic, Activity, Sparkles, Wifi, Radio,
   ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users,
   Bookmark, Settings2, CircleDot, Maximize2, Minimize2, Film, Copy, Grid3X3
 } from 'lucide-react';
@@ -20,6 +20,7 @@ import { useMediaStore } from '@/store/mediaStore';
 import { useWledStore, type WledDevice, type WledFixture } from '@/store/wledStore';
 import { setWledPreset, setWledState } from '@/lib/wledApi';
 import { fetchWledPresets, isWledDeviceTargetId, wledDeviceToFixture } from '@/lib/wledUtils';
+import { sendDmxChannel } from '@/lib/wsSync';
 
 // ── Types ──
 
@@ -30,7 +31,43 @@ interface FixtureAssignment {
   mode: ControlMode;
 }
 
-type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset';
+type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset' | 'audio-reactive';
+
+// ── Audio Reactive Effect Types ──
+type AudioReactiveEffectType =
+  | 'color-pulse'     // Pump a color on beat
+  | 'dimmer-pump'     // Dimmer pulses to beat
+  | 'strobe-beat'     // Strobe on each beat
+  | 'pos-alternate'   // MH alternates between 2 positions on beat
+  | 'color-cycle'     // Cycle through colors each beat
+  | 'bass-color-shift'// Shift hue with bass intensity
+  | 'wled-preset-cycle'// Cycle WLED presets each beat
+  | 'wled-pixel-chase' // Color travels along strip per beat with fade
+  | 'intensity-map'   // Map audio level to brightness
+  | 'hue-sweep'       // Sweep through hue based on frequency
+  | 'size-pulse';     // Pulse zoom/iris on beat
+
+interface AudioReactiveFixtureEffect {
+  fixtureId: string;
+  effect: AudioReactiveEffectType;
+  enabled: boolean;
+  // Effect params
+  color1?: { r: number; g: number; b: number };
+  color2?: { r: number; g: number; b: number };
+  intensity?: number;  // 0-255 effect strength
+  decay?: number;      // 0-255 how fast it fades
+  posA?: { pan: number; tilt: number };
+  posB?: { pan: number; tilt: number };
+  wledPresets?: number[];    // preset IDs to cycle
+  triggerBand?: 'bass' | 'mid' | 'high' | 'all'; // which frequency reacts
+}
+
+interface AudioReactiveConfig {
+  running: boolean;
+  effects: AudioReactiveFixtureEffect[];
+  globalDecay: number;  // 0-255
+  sensitivity: number;  // 0-255
+}
 
 // ── Preset Scene Entry ──
 interface PresetSceneEntry {
@@ -164,6 +201,8 @@ interface DJWidget {
   wledFixtureBrightness?: number;
   wledFixtureColor?: { r: number; g: number; b: number };
   wledFixtureActivePresetId?: number;
+  // Audio Reactive widget
+  audioReactive?: AudioReactiveConfig;
 }
 
 type ColorProgramMode = 'static' | 'switch' | 'fade';
@@ -258,6 +297,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'wled-preset', label: 'WLED Preset', icon: Wifi, w: 120, h: 120 },
   { type: 'wled-fixture', label: 'WLED Fixture', icon: Wifi, w: 200, h: 260 },
   { type: 'dmx-reset', label: 'DMX Reset', icon: Square, w: 120, h: 80 },
+  { type: 'audio-reactive', label: 'Audio Reactive', icon: Radio, w: 260, h: 320 },
 ];
 
 // ── Color distance helper (Euclidean in RGB space) ──
@@ -1455,6 +1495,121 @@ function ControlWidget({
           </div>
         );
       })()}
+
+      {/* AUDIO REACTIVE WIDGET */}
+      {widget.type === 'audio-reactive' && (() => {
+        const arConfig = widget.audioReactive || { running: false, effects: [], globalDecay: 180, sensitivity: 160 };
+        const s = Math.min(widget.width, widget.height);
+        const linkedCount = arConfig.effects.filter(e => e.enabled).length;
+
+        const EFFECT_ICONS: Record<AudioReactiveEffectType, string> = {
+          'color-pulse': '🔴', 'dimmer-pump': '💡', 'strobe-beat': '⚡', 'pos-alternate': '↔',
+          'color-cycle': '🌈', 'bass-color-shift': '🎸', 'wled-preset-cycle': '🔄',
+          'wled-pixel-chase': '🌊', 'intensity-map': '📊', 'hue-sweep': '🎨', 'size-pulse': '🔍',
+        };
+        const EFFECT_LABELS: Record<AudioReactiveEffectType, string> = {
+          'color-pulse': 'Color Pulse', 'dimmer-pump': 'Dimmer Pump', 'strobe-beat': 'Strobe Beat',
+          'pos-alternate': 'Pos Alternate', 'color-cycle': 'Color Cycle', 'bass-color-shift': 'Bass Shift',
+          'wled-preset-cycle': 'Preset Cycle', 'wled-pixel-chase': 'Pixel Chase',
+          'intensity-map': 'Intensity Map', 'hue-sweep': 'Hue Sweep', 'size-pulse': 'Size Pulse',
+        };
+        const BAND_COLORS: Record<string, string> = {
+          bass: '#ff4444', mid: '#ffaa00', high: '#44aaff', all: '#aa44ff',
+        };
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col overflow-hidden relative"
+            style={{ ...bgStyle, borderColor: arConfig.running ? '#aa44ff' : undefined,
+              boxShadow: arConfig.running ? '0 0 25px rgba(170,68,255,0.3), inset 0 0 15px rgba(170,68,255,0.08)' : undefined }}
+            onClick={onSelect}>
+
+            {/* Header */}
+            <div className="px-2 py-1.5 flex items-center gap-1.5 border-b border-border/20 shrink-0"
+              style={{ background: arConfig.running ? 'rgba(170,68,255,0.1)' : 'rgba(170,68,255,0.05)' }}>
+              <Radio size={10} className="text-[#aa44ff]" />
+              <span className="text-[9px] font-semibold truncate flex-1" style={{ color: '#aa44ff' }}>{widget.label}</span>
+              <span className="text-[7px] text-muted-foreground/50">{linkedCount} FX</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); onUpdate({ audioReactive: { ...arConfig, running: !arConfig.running } }); }}
+                className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                  arConfig.running ? 'bg-[#aa44ff]/20 text-[#aa44ff] shadow-[0_0_8px_rgba(170,68,255,0.4)]' : 'bg-muted/40 text-muted-foreground'
+                }`}>
+                {arConfig.running ? <Square size={10} /> : <Play size={10} />}
+              </button>
+            </div>
+
+            {/* Effects list */}
+            <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+              {arConfig.effects.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground/30 gap-1">
+                  <Radio size={20} />
+                  <span className="text-[8px]">Link fixtures in properties</span>
+                  <span className="text-[7px]">then add audio effects</span>
+                </div>
+              ) : (
+                arConfig.effects.map((fx, idx) => {
+                  const inst = fixtureData.find(f => f.inst.id === fx.fixtureId);
+                  const bandColor = BAND_COLORS[fx.triggerBand || 'all'];
+                  return (
+                    <div key={`${fx.fixtureId}-${idx}`}
+                      className={`rounded border p-1.5 transition-all ${
+                        fx.enabled
+                          ? 'border-[#aa44ff]/30 bg-[#aa44ff]/5'
+                          : 'border-border/15 bg-muted/5 opacity-50'
+                      }`}>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px]">{EFFECT_ICONS[fx.effect] || '🔊'}</span>
+                        <span className="text-[8px] font-semibold truncate flex-1" style={{ color: fx.enabled ? '#aa44ff' : undefined }}>
+                          {inst?.inst.name?.slice(0, 10) || 'Unknown'}
+                        </span>
+                        <span className="text-[7px] px-1 rounded-full font-semibold" style={{ background: bandColor + '20', color: bandColor }}>
+                          {(fx.triggerBand || 'all').toUpperCase()}
+                        </span>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            const effects = [...arConfig.effects];
+                            effects[idx] = { ...effects[idx], enabled: !effects[idx].enabled };
+                            onUpdate({ audioReactive: { ...arConfig, effects } });
+                          }}
+                          className={`w-4 h-4 rounded-full border transition-all ${
+                            fx.enabled ? 'bg-[#aa44ff] border-[#aa44ff]' : 'bg-muted/20 border-border/30'
+                          }`}>
+                          {fx.enabled && <span className="text-[6px] text-white flex items-center justify-center">✓</span>}
+                        </button>
+                      </div>
+                      <div className="text-[7px] text-muted-foreground/60 mt-0.5">{EFFECT_LABELS[fx.effect]}</div>
+                      {/* Color preview for color effects */}
+                      {(fx.effect === 'color-pulse' || fx.effect === 'color-cycle' || fx.effect === 'pos-alternate') && fx.color1 && (
+                        <div className="flex gap-0.5 mt-0.5">
+                          <div className="w-3 h-3 rounded-sm border border-border/20"
+                            style={{ background: `rgb(${fx.color1.r},${fx.color1.g},${fx.color1.b})` }} />
+                          {fx.color2 && <div className="w-3 h-3 rounded-sm border border-border/20"
+                            style={{ background: `rgb(${fx.color2.r},${fx.color2.g},${fx.color2.b})` }} />}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Bottom status */}
+            <div className="px-2 py-1 border-t border-border/10 flex items-center justify-between shrink-0"
+              style={{ background: 'rgba(0,0,0,0.2)' }}>
+              <span className="text-[7px] text-muted-foreground/40 font-mono">
+                DECAY:{arConfig.globalDecay} SENS:{arConfig.sensitivity}
+              </span>
+              {arConfig.running && (
+                <div className="flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#aa44ff] animate-pulse" />
+                  <span className="text-[7px] text-[#aa44ff] font-semibold">LIVE</span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -2155,6 +2310,7 @@ export function LiveDJ() {
       wledPresetId: type === 'wled-preset' ? -1 : undefined,
       wledFixtureColor: type === 'wled-fixture' ? { r: 255, g: 0, b: 0 } : undefined,
       wledFixtureBrightness: type === 'wled-fixture' ? 128 : undefined,
+      audioReactive: type === 'audio-reactive' ? { running: false, effects: [], globalDecay: 180, sensitivity: 160 } : undefined,
     }]);
   };
 
@@ -2361,7 +2517,313 @@ export function LiveDJ() {
     updateWidget(selectedWidget, { linkedFixtureIds: [...new Set([...selectedWidgetData!.linkedFixtureIds, ...group.fixtureIds])] });
   };
 
-  // ── Real WLED output: send state to physical devices when widgets change ──
+  // ── Audio Reactive Engine Loop ──
+  const arStateRef = useRef<{
+    beatCount: number;
+    lastBeatTime: number;
+    currentLevel: Record<string, number>; // per-band energy levels
+    colorIdx: Record<string, number>; // per-effect color cycle index
+    posToggle: Record<string, boolean>; // per-effect position toggle
+    presetIdx: Record<string, number>; // per-effect WLED preset index
+    chasePos: Record<string, number>; // per-effect pixel chase position
+  }>({ beatCount: 0, lastBeatTime: 0, currentLevel: {}, colorIdx: {}, posToggle: {}, presetIdx: {}, chasePos: {} });
+
+  useEffect(() => {
+    // Get audio analyser from mic or system audio
+    const getAnalyser = (): AnalyserNode | null => {
+      if (audioConfig.source === 'browser-mic') return micBpmRef.current?.analyser || null;
+      if (audioConfig.source === 'system-audio') return sysAudioRef.current?.analyser || null;
+      return null;
+    };
+
+    // Find all active audio-reactive widgets
+    const arWidgets = widgets.filter(w => w.type === 'audio-reactive' && w.audioReactive?.running);
+    if (arWidgets.length === 0) return;
+
+    const analyser = getAnalyser();
+    // Even without an analyser, BPM-based effects can still work from tap-tempo
+    const arState = arStateRef.current;
+    let raf = 0;
+    let lastFrameTime = 0;
+
+    // Helper: get frequency band energy from analyser
+    const getBandEnergy = (freqData: Uint8Array | null, band: string, sampleRate: number, binCount: number): number => {
+      if (!freqData || freqData.length === 0) return 0;
+      const binHz = (sampleRate / 2) / binCount;
+      let lo = 0, hi = freqData.length;
+      if (band === 'bass') { lo = Math.floor(30 / binHz); hi = Math.ceil(200 / binHz); }
+      else if (band === 'mid') { lo = Math.floor(200 / binHz); hi = Math.ceil(2000 / binHz); }
+      else if (band === 'high') { lo = Math.floor(2000 / binHz); hi = Math.ceil(12000 / binHz); }
+      let sum = 0, count = 0;
+      for (let i = Math.max(0, lo); i < Math.min(freqData.length, hi); i++) { sum += freqData[i]; count++; }
+      return count > 0 ? sum / count : 0;
+    };
+
+    // HSL to RGB helper
+    const hslToRgb = (h: number, s: number, l: number): { r: number; g: number; b: number } => {
+      const hh = ((h % 360) + 360) % 360;
+      const c = (1 - Math.abs(2 * l - 1)) * s;
+      const x = c * (1 - Math.abs((hh / 60) % 2 - 1));
+      const m = l - c / 2;
+      let r = 0, g = 0, b = 0;
+      if (hh < 60) { r = c; g = x; } else if (hh < 120) { r = x; g = c; }
+      else if (hh < 180) { g = c; b = x; } else if (hh < 240) { g = x; b = c; }
+      else if (hh < 300) { r = x; b = c; } else { r = c; b = x; }
+      return { r: Math.round((r + m) * 255), g: Math.round((g + m) * 255), b: Math.round((b + m) * 255) };
+    };
+
+    const tick = (now: number) => {
+      if (now - lastFrameTime < 30) { raf = requestAnimationFrame(tick); return; } // ~33fps
+      lastFrameTime = now;
+
+      let freqData: Uint8Array | null = null;
+      let sampleRate = 44100;
+      let binCount = 512;
+
+      if (analyser) {
+        freqData = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(freqData as any);
+        sampleRate = analyser.context.sampleRate;
+        binCount = analyser.frequencyBinCount;
+      }
+
+      // Beat detection from BPM state
+      const beatInterval = bpmState.bpm > 0 ? 60000 / bpmState.bpm : 500;
+      const isBeat = now - arState.lastBeatTime >= beatInterval;
+      if (isBeat) {
+        arState.lastBeatTime = now;
+        arState.beatCount++;
+      }
+
+      // Process each AR widget
+      arWidgets.forEach(w => {
+        const arConfig = w.audioReactive!;
+        const sensitivity = arConfig.sensitivity / 255;
+
+        arConfig.effects.filter(fx => fx.enabled).forEach((fx, fxIdx) => {
+          const fxKey = `${w.id}-${fxIdx}`;
+          const band = fx.triggerBand || 'all';
+          const energy = getBandEnergy(freqData, band, sampleRate, binCount) * sensitivity;
+          const normalizedEnergy = Math.min(1, energy / 180); // 0-1
+          const decayRate = (fx.decay || arConfig.globalDecay) / 255;
+          const intensityScale = (fx.intensity || 200) / 255;
+
+          // Find fixture
+          const instData = allFixturesWithDefs.find(f => f.inst.id === fx.fixtureId);
+          if (!instData) return;
+          const isWled = instData.def.category === 'wled';
+
+          // Smooth current level
+          const prevLevel = arState.currentLevel[fxKey] || 0;
+          const targetLevel = normalizedEnergy * intensityScale;
+          arState.currentLevel[fxKey] = Math.max(targetLevel, prevLevel * decayRate);
+          const level = arState.currentLevel[fxKey];
+
+          switch (fx.effect) {
+            case 'dimmer-pump': {
+              const dmxVal = Math.round(level * 255);
+              if (isWled) {
+                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                if (wledFix) void setWledState(wledFix.deviceIp, { on: dmxVal > 5, bri: Math.max(1, dmxVal) }).catch(() => {});
+              } else {
+                const inst = instData.inst;
+                const def = instData.def;
+                const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                const dimCh = mode?.channels.find(c => c.function === 'dimmer');
+                if (dimCh) {
+                  sendDmxChannel(inst.universe, inst.dmxAddress + dimCh.number - 1, dmxVal);
+                }
+              }
+              break;
+            }
+            case 'color-pulse': {
+              if (isBeat && fx.color1) {
+                const c = fx.color1;
+                if (isWled) {
+                  const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                  if (wledFix) void setWledState(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+                } else {
+                  const inst = instData.inst;
+                  const def = instData.def;
+                  const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                  const rCh = mode?.channels.find(ch => ch.function === 'red');
+                  const gCh = mode?.channels.find(ch => ch.function === 'green');
+                  const bCh = mode?.channels.find(ch => ch.function === 'blue');
+                  if (rCh) sendDmxChannel(inst.universe, inst.dmxAddress + rCh.number - 1, c.r);
+                  if (gCh) sendDmxChannel(inst.universe, inst.dmxAddress + gCh.number - 1, c.g);
+                  if (bCh) sendDmxChannel(inst.universe, inst.dmxAddress + bCh.number - 1, c.b);
+                  const dimCh = mode?.channels.find(ch => ch.function === 'dimmer');
+                  if (dimCh) sendDmxChannel(inst.universe, inst.dmxAddress + dimCh.number - 1, 255);
+                }
+              }
+              break;
+            }
+            case 'strobe-beat': {
+              if (isBeat) {
+                if (!isWled) {
+                  const inst = instData.inst;
+                  const def = instData.def;
+                  const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                  const strobeCh = mode?.channels.find(c => c.function === 'strobe');
+                  const dimCh = mode?.channels.find(c => c.function === 'dimmer');
+                  if (strobeCh) sendDmxChannel(inst.universe, inst.dmxAddress + strobeCh.number - 1, 200);
+                  if (dimCh) sendDmxChannel(inst.universe, inst.dmxAddress + dimCh.number - 1, 255);
+                  setTimeout(() => {
+                    if (strobeCh) sendDmxChannel(inst.universe, inst.dmxAddress + strobeCh.number - 1, 0);
+                  }, 80);
+                } else {
+                  const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                  if (wledFix) {
+                    void setWledState(wledFix.deviceIp, { on: true, bri: 255 }).catch(() => {});
+                    setTimeout(() => { void setWledState(wledFix.deviceIp, { bri: 0 }).catch(() => {}); }, 80);
+                  }
+                }
+              }
+              break;
+            }
+            case 'pos-alternate': {
+              if (isBeat) {
+                arState.posToggle[fxKey] = !arState.posToggle[fxKey];
+                const pos = arState.posToggle[fxKey] ? fx.posA : fx.posB;
+                if (pos && !isWled) {
+                  const inst = instData.inst;
+                  const def = instData.def;
+                  const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                  const panCh = mode?.channels.find(c => c.function === 'pan');
+                  const tiltCh = mode?.channels.find(c => c.function === 'tilt');
+                  if (panCh) sendDmxChannel(inst.universe, inst.dmxAddress + panCh.number - 1, pos.pan);
+                  if (tiltCh) sendDmxChannel(inst.universe, inst.dmxAddress + tiltCh.number - 1, pos.tilt);
+                }
+              }
+              break;
+            }
+            case 'color-cycle': {
+              if (isBeat && fx.color1 && fx.color2) {
+                arState.colorIdx[fxKey] = ((arState.colorIdx[fxKey] || 0) + 1) % 2;
+                const c = arState.colorIdx[fxKey] === 0 ? fx.color1 : fx.color2;
+                if (isWled) {
+                  const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                  if (wledFix) void setWledState(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+                } else {
+                  const inst = instData.inst;
+                  const def = instData.def;
+                  const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                  const rCh = mode?.channels.find(ch => ch.function === 'red');
+                  const gCh = mode?.channels.find(ch => ch.function === 'green');
+                  const bCh = mode?.channels.find(ch => ch.function === 'blue');
+                  if (rCh) sendDmxChannel(inst.universe, inst.dmxAddress + rCh.number - 1, c.r);
+                  if (gCh) sendDmxChannel(inst.universe, inst.dmxAddress + gCh.number - 1, c.g);
+                  if (bCh) sendDmxChannel(inst.universe, inst.dmxAddress + bCh.number - 1, c.b);
+                }
+              }
+              break;
+            }
+            case 'bass-color-shift': {
+              const hue = normalizedEnergy * 120; // shifts from red(0) to green(120) with bass
+              const c = hslToRgb(hue, 1, 0.5);
+              if (isWled) {
+                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                if (wledFix) void setWledState(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+              } else {
+                const inst = instData.inst;
+                const def = instData.def;
+                const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                const rCh = mode?.channels.find(ch => ch.function === 'red');
+                const gCh = mode?.channels.find(ch => ch.function === 'green');
+                const bCh = mode?.channels.find(ch => ch.function === 'blue');
+                if (rCh) sendDmxChannel(inst.universe, inst.dmxAddress + rCh.number - 1, c.r);
+                if (gCh) sendDmxChannel(inst.universe, inst.dmxAddress + gCh.number - 1, c.g);
+                if (bCh) sendDmxChannel(inst.universe, inst.dmxAddress + bCh.number - 1, c.b);
+              }
+              break;
+            }
+            case 'wled-preset-cycle': {
+              if (isBeat && isWled && fx.wledPresets && fx.wledPresets.length > 0) {
+                arState.presetIdx[fxKey] = ((arState.presetIdx[fxKey] || 0) + 1) % fx.wledPresets.length;
+                const presetId = fx.wledPresets[arState.presetIdx[fxKey]];
+                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                if (wledFix) void setWledPreset(wledFix.deviceIp, presetId).catch(() => {});
+              }
+              break;
+            }
+            case 'wled-pixel-chase': {
+              if (isBeat && isWled && fx.color1) {
+                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                if (wledFix) {
+                  const dev = wledStore.devices.find(d => d.id === wledFix.deviceId);
+                  const ledCount = dev?.info?.leds?.count || instData.def.wledConfig?.ledCount || 30;
+                  arState.chasePos[fxKey] = 0;
+                  const c = fx.color1;
+                  // Send chase effect: use WLED effect 45 (Scan) with the color
+                  void setWledState(wledFix.deviceIp, {
+                    on: true,
+                    seg: [{ id: 0, col: [[c.r, c.g, c.b], [0, 0, 0]], fx: 45, sx: 200, ix: Math.round(intensityScale * 255) }],
+                  }).catch(() => {});
+                }
+              }
+              break;
+            }
+            case 'intensity-map': {
+              const dmxVal = Math.round(level * 255);
+              if (isWled) {
+                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                if (wledFix) void setWledState(wledFix.deviceIp, { on: dmxVal > 5, bri: Math.max(1, dmxVal) }).catch(() => {});
+              } else {
+                const inst = instData.inst;
+                const def = instData.def;
+                const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                const dimCh = mode?.channels.find(c => c.function === 'dimmer');
+                if (dimCh) sendDmxChannel(inst.universe, inst.dmxAddress + dimCh.number - 1, dmxVal);
+              }
+              break;
+            }
+            case 'hue-sweep': {
+              const hue = normalizedEnergy * 360;
+              const c = hslToRgb(hue, 1, 0.5);
+              if (isWled) {
+                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                if (wledFix) void setWledState(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+              } else {
+                const inst = instData.inst;
+                const def = instData.def;
+                const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                const rCh = mode?.channels.find(ch => ch.function === 'red');
+                const gCh = mode?.channels.find(ch => ch.function === 'green');
+                const bCh = mode?.channels.find(ch => ch.function === 'blue');
+                if (rCh) sendDmxChannel(inst.universe, inst.dmxAddress + rCh.number - 1, c.r);
+                if (gCh) sendDmxChannel(inst.universe, inst.dmxAddress + gCh.number - 1, c.g);
+                if (bCh) sendDmxChannel(inst.universe, inst.dmxAddress + bCh.number - 1, c.b);
+              }
+              break;
+            }
+            case 'size-pulse': {
+              if (!isWled) {
+                const dmxVal = Math.round(level * 255);
+                const inst = instData.inst;
+                const def = instData.def;
+                const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+                const zoomCh = mode?.channels.find(c => c.function === 'zoom');
+                const irisCh = mode?.channels.find(c => c.function === 'iris');
+                if (zoomCh) sendDmxChannel(inst.universe, inst.dmxAddress + zoomCh.number - 1, dmxVal);
+                else if (irisCh) sendDmxChannel(inst.universe, inst.dmxAddress + irisCh.number - 1, dmxVal);
+              }
+              break;
+            }
+          }
+        });
+      });
+
+      if (document.hidden) {
+        raf = window.setTimeout(tick, 33) as unknown as number;
+      } else {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => { cancelAnimationFrame(raf); clearTimeout(raf); };
+  }, [widgets, audioConfig.source, bpmState.bpm, allFixturesWithDefs, wledStore.devices, wledStore.fixtures]);
+
   useEffect(() => {
     const nextSent: Record<string, string> = {};
     const wledOutputFixtures = [
@@ -3890,6 +4352,240 @@ export function LiveDJ() {
                       </div>
                     </div>
                   )}
+
+                  {/* Audio Reactive Widget Config */}
+                  {selectedWidgetData.type === 'audio-reactive' && (() => {
+                    const arConfig = selectedWidgetData.audioReactive || { running: false, effects: [], globalDecay: 180, sensitivity: 160 };
+                    const AR_EFFECT_OPTIONS: { value: AudioReactiveEffectType; label: string; icon: string; desc: string; bands: string[] }[] = [
+                      { value: 'color-pulse', label: 'Color Pulse', icon: '🔴', desc: 'Flash a color on each beat', bands: ['bass', 'mid', 'high', 'all'] },
+                      { value: 'dimmer-pump', label: 'Dimmer Pump', icon: '💡', desc: 'Pump brightness on beat, fade between beats', bands: ['bass', 'mid', 'high', 'all'] },
+                      { value: 'strobe-beat', label: 'Strobe Beat', icon: '⚡', desc: 'Quick strobe flash on each beat', bands: ['bass', 'high', 'all'] },
+                      { value: 'pos-alternate', label: 'Position Alternate', icon: '↔', desc: 'MH swaps between two positions each beat', bands: ['bass', 'all'] },
+                      { value: 'color-cycle', label: 'Color Cycle', icon: '🌈', desc: 'Step through colors each beat', bands: ['bass', 'mid', 'all'] },
+                      { value: 'bass-color-shift', label: 'Bass Color Shift', icon: '🎸', desc: 'Hue shifts with bass intensity', bands: ['bass'] },
+                      { value: 'wled-preset-cycle', label: 'WLED Preset Cycle', icon: '🔄', desc: 'Cycle WLED presets each beat', bands: ['bass', 'all'] },
+                      { value: 'wled-pixel-chase', label: 'Pixel Chase', icon: '🌊', desc: 'Color travels along LED strip per beat with fade trail', bands: ['bass', 'mid', 'all'] },
+                      { value: 'intensity-map', label: 'Intensity Map', icon: '📊', desc: 'Map audio level directly to brightness', bands: ['bass', 'mid', 'high', 'all'] },
+                      { value: 'hue-sweep', label: 'Hue Sweep', icon: '🎨', desc: 'Sweep through rainbow based on frequency energy', bands: ['all'] },
+                      { value: 'size-pulse', label: 'Size Pulse', icon: '🔍', desc: 'Pulse zoom/iris on beat', bands: ['bass', 'all'] },
+                    ];
+
+                    const addEffect = (fixtureId: string, effect: AudioReactiveEffectType) => {
+                      const newEffect: AudioReactiveFixtureEffect = {
+                        fixtureId, effect, enabled: true,
+                        color1: { r: 255, g: 0, b: 0 }, color2: { r: 0, g: 0, b: 255 },
+                        intensity: 200, decay: arConfig.globalDecay,
+                        posA: { pan: 64, tilt: 128 }, posB: { pan: 192, tilt: 128 },
+                        triggerBand: 'bass', wledPresets: [],
+                      };
+                      updateWidget(selectedWidgetData.id, {
+                        audioReactive: { ...arConfig, effects: [...arConfig.effects, newEffect] },
+                      });
+                    };
+
+                    const updateEffect = (idx: number, updates: Partial<AudioReactiveFixtureEffect>) => {
+                      const effects = [...arConfig.effects];
+                      effects[idx] = { ...effects[idx], ...updates };
+                      updateWidget(selectedWidgetData.id, { audioReactive: { ...arConfig, effects } });
+                    };
+
+                    const removeEffect = (idx: number) => {
+                      const effects = arConfig.effects.filter((_, i) => i !== idx);
+                      updateWidget(selectedWidgetData.id, { audioReactive: { ...arConfig, effects } });
+                    };
+
+                    return (
+                      <div className="space-y-2 border-t border-border/20 pt-2">
+                        <label className="text-[8px] uppercase tracking-widest font-semibold flex items-center gap-1" style={{ color: '#aa44ff' }}>
+                          <Radio size={10} /> Audio Reactive Config
+                        </label>
+
+                        {/* Global controls */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[7px] uppercase text-muted-foreground">Sensitivity</label>
+                            <Slider value={[arConfig.sensitivity]} onValueChange={([v]) => updateWidget(selectedWidgetData.id, {
+                              audioReactive: { ...arConfig, sensitivity: v },
+                            })} max={255} className="mt-1" />
+                            <span className="text-[7px] font-mono text-muted-foreground/50">{arConfig.sensitivity}</span>
+                          </div>
+                          <div>
+                            <label className="text-[7px] uppercase text-muted-foreground">Decay</label>
+                            <Slider value={[arConfig.globalDecay]} onValueChange={([v]) => updateWidget(selectedWidgetData.id, {
+                              audioReactive: { ...arConfig, globalDecay: v },
+                            })} max={255} className="mt-1" />
+                            <span className="text-[7px] font-mono text-muted-foreground/50">{arConfig.globalDecay}</span>
+                          </div>
+                        </div>
+
+                        {/* Run/Stop */}
+                        <Button
+                          size="sm"
+                          variant={arConfig.running ? 'destructive' : 'default'}
+                          className="h-7 text-[10px] gap-1 w-full"
+                          onClick={() => updateWidget(selectedWidgetData.id, {
+                            audioReactive: { ...arConfig, running: !arConfig.running },
+                          })}>
+                          {arConfig.running ? <><Square size={10} /> Stop</> : <><Play size={10} /> Start</>}
+                        </Button>
+
+                        {/* Add effect per fixture */}
+                        <div className="border-t border-border/10 pt-2">
+                          <label className="text-[7px] uppercase text-muted-foreground">Add Effect to Fixture</label>
+                          {selectedWidgetData.linkedFixtureIds.length === 0 ? (
+                            <div className="text-[8px] text-muted-foreground/40 text-center py-2">Link fixtures above first</div>
+                          ) : (
+                            <div className="space-y-1 mt-1">
+                              {selectedWidgetData.linkedFixtureIds.map(fid => {
+                                const inst = allFixturesWithDefs.find(f => f.inst.id === fid);
+                                if (!inst) return null;
+                                const isWled = inst.def.category === 'wled';
+                                const isMH = inst.def.type === 'moving-head';
+                                return (
+                                  <div key={fid} className="glass-panel p-1.5 rounded">
+                                    <div className="text-[8px] font-semibold flex items-center gap-1 mb-1">
+                                      <span>{getFixtureTypeIcon(inst.def.type)}</span> {inst.inst.name}
+                                    </div>
+                                    <select
+                                      value=""
+                                      onChange={e => { if (e.target.value) addEffect(fid, e.target.value as AudioReactiveEffectType); }}
+                                      className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[9px] px-1 text-foreground">
+                                      <option value="">+ Add Effect...</option>
+                                      {AR_EFFECT_OPTIONS
+                                        .filter(opt => {
+                                          if (opt.value === 'pos-alternate' || opt.value === 'size-pulse') return isMH;
+                                          if (opt.value === 'wled-preset-cycle' || opt.value === 'wled-pixel-chase') return isWled;
+                                          return true;
+                                        })
+                                        .map(opt => (
+                                          <option key={opt.value} value={opt.value}>{opt.icon} {opt.label}</option>
+                                        ))}
+                                    </select>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Effects list with config */}
+                        {arConfig.effects.length > 0 && (
+                          <div className="border-t border-border/10 pt-2 space-y-1.5">
+                            <label className="text-[7px] uppercase text-muted-foreground">Active Effects</label>
+                            {arConfig.effects.map((fx, idx) => {
+                              const inst = allFixturesWithDefs.find(f => f.inst.id === fx.fixtureId);
+                              const opt = AR_EFFECT_OPTIONS.find(o => o.value === fx.effect);
+                              return (
+                                <div key={idx} className="glass-panel p-2 rounded space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[8px] font-semibold flex items-center gap-1">
+                                      {opt?.icon} {inst?.inst.name?.slice(0, 10)} — {opt?.label}
+                                    </span>
+                                    <button onClick={() => removeEffect(idx)} className="text-muted-foreground hover:text-destructive">
+                                      <X size={10} />
+                                    </button>
+                                  </div>
+                                  <div className="text-[7px] text-muted-foreground/50">{opt?.desc}</div>
+
+                                  {/* Trigger Band */}
+                                  <div className="flex items-center gap-1">
+                                    <label className="text-[7px] text-muted-foreground w-10">Band</label>
+                                    <div className="flex gap-0.5 flex-1">
+                                      {(['bass', 'mid', 'high', 'all'] as const).map(band => (
+                                        <button key={band}
+                                          onClick={() => updateEffect(idx, { triggerBand: band })}
+                                          className={`flex-1 text-[7px] py-0.5 rounded border font-semibold transition-all ${
+                                            fx.triggerBand === band
+                                              ? 'border-[#aa44ff]/40 bg-[#aa44ff]/10 text-[#aa44ff]'
+                                              : 'border-border/20 text-muted-foreground hover:border-border/40'
+                                          }`}>{band.toUpperCase()}</button>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Intensity */}
+                                  <div className="flex items-center gap-1">
+                                    <label className="text-[7px] text-muted-foreground w-10">Power</label>
+                                    <Slider value={[fx.intensity || 200]} onValueChange={([v]) => updateEffect(idx, { intensity: v })} max={255} className="flex-1" />
+                                    <span className="text-[7px] font-mono text-muted-foreground/50 w-6 text-right">{fx.intensity || 200}</span>
+                                  </div>
+
+                                  {/* Decay */}
+                                  <div className="flex items-center gap-1">
+                                    <label className="text-[7px] text-muted-foreground w-10">Decay</label>
+                                    <Slider value={[fx.decay || arConfig.globalDecay]} onValueChange={([v]) => updateEffect(idx, { decay: v })} max={255} className="flex-1" />
+                                    <span className="text-[7px] font-mono text-muted-foreground/50 w-6 text-right">{fx.decay || arConfig.globalDecay}</span>
+                                  </div>
+
+                                  {/* Color pickers for color effects */}
+                                  {(fx.effect === 'color-pulse' || fx.effect === 'color-cycle' || fx.effect === 'wled-pixel-chase') && (
+                                    <div className="flex items-center gap-1">
+                                      <label className="text-[7px] text-muted-foreground w-10">Colors</label>
+                                      <Input type="color"
+                                        value={fx.color1 ? `#${fx.color1.r.toString(16).padStart(2,'0')}${fx.color1.g.toString(16).padStart(2,'0')}${fx.color1.b.toString(16).padStart(2,'0')}` : '#ff0000'}
+                                        onChange={e => { const h = e.target.value; updateEffect(idx, { color1: { r: parseInt(h.slice(1,3),16), g: parseInt(h.slice(3,5),16), b: parseInt(h.slice(5,7),16) } }); }}
+                                        className="h-5 w-7 p-0 bg-transparent border-0 cursor-pointer" />
+                                      <Input type="color"
+                                        value={fx.color2 ? `#${fx.color2.r.toString(16).padStart(2,'0')}${fx.color2.g.toString(16).padStart(2,'0')}${fx.color2.b.toString(16).padStart(2,'0')}` : '#0000ff'}
+                                        onChange={e => { const h = e.target.value; updateEffect(idx, { color2: { r: parseInt(h.slice(1,3),16), g: parseInt(h.slice(3,5),16), b: parseInt(h.slice(5,7),16) } }); }}
+                                        className="h-5 w-7 p-0 bg-transparent border-0 cursor-pointer" />
+                                    </div>
+                                  )}
+
+                                  {/* Position A/B for pos-alternate */}
+                                  {fx.effect === 'pos-alternate' && (
+                                    <div className="grid grid-cols-2 gap-1">
+                                      <div>
+                                        <label className="text-[7px] text-muted-foreground">Pos A</label>
+                                        <div className="flex gap-0.5">
+                                          <Input type="number" min={0} max={255} value={fx.posA?.pan ?? 64}
+                                            onChange={e => updateEffect(idx, { posA: { pan: Number(e.target.value), tilt: fx.posA?.tilt ?? 128 } })}
+                                            className="h-5 text-[8px] bg-muted/20 border-border/20 font-mono px-1 flex-1" placeholder="Pan" />
+                                          <Input type="number" min={0} max={255} value={fx.posA?.tilt ?? 128}
+                                            onChange={e => updateEffect(idx, { posA: { pan: fx.posA?.pan ?? 64, tilt: Number(e.target.value) } })}
+                                            className="h-5 text-[8px] bg-muted/20 border-border/20 font-mono px-1 flex-1" placeholder="Tilt" />
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <label className="text-[7px] text-muted-foreground">Pos B</label>
+                                        <div className="flex gap-0.5">
+                                          <Input type="number" min={0} max={255} value={fx.posB?.pan ?? 192}
+                                            onChange={e => updateEffect(idx, { posB: { pan: Number(e.target.value), tilt: fx.posB?.tilt ?? 128 } })}
+                                            className="h-5 text-[8px] bg-muted/20 border-border/20 font-mono px-1 flex-1" placeholder="Pan" />
+                                          <Input type="number" min={0} max={255} value={fx.posB?.tilt ?? 128}
+                                            onChange={e => updateEffect(idx, { posB: { pan: fx.posB?.pan ?? 192, tilt: Number(e.target.value) } })}
+                                            className="h-5 text-[8px] bg-muted/20 border-border/20 font-mono px-1 flex-1" placeholder="Tilt" />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* WLED preset list for preset-cycle */}
+                                  {fx.effect === 'wled-preset-cycle' && (
+                                    <div>
+                                      <label className="text-[7px] text-muted-foreground">Preset IDs (comma separated)</label>
+                                      <Input
+                                        value={(fx.wledPresets || []).join(', ')}
+                                        onChange={e => {
+                                          const ids = e.target.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+                                          updateEffect(idx, { wledPresets: ids });
+                                        }}
+                                        className="h-5 text-[8px] bg-muted/20 border-border/20 font-mono px-1"
+                                        placeholder="1, 2, 3" />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                          💡 Link fixtures, add effects per fixture, choose frequency bands. Bass = kick/bass, Mid = melody, High = hi-hats. Effects react to audio in real-time when running.
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
