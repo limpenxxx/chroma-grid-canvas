@@ -37,6 +37,8 @@ export function StageBuilder() {
   const vizCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const nodeOutputFramesRef = useRef<Record<string, string[]>>({});
   const lastNodeOutputRef = useRef<Record<string, string>>({});
+  const mfColorsRef = useRef<Record<string, { r: number; g: number; b: number }>>({});
+  const lastMfOutputRef = useRef<Record<string, string>>({});
 
   // Use persisted store instead of local state
   const stageStore = useStageStore();
