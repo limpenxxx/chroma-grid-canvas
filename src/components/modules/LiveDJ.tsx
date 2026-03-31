@@ -117,7 +117,7 @@ interface MHProgram {
 }
 
 // ── Audio / BPM Types ──
-type AudioSource = 'none' | 'tap-tempo' | 'wled-analog' | 'wled-i2s-inmp441' | 'wled-i2s-max98357' | 'wled-i2s-sph0645' | 'wled-udp-sync' | 'browser-mic' | 'system-audio';
+type AudioSource = 'none' | 'tap-tempo' | 'pioneer-dj' | 'wled-analog' | 'wled-i2s-inmp441' | 'wled-i2s-max98357' | 'wled-i2s-sph0645' | 'wled-udp-sync' | 'browser-mic' | 'system-audio';
 
 interface AudioConfig {
   source: AudioSource;
