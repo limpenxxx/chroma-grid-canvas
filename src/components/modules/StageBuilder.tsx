@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown, Film, Droplets, Music, Mic, Volume2, Monitor, Save, FolderOpen } from 'lucide-react';
+import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown, Film, Droplets, Music, Mic, Volume2, Monitor, Save, FolderOpen, ListMusic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
@@ -8,85 +8,12 @@ import { useFixtureStore, getFixtureTypeIcon, getChannelColor, getFixtureIconEmo
 import { useWledStore } from '@/store/wledStore';
 import { setWledState } from '@/lib/wledApi';
 import { useMediaStore, getEmbedUrl } from '@/store/mediaStore';
+import { useStageStore, createDefaultSegment, type WLEDNode, type WLEDSegment, type MappingFixture, type BackgroundSource, type TestPattern } from '@/store/stageStore';
 import { AudioVisualizerEngine, PRESET_LABELS, INPUT_LABELS, type VisualizerPreset, type AudioInputSource } from '@/lib/audioVisualizer';
 import { exportMappingPreset, parseMappingPreset, downloadJson, openJsonFile } from '@/lib/backupRestore';
 import { toast } from 'sonner';
 
 type SegmentOrientation = 'horizontal' | 'vertical' | 'zigzag-h' | 'zigzag-v';
-
-interface WLEDSegment {
-  id: string;
-  label: string;
-  pixelStart: number;
-  pixelEnd: number;
-  orientation: SegmentOrientation;
-  reversed: boolean;
-}
-
-interface WLEDNode {
-  id: string;
-  name: string;
-  ip: string;
-  wledFixtureId?: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  rotation: number;
-  pixelsX: number;
-  pixelsY: number;
-  segments: WLEDSegment[];
-  totalPixels: number;
-  // SignalRGB-style settings
-  blurAmount: number;       // 0-100 — how much to blur/smooth the sampled colors
-  sampleRadius: number;     // 1-50 — radius of the area each pixel samples from (in canvas px)
-  interpolationSpeed: number; // 1-100 — how fast colors transition (temporal smoothing)
-}
-
-// DMX fixture on the mapping canvas with its own blur/radius
-interface MappingFixture {
-  id: string;
-  fixtureInstanceId: string;
-  x: number;
-  y: number;
-  radius: number;           // visual size on canvas
-  blurAmount: number;       // 0-100
-  sampleRadius: number;     // 1-50
-  interpolationSpeed: number;
-}
-
-const createDefaultSegment = (index: number, start: number, count: number): WLEDSegment => ({
-  id: `seg-${Date.now()}-${index}`,
-  label: `Seg ${index + 1}`,
-  pixelStart: start,
-  pixelEnd: start + count - 1,
-  orientation: 'horizontal',
-  reversed: false,
-});
-
-const MOCK_NODES: WLEDNode[] = [
-  {
-    id: '1', name: 'WLED-Main', ip: '192.168.1.100', x: 200, y: 120, width: 240, height: 135,
-    pixelsX: 16, pixelsY: 16, totalPixels: 256, rotation: 0,
-    blurAmount: 20, sampleRadius: 5, interpolationSpeed: 50,
-    segments: [
-      createDefaultSegment(0, 0, 128),
-      createDefaultSegment(1, 128, 128),
-    ],
-  },
-  {
-    id: '2', name: 'WLED-Left', ip: '192.168.1.101', x: 40, y: 250, width: 60, height: 180,
-    pixelsX: 8, pixelsY: 18, totalPixels: 144, rotation: 0,
-    blurAmount: 30, sampleRadius: 8, interpolationSpeed: 50,
-    segments: [createDefaultSegment(0, 0, 144)],
-  },
-  {
-    id: '3', name: 'WLED-Right', ip: '192.168.1.102', x: 520, y: 200, width: 120, height: 50,
-    pixelsX: 20, pixelsY: 3, totalPixels: 60, rotation: 0,
-    blurAmount: 10, sampleRadius: 3, interpolationSpeed: 50,
-    segments: [createDefaultSegment(0, 0, 60)],
-  },
-];
 
 const ORIENTATION_LABELS: Record<SegmentOrientation, string> = {
   'horizontal': '→ Horizontal',
