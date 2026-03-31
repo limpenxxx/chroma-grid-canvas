@@ -1494,6 +1494,121 @@ function ControlWidget({
           </div>
         );
       })()}
+
+      {/* AUDIO REACTIVE WIDGET */}
+      {widget.type === 'audio-reactive' && (() => {
+        const arConfig = widget.audioReactive || { running: false, effects: [], globalDecay: 180, sensitivity: 160 };
+        const s = Math.min(widget.width, widget.height);
+        const linkedCount = arConfig.effects.filter(e => e.enabled).length;
+
+        const EFFECT_ICONS: Record<AudioReactiveEffectType, string> = {
+          'color-pulse': '🔴', 'dimmer-pump': '💡', 'strobe-beat': '⚡', 'pos-alternate': '↔',
+          'color-cycle': '🌈', 'bass-color-shift': '🎸', 'wled-preset-cycle': '🔄',
+          'wled-pixel-chase': '🌊', 'intensity-map': '📊', 'hue-sweep': '🎨', 'size-pulse': '🔍',
+        };
+        const EFFECT_LABELS: Record<AudioReactiveEffectType, string> = {
+          'color-pulse': 'Color Pulse', 'dimmer-pump': 'Dimmer Pump', 'strobe-beat': 'Strobe Beat',
+          'pos-alternate': 'Pos Alternate', 'color-cycle': 'Color Cycle', 'bass-color-shift': 'Bass Shift',
+          'wled-preset-cycle': 'Preset Cycle', 'wled-pixel-chase': 'Pixel Chase',
+          'intensity-map': 'Intensity Map', 'hue-sweep': 'Hue Sweep', 'size-pulse': 'Size Pulse',
+        };
+        const BAND_COLORS: Record<string, string> = {
+          bass: '#ff4444', mid: '#ffaa00', high: '#44aaff', all: '#aa44ff',
+        };
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col overflow-hidden relative"
+            style={{ ...bgStyle, borderColor: arConfig.running ? '#aa44ff' : undefined,
+              boxShadow: arConfig.running ? '0 0 25px rgba(170,68,255,0.3), inset 0 0 15px rgba(170,68,255,0.08)' : undefined }}
+            onClick={onSelect}>
+
+            {/* Header */}
+            <div className="px-2 py-1.5 flex items-center gap-1.5 border-b border-border/20 shrink-0"
+              style={{ background: arConfig.running ? 'rgba(170,68,255,0.1)' : 'rgba(170,68,255,0.05)' }}>
+              <Radio size={10} className="text-[#aa44ff]" />
+              <span className="text-[9px] font-semibold truncate flex-1" style={{ color: '#aa44ff' }}>{widget.label}</span>
+              <span className="text-[7px] text-muted-foreground/50">{linkedCount} FX</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); onUpdate({ audioReactive: { ...arConfig, running: !arConfig.running } }); }}
+                className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+                  arConfig.running ? 'bg-[#aa44ff]/20 text-[#aa44ff] shadow-[0_0_8px_rgba(170,68,255,0.4)]' : 'bg-muted/40 text-muted-foreground'
+                }`}>
+                {arConfig.running ? <Square size={10} /> : <Play size={10} />}
+              </button>
+            </div>
+
+            {/* Effects list */}
+            <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+              {arConfig.effects.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground/30 gap-1">
+                  <Radio size={20} />
+                  <span className="text-[8px]">Link fixtures in properties</span>
+                  <span className="text-[7px]">then add audio effects</span>
+                </div>
+              ) : (
+                arConfig.effects.map((fx, idx) => {
+                  const inst = fixtureData.find(f => f.inst.id === fx.fixtureId);
+                  const bandColor = BAND_COLORS[fx.triggerBand || 'all'];
+                  return (
+                    <div key={`${fx.fixtureId}-${idx}`}
+                      className={`rounded border p-1.5 transition-all ${
+                        fx.enabled
+                          ? 'border-[#aa44ff]/30 bg-[#aa44ff]/5'
+                          : 'border-border/15 bg-muted/5 opacity-50'
+                      }`}>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px]">{EFFECT_ICONS[fx.effect] || '🔊'}</span>
+                        <span className="text-[8px] font-semibold truncate flex-1" style={{ color: fx.enabled ? '#aa44ff' : undefined }}>
+                          {inst?.inst.name?.slice(0, 10) || 'Unknown'}
+                        </span>
+                        <span className="text-[7px] px-1 rounded-full font-semibold" style={{ background: bandColor + '20', color: bandColor }}>
+                          {(fx.triggerBand || 'all').toUpperCase()}
+                        </span>
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            const effects = [...arConfig.effects];
+                            effects[idx] = { ...effects[idx], enabled: !effects[idx].enabled };
+                            onUpdate({ audioReactive: { ...arConfig, effects } });
+                          }}
+                          className={`w-4 h-4 rounded-full border transition-all ${
+                            fx.enabled ? 'bg-[#aa44ff] border-[#aa44ff]' : 'bg-muted/20 border-border/30'
+                          }`}>
+                          {fx.enabled && <span className="text-[6px] text-white flex items-center justify-center">✓</span>}
+                        </button>
+                      </div>
+                      <div className="text-[7px] text-muted-foreground/60 mt-0.5">{EFFECT_LABELS[fx.effect]}</div>
+                      {/* Color preview for color effects */}
+                      {(fx.effect === 'color-pulse' || fx.effect === 'color-cycle' || fx.effect === 'pos-alternate') && fx.color1 && (
+                        <div className="flex gap-0.5 mt-0.5">
+                          <div className="w-3 h-3 rounded-sm border border-border/20"
+                            style={{ background: `rgb(${fx.color1.r},${fx.color1.g},${fx.color1.b})` }} />
+                          {fx.color2 && <div className="w-3 h-3 rounded-sm border border-border/20"
+                            style={{ background: `rgb(${fx.color2.r},${fx.color2.g},${fx.color2.b})` }} />}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Bottom status */}
+            <div className="px-2 py-1 border-t border-border/10 flex items-center justify-between shrink-0"
+              style={{ background: 'rgba(0,0,0,0.2)' }}>
+              <span className="text-[7px] text-muted-foreground/40 font-mono">
+                DECAY:{arConfig.globalDecay} SENS:{arConfig.sensitivity}
+              </span>
+              {arConfig.running && (
+                <div className="flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#aa44ff] animate-pulse" />
+                  <span className="text-[7px] text-[#aa44ff] font-semibold">LIVE</span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
