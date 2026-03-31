@@ -63,14 +63,16 @@ export const useMagicHomeStore = create<MagicHomeStore>()(
         }
       },
 
-      addDevice: (address, name) => {
-        const id = address.replace(/\./g, '');
-        if (get().devices.some(d => d.address === address)) return;
+      addDevice: (address, name, mac) => {
+        // MAC becomes the device ID for the proxy API; fall back to IP-derived ID
+        const id = mac ? mac.replace(/[:\-\.]/g, '').toUpperCase() : address.replace(/\./g, '');
+        if (get().devices.some(d => d.id === id || d.address === address)) return;
         const device: StoredDevice = {
           id,
           address,
+          mac: mac?.replace(/[:\-\.]/g, '').toUpperCase() || '',
           model: '',
-          name: name || `MagicHome (${address})`,
+          name: name || `MagicHome (${mac || address})`,
           state: null,
           online: false,
         };
