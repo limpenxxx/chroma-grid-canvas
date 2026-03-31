@@ -104,12 +104,13 @@ interface BPMState {
 const AUDIO_SOURCES: { value: AudioSource; label: string; description: string }[] = [
   { value: 'none', label: 'None', description: 'No audio input' },
   { value: 'tap-tempo', label: 'TAP-TEMPO', description: 'Manual tap tempo for BPM sync' },
+  { value: 'system-audio', label: 'System Audio', description: 'Capture audio from Chrome, Spotify, or any app on this computer via screen/tab sharing' },
+  { value: 'browser-mic', label: 'Browser Microphone', description: "Use this device's microphone via Web Audio API" },
   { value: 'wled-analog', label: 'WLED Analog Mic', description: 'MAX4466 / MAX9814 analog microphone on WLED ESP32' },
   { value: 'wled-i2s-inmp441', label: 'WLED I2S INMP441', description: 'Digital I2S MEMS microphone (recommended)' },
   { value: 'wled-i2s-max98357', label: 'WLED I2S MAX98357', description: 'I2S line-in via MAX98357 amplifier' },
   { value: 'wled-i2s-sph0645', label: 'WLED I2S SPH0645', description: 'SPH0645 I2S digital microphone' },
   { value: 'wled-udp-sync', label: 'WLED UDP Sound Sync', description: 'Receive audio data from another WLED instance via UDP' },
-  { value: 'browser-mic', label: 'Browser Microphone', description: "Use this device's microphone via Web Audio API" },
 ];
 
 interface DJWidget {
