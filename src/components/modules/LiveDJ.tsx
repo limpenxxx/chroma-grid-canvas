@@ -549,8 +549,9 @@ function ControlWidget({
   const isButtonActive = widget.flash ? isPressed : !!widget.toggled;
 
   return (
-    <div className={`absolute select-none group transition-shadow ${isSelected ? 'ring-1 ring-primary/60 z-30' : 'z-10'} ${interacting ? 'z-50' : ''}`}
-      style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height }}>
+    <div className={`absolute select-none group transition-shadow ${isSelected ? 'ring-2 ring-primary/80 z-30' : 'z-10'} ${interacting ? 'z-50' : ''}`}
+      style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height,
+        boxShadow: isSelected ? '0 0 20px hsl(155 100% 50% / 0.4), 0 0 40px hsl(155 100% 50% / 0.15)' : undefined }}>
 
       {/* Strobe sync flash overlay */}
       {isStrobeSynced && (
