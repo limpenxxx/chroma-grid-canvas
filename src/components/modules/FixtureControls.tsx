@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Home, Crosshair, Wifi, RefreshCw, Lightbulb } from 'lucide-react';
+import { Home, Crosshair, Wifi, RefreshCw, Lightbulb, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
