@@ -6,6 +6,7 @@ import {
   setLightState, setLightColor, setLightBrightness, setLightPower,
   setGroupState, activateScene, getBridgeConfig,
 } from '@/lib/hueApi';
+import { sendHueBridge, sendHueLight } from '@/lib/wsSync';
 
 interface HueStore {
   bridges: HueBridge[];
