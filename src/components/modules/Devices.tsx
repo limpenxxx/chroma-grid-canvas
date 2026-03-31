@@ -616,9 +616,115 @@ export function Devices() {
               );
             })}
 
-          {filteredInsts.length === 0 && wledStore.fixtures.length === 0 && (
+          {/* Section: Philips Hue Lights */}
+          {(() => {
+            const allHueLights = hueStore.bridges.filter(b => b.apiKey).flatMap(b =>
+              (hueStore.lights[b.id] || []).filter(l => l.name.toLowerCase().includes(search.toLowerCase())).map(l => ({ bridge: b, light: l }))
+            );
+            if (allHueLights.length === 0) return null;
+            return (
+              <>
+                <div className="text-[9px] uppercase tracking-widest text-purple-400 font-semibold mb-1 mt-4">
+                  💡 Philips Hue Lights
+                </div>
+                {allHueLights.map(({ bridge, light }) => {
+                  const col = light.state.xy
+                    ? xyToRgb(light.state.xy[0], light.state.xy[1], light.state.bri || 127)
+                    : { r: 200, g: 200, b: 200 };
+                  const briPercent = light.state.on ? Math.round((light.state.bri / 254) * 100) : 0;
+                  return (
+                    <div key={`hue-${bridge.id}-${light.id}`} className="rounded-lg border transition-all border-purple-400/20 bg-purple-400/10">
+                      <div className="flex items-center gap-3 p-3">
+                        <div className="w-6 h-6 rounded-full border border-purple-400/30 shrink-0"
+                          style={{
+                            backgroundColor: light.state.on ? `rgb(${col.r},${col.g},${col.b})` : 'rgb(40,40,40)',
+                            boxShadow: light.state.on ? `0 0 8px rgb(${col.r},${col.g},${col.b})` : 'none',
+                          }} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold">{light.name}</div>
+                          <div className="text-[9px] text-muted-foreground">
+                            {light.type} • {bridge.name} • {light.state.reachable ? (light.state.on ? `ON ${briPercent}%` : 'OFF') : 'Unreachable'}
+                          </div>
+                        </div>
+                        <Button variant={light.state.on ? 'secondary' : 'outline'} size="sm" className="h-6 text-[8px] px-2"
+                          onClick={() => hueStore.setPower(bridge.id, light.id, !light.state.on).then(() => hueStore.refreshBridge(bridge.id))}>
+                          {light.state.on ? 'ON' : 'OFF'}
+                        </Button>
+                        {light.state.on && light.capabilities.hasColor && (
+                          <input type="color"
+                            value={`#${col.r.toString(16).padStart(2, '0')}${col.g.toString(16).padStart(2, '0')}${col.b.toString(16).padStart(2, '0')}`}
+                            onChange={e => {
+                              const hex = e.target.value;
+                              const r = parseInt(hex.slice(1, 3), 16);
+                              const g = parseInt(hex.slice(3, 5), 16);
+                              const b2 = parseInt(hex.slice(5, 7), 16);
+                              hueStore.setColor(bridge.id, light.id, r, g, b2);
+                            }}
+                            className="w-6 h-6 rounded cursor-pointer border-0 p-0 bg-transparent"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            );
+          })()}
+
+          {/* Section: MagicHome Devices */}
+          {(() => {
+            const filteredMagic = magicStore.devices.filter(d => d.name.toLowerCase().includes(search.toLowerCase()));
+            if (filteredMagic.length === 0) return null;
+            return (
+              <>
+                <div className="text-[9px] uppercase tracking-widest text-yellow-400 font-semibold mb-1 mt-4">
+                  ✦ MagicHome Devices
+                </div>
+                {filteredMagic.map(device => {
+                  const col = device.state?.color || { r: 100, g: 100, b: 100 };
+                  return (
+                    <div key={`magic-${device.id}`} className="rounded-lg border transition-all border-yellow-400/20 bg-yellow-400/10">
+                      <div className="flex items-center gap-3 p-3">
+                        <div className="w-6 h-6 rounded-full border border-yellow-400/30 shrink-0"
+                          style={{
+                            backgroundColor: device.state?.on ? `rgb(${col.r},${col.g},${col.b})` : 'rgb(40,40,40)',
+                            boxShadow: device.state?.on ? `0 0 8px rgb(${col.r},${col.g},${col.b})` : 'none',
+                          }} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold">{device.name}</div>
+                          <div className="text-[9px] text-muted-foreground">
+                            {device.address} • {device.model || 'MagicHome'} • {device.online ? (device.state?.on ? 'ON' : 'OFF') : 'Offline'}
+                          </div>
+                        </div>
+                        <div className={`w-2 h-2 rounded-full ${device.online ? 'bg-green-500' : 'bg-red-500'}`} />
+                        <Button variant={device.state?.on ? 'secondary' : 'outline'} size="sm" className="h-6 text-[8px] px-2"
+                          onClick={() => magicStore.setPower(device.id, !device.state?.on)}>
+                          {device.state?.on ? 'ON' : 'OFF'}
+                        </Button>
+                        {device.state?.on && (
+                          <input type="color"
+                            value={`#${col.r.toString(16).padStart(2, '0')}${col.g.toString(16).padStart(2, '0')}${col.b.toString(16).padStart(2, '0')}`}
+                            onChange={e => {
+                              const hex = e.target.value;
+                              const r = parseInt(hex.slice(1, 3), 16);
+                              const g = parseInt(hex.slice(3, 5), 16);
+                              const b2 = parseInt(hex.slice(5, 7), 16);
+                              magicStore.setColor(device.id, r, g, b2);
+                            }}
+                            className="w-6 h-6 rounded cursor-pointer border-0 p-0 bg-transparent"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            );
+          })()}
+
+          {filteredInsts.length === 0 && wledStore.fixtures.length === 0 && hueStore.bridges.every(b => !(hueStore.lights[b.id]?.length)) && magicStore.devices.length === 0 && (
             <div className="text-center text-muted-foreground text-xs py-8">
-              No fixtures patched yet. Add DMX fixtures above or WLED fixtures in the WLED Devices tab.
+              No fixtures patched yet. Add DMX fixtures above, or connect WLED / Hue / MagicHome devices in their tabs.
             </div>
           )}
         </div>
