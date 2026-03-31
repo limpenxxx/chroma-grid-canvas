@@ -663,8 +663,10 @@ export function StageBuilder() {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (isVideoPlaying && activeItem?.sourceType === 'file') {
-      video.src = activeItem.src;
+    if (isVideoPlaying && activeItem && (activeItem.sourceType === 'file' || activeItem.sourceType === 'url')) {
+      if (video.src !== activeItem.src) {
+        video.src = activeItem.src;
+      }
       video.play().catch(() => {});
     } else if (!isVideoPlaying) {
       video.pause();
