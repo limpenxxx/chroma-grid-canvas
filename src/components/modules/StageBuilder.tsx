@@ -989,10 +989,55 @@ export function StageBuilder() {
             <option value="gradient-sweep">🔄 Gradient Sweep</option>
           </select>
           <Button variant={bgSource === 'video' ? 'secondary' : 'outline'} size="sm"
-            onClick={() => setBgSource('video')} className="h-7 text-[9px] gap-1 px-2"
-            disabled={!isVideoPlaying}>
+            onClick={() => setBgSource('video')} className="h-7 text-[9px] gap-1 px-2">
             <Film size={10} /> Video
           </Button>
+          {/* Media / Playlist selector for video background */}
+          {bgSource === 'video' && (
+            <div className="flex items-center gap-1">
+              <select
+                value={stageMediaItemId || ''}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (val) {
+                    stageStore.setSelectedMediaItemId(val);
+                    stageStore.setSelectedPlaylistId(null);
+                    // Also start playing in media store
+                    mediaStore.playItem(val);
+                  } else {
+                    stageStore.setSelectedMediaItemId(null);
+                  }
+                }}
+                className="h-7 text-[8px] bg-muted/30 border border-border/30 rounded px-1 text-foreground max-w-[140px]"
+              >
+                <option value="">Select media...</option>
+                {mediaStore.items.filter(i => i.type === 'video').map(item => (
+                  <option key={item.id} value={item.id}>🎬 {item.name}</option>
+                ))}
+              </select>
+              {mediaStore.playlists.length > 0 && (
+                <select
+                  value={stagePlaylistId || ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val) {
+                      stageStore.setSelectedPlaylistId(val);
+                      stageStore.setSelectedMediaItemId(null);
+                      mediaStore.playPlaylist(val);
+                    } else {
+                      stageStore.setSelectedPlaylistId(null);
+                    }
+                  }}
+                  className="h-7 text-[8px] bg-muted/30 border border-border/30 rounded px-1 text-foreground max-w-[120px]"
+                >
+                  <option value="">Playlist...</option>
+                  {mediaStore.playlists.map(pl => (
+                    <option key={pl.id} value={pl.id}>📋 {pl.name} ({pl.itemIds.length})</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
           <Button variant={bgSource === 'visualizer' ? 'secondary' : 'outline'} size="sm"
             onClick={() => setShowBgPanel(!showBgPanel)} className="h-7 text-[9px] gap-1 px-2">
             <Music size={10} /> Audio VFX
