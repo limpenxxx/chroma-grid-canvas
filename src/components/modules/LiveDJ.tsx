@@ -3781,6 +3781,82 @@ export function LiveDJ() {
                     </div>
                   )}
 
+                  {/* WLED Fixture Widget Config */}
+                  {selectedWidgetData.type === 'wled-fixture' && (
+                    <div className="space-y-2 border-t border-border/20 pt-2">
+                      <label className="text-[8px] uppercase tracking-widest font-semibold flex items-center gap-1" style={{ color: '#ff6600' }}>
+                        <Wifi size={10} /> WLED Fixture Config
+                      </label>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">WLED Device</label>
+                        <select
+                          value={selectedWidgetData.wledFixtureDeviceId || ''}
+                          onChange={e => updateWidget(selectedWidgetData.id, { wledFixtureDeviceId: e.target.value || undefined })}
+                          className="w-full h-7 rounded bg-muted/30 border border-border/30 text-[10px] px-2 text-foreground mt-1">
+                          <option value="">— Select device —</option>
+                          {wledStore.devices.map(dev => (
+                            <option key={dev.id} value={dev.id}>{dev.name} ({dev.ip}) {dev.online ? '●' : '○'}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <Button variant="outline" size="sm" className="w-full h-7 text-[10px] gap-1"
+                        onClick={async () => {
+                          const dev = wledStore.devices.find(d => d.id === selectedWidgetData.wledFixtureDeviceId);
+                          if (!dev) return;
+                          try {
+                            const presetsFromDevice = await fetchWledPresets(dev.ip);
+                            updateWidget(selectedWidgetData.id, { wledPresets: presetsFromDevice });
+                          } catch {
+                            updateWidget(selectedWidgetData.id, { wledPresets: [] });
+                          }
+                        }}>
+                        <Wifi size={10} /> Fetch Presets
+                      </Button>
+                      {(selectedWidgetData.wledPresets || []).length > 0 && (
+                        <div className="text-[8px] text-muted-foreground/50">{selectedWidgetData.wledPresets!.length} presets loaded</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Fader Function Dropdown */}
+                  {selectedWidgetData.type === 'slider' && (
+                    <div className="border-t border-border/20 pt-2">
+                      <label className="text-[7px] uppercase text-muted-foreground">Fader Function</label>
+                      <select
+                        value={selectedWidgetData.faderFixtureFunction || selectedWidgetData.linkedFunction || 'dimmer'}
+                        onChange={e => updateWidget(selectedWidgetData.id, { faderFixtureFunction: e.target.value, linkedFunction: e.target.value })}
+                        className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
+                        <optgroup label="General">
+                          <option value="dimmer">Dimmer / Brightness</option>
+                          <option value="strobe">Strobe</option>
+                          <option value="speed">Speed</option>
+                        </optgroup>
+                        <optgroup label="DMX">
+                          <option value="pan">Pan</option>
+                          <option value="tilt">Tilt</option>
+                          <option value="red">Red</option>
+                          <option value="green">Green</option>
+                          <option value="blue">Blue</option>
+                          <option value="white">White</option>
+                          <option value="color-wheel">Color Wheel</option>
+                          <option value="gobo">Gobo</option>
+                          <option value="focus">Focus</option>
+                          <option value="zoom">Zoom</option>
+                          <option value="iris">Iris</option>
+                          <option value="prism">Prism</option>
+                          <option value="frost">Frost</option>
+                          <option value="macro">Macro</option>
+                          <option value="custom">Custom Channel</option>
+                        </optgroup>
+                        <optgroup label="WLED">
+                          <option value="wled-brightness">WLED Brightness</option>
+                          <option value="wled-speed">WLED Effect Speed</option>
+                          <option value="wled-intensity">WLED Effect Intensity</option>
+                        </optgroup>
+                      </select>
+                    </div>
+                  )}
+
                   {/* DMX Reset Widget Config */}
                   {selectedWidgetData.type === 'dmx-reset' && (
                     <div className="space-y-2 border-t border-border/20 pt-2">
