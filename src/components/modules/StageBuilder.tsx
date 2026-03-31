@@ -216,15 +216,51 @@ export function StageBuilder() {
           ctx.fillRect(0, 0, w, h);
         }
       } else if (testPattern === 'scanlines') {
-        // Static scanlines
-        for (let y2 = 0; y2 < h; y2 += 4) {
-          ctx.fillStyle = y2 % 8 === 0 ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.3)';
+        // Subtle background scanlines
+        for (let y2 = 0; y2 < h; y2 += 6) {
+          ctx.fillStyle = y2 % 12 === 0 ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.2)';
           ctx.fillRect(0, y2, w, 2);
         }
-        // Bright moving line
-        const scanY = ((time * 40) % h);
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        ctx.fillRect(0, scanY, w, 3);
+        const lineThickness = 8;
+        const speed = time * 80; // mid speed
+
+        // Horizontal moving line — red/magenta
+        const hY = ((speed * 0.6) % (h + lineThickness * 2)) - lineThickness;
+        const hGrad = ctx.createLinearGradient(0, hY - lineThickness, 0, hY + lineThickness);
+        hGrad.addColorStop(0, 'transparent');
+        hGrad.addColorStop(0.3, 'rgba(255,30,80,0.7)');
+        hGrad.addColorStop(0.5, 'rgba(255,60,120,0.9)');
+        hGrad.addColorStop(0.7, 'rgba(255,30,80,0.7)');
+        hGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = hGrad;
+        ctx.fillRect(0, hY - lineThickness, w, lineThickness * 2);
+
+        // Vertical moving line — cyan/blue
+        const vX = ((speed * 0.45) % (w + lineThickness * 2)) - lineThickness;
+        const vGrad = ctx.createLinearGradient(vX - lineThickness, 0, vX + lineThickness, 0);
+        vGrad.addColorStop(0, 'transparent');
+        vGrad.addColorStop(0.3, 'rgba(0,200,255,0.7)');
+        vGrad.addColorStop(0.5, 'rgba(0,230,255,0.9)');
+        vGrad.addColorStop(0.7, 'rgba(0,200,255,0.7)');
+        vGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = vGrad;
+        ctx.fillRect(vX - lineThickness, 0, lineThickness * 2, h);
+
+        // 45° diagonal moving line — green/lime
+        ctx.save();
+        const diagLen = Math.sqrt(w * w + h * h);
+        const diagOffset = ((speed * 0.5) % (diagLen + lineThickness * 4)) - lineThickness * 2;
+        ctx.translate(w / 2, h / 2);
+        ctx.rotate(Math.PI / 4);
+        const dGrad = ctx.createLinearGradient(0, diagOffset - lineThickness, 0, diagOffset + lineThickness);
+        dGrad.addColorStop(0, 'transparent');
+        dGrad.addColorStop(0.3, 'rgba(0,255,100,0.7)');
+        dGrad.addColorStop(0.5, 'rgba(80,255,120,0.9)');
+        dGrad.addColorStop(0.7, 'rgba(0,255,100,0.7)');
+        dGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = dGrad;
+        ctx.fillRect(-diagLen, diagOffset - lineThickness, diagLen * 2, lineThickness * 2);
+        ctx.restore();
       } else if (testPattern === 'test-picture') {
         // Color bars (top 70%)
         const barColors = ['#ffffff', '#ffff00', '#00ffff', '#00ff00', '#ff00ff', '#ff0000', '#0000ff', '#000000'];
