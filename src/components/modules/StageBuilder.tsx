@@ -556,19 +556,29 @@ export function StageBuilder() {
       ctx.restore();
     });
 
-    // Draw mapping fixtures (DMX fixtures with blur/radius on the mapping canvas)
+    // Draw mapping fixtures (DMX/Hue/MagicHome fixtures with blur/radius on the mapping canvas)
     mappingFixtures.forEach((mf) => {
-      const inst = fixtureStore.instances.find(i => i.id === mf.fixtureInstanceId);
-      const def = inst ? fixtureStore.definitions.find(d => d.id === inst.definitionId) : null;
-      if (!inst || !def) return;
+      // Validate fixture exists based on source type
+      if (mf.sourceType === 'dmx') {
+        const inst = fixtureStore.instances.find(i => i.id === mf.fixtureInstanceId);
+        if (!inst) return;
+      } else if (mf.sourceType === 'hue') {
+        const lights = mf.hueBridgeId ? hueStore.lights[mf.hueBridgeId] : [];
+        if (!lights?.find(l => l.id === mf.hueLightId)) return;
+      } else if (mf.sourceType === 'magichome') {
+        if (!magicStore.devices.find(d => d.id === mf.magicDeviceId)) return;
+      }
 
       const isSelected2 = selectionType === 'mapping-fixture' && selectedId === mf.id;
+      const label = getMFLabel(mf);
+      const icon = getMFIcon(mf);
+      const ringColor = mf.sourceType === 'hue' ? '255,200,50' : mf.sourceType === 'magichome' ? '120,255,80' : '0,229,255';
 
       ctx.save();
 
       // Sample radius indicator (outer ring)
       if (mf.sampleRadius > 1) {
-        ctx.strokeStyle = `rgba(0,229,255,${isSelected2 ? 0.4 : 0.15})`;
+        ctx.strokeStyle = `rgba(${ringColor},${isSelected2 ? 0.4 : 0.15})`;
         ctx.lineWidth = 1;
         ctx.setLineDash([3, 3]);
         ctx.beginPath();
@@ -580,7 +590,7 @@ export function StageBuilder() {
       // Blur glow
       if (mf.blurAmount > 0) {
         const blurGrad = ctx.createRadialGradient(mf.x, mf.y, mf.radius * 0.5, mf.x, mf.y, mf.radius + mf.blurAmount / 3);
-        blurGrad.addColorStop(0, `rgba(0,229,255,${Math.min(0.3, mf.blurAmount / 200)})`);
+        blurGrad.addColorStop(0, `rgba(${ringColor},${Math.min(0.3, mf.blurAmount / 200)})`);
         blurGrad.addColorStop(1, 'transparent');
         ctx.fillStyle = blurGrad;
         ctx.beginPath();
@@ -593,7 +603,7 @@ export function StageBuilder() {
       ctx.fillStyle = isSelected2
         ? `rgba(${mr},${mg},${mb},0.85)`
         : `rgba(${mr},${mg},${mb},0.7)`;
-      ctx.strokeStyle = isSelected2 ? '#00e5ff' : 'rgba(0,229,255,0.5)';
+      ctx.strokeStyle = isSelected2 ? `rgba(${ringColor},1)` : `rgba(${ringColor},0.5)`;
       ctx.lineWidth = isSelected2 ? 2 : 1;
       ctx.beginPath();
       ctx.arc(mf.x, mf.y, mf.radius, 0, Math.PI * 2);
@@ -601,26 +611,26 @@ export function StageBuilder() {
       ctx.stroke();
 
       if (isSelected2) {
-        ctx.shadowColor = '#00e5ff';
+        ctx.shadowColor = `rgba(${ringColor},1)`;
         ctx.shadowBlur = 10;
         ctx.stroke();
         ctx.shadowBlur = 0;
       }
 
       // Icon
-      ctx.fillStyle = isSelected2 ? '#00e5ff' : 'rgba(255,255,255,0.8)';
+      ctx.fillStyle = isSelected2 ? `rgba(${ringColor},1)` : 'rgba(255,255,255,0.8)';
       ctx.font = `${Math.max(10, mf.radius * 0.7)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(getFixtureTypeIcon(def.type), mf.x, mf.y);
+      ctx.fillText(icon, mf.x, mf.y);
 
       // Label
-      ctx.fillStyle = isSelected2 ? '#00e5ff' : 'rgba(255,255,255,0.5)';
+      ctx.fillStyle = isSelected2 ? `rgba(${ringColor},1)` : 'rgba(255,255,255,0.5)';
       ctx.font = '8px Inter, sans-serif';
       ctx.textBaseline = 'top';
-      ctx.fillText(inst.name, mf.x, mf.y + mf.radius + 3);
+      ctx.fillText(label, mf.x, mf.y + mf.radius + 3);
       if (mf.blurAmount > 0 || mf.sampleRadius > 1) {
-        ctx.fillStyle = 'rgba(0,229,255,0.4)';
+        ctx.fillStyle = `rgba(${ringColor},0.4)`;
         ctx.font = '7px monospace';
         ctx.fillText(`b:${mf.blurAmount} r:${mf.sampleRadius}`, mf.x, mf.y + mf.radius + 12);
       }
