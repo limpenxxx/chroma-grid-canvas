@@ -701,8 +701,19 @@ export function StageBuilder() {
     if (!video) return;
     video.loop = videoLoop;
     if (isVideoPlaying && activeItem) {
-      const newSrc = activeItem.src || (activeItem.externalUrl ?? '');
-      if (video.src !== newSrc && newSrc) {
+      // YouTube/Vimeo can't be played in a <video> element — skip them
+      if (activeItem.sourceType === 'youtube' || activeItem.sourceType === 'vimeo') {
+        // Nothing to do — these are iframe-only; canvas can't capture them
+        return;
+      }
+      const newSrc = activeItem.src || '';
+      if (newSrc && video.src !== newSrc) {
+        // For external URLs, set crossOrigin to allow canvas sampling
+        if (activeItem.sourceType === 'url') {
+          video.crossOrigin = 'anonymous';
+        } else {
+          video.removeAttribute('crossorigin');
+        }
         video.src = newSrc;
       }
       if (newSrc) {
