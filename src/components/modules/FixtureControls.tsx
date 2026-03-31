@@ -545,7 +545,7 @@ function HueLightPanel({ bridgeId, lightId, state: fixtureState, updateState }: 
 }
 
 // ── Main Component ──
-type FixtureTab = 'dmx' | 'wled' | 'hue';
+type FixtureTab = 'dmx' | 'wled' | 'hue' | 'magichome';
 
 export function FixtureControls() {
   const store = useFixtureStore();
