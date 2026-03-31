@@ -296,6 +296,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'wled-preset', label: 'WLED Preset', icon: Wifi, w: 120, h: 120 },
   { type: 'wled-fixture', label: 'WLED Fixture', icon: Wifi, w: 200, h: 260 },
   { type: 'dmx-reset', label: 'DMX Reset', icon: Square, w: 120, h: 80 },
+  { type: 'audio-reactive', label: 'Audio Reactive', icon: Radio, w: 260, h: 320 },
 ];
 
 // ── Color distance helper (Euclidean in RGB space) ──
