@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown, Film, Droplets, Music, Mic, Volume2, Monitor, Save, FolderOpen } from 'lucide-react';
+import { Plus, RotateCw, Grid3X3, ZoomIn, ZoomOut, Trash2, Copy, ChevronDown, Film, Droplets, Music, Mic, Volume2, Monitor, Save, FolderOpen, ListMusic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
@@ -8,85 +8,12 @@ import { useFixtureStore, getFixtureTypeIcon, getChannelColor, getFixtureIconEmo
 import { useWledStore } from '@/store/wledStore';
 import { setWledState } from '@/lib/wledApi';
 import { useMediaStore, getEmbedUrl } from '@/store/mediaStore';
+import { useStageStore, createDefaultSegment, type WLEDNode, type WLEDSegment, type MappingFixture, type BackgroundSource, type TestPattern } from '@/store/stageStore';
 import { AudioVisualizerEngine, PRESET_LABELS, INPUT_LABELS, type VisualizerPreset, type AudioInputSource } from '@/lib/audioVisualizer';
 import { exportMappingPreset, parseMappingPreset, downloadJson, openJsonFile } from '@/lib/backupRestore';
 import { toast } from 'sonner';
 
 type SegmentOrientation = 'horizontal' | 'vertical' | 'zigzag-h' | 'zigzag-v';
-
-interface WLEDSegment {
-  id: string;
-  label: string;
-  pixelStart: number;
-  pixelEnd: number;
-  orientation: SegmentOrientation;
-  reversed: boolean;
-}
-
-interface WLEDNode {
-  id: string;
-  name: string;
-  ip: string;
-  wledFixtureId?: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  rotation: number;
-  pixelsX: number;
-  pixelsY: number;
-  segments: WLEDSegment[];
-  totalPixels: number;
-  // SignalRGB-style settings
-  blurAmount: number;       // 0-100 — how much to blur/smooth the sampled colors
-  sampleRadius: number;     // 1-50 — radius of the area each pixel samples from (in canvas px)
-  interpolationSpeed: number; // 1-100 — how fast colors transition (temporal smoothing)
-}
-
-// DMX fixture on the mapping canvas with its own blur/radius
-interface MappingFixture {
-  id: string;
-  fixtureInstanceId: string;
-  x: number;
-  y: number;
-  radius: number;           // visual size on canvas
-  blurAmount: number;       // 0-100
-  sampleRadius: number;     // 1-50
-  interpolationSpeed: number;
-}
-
-const createDefaultSegment = (index: number, start: number, count: number): WLEDSegment => ({
-  id: `seg-${Date.now()}-${index}`,
-  label: `Seg ${index + 1}`,
-  pixelStart: start,
-  pixelEnd: start + count - 1,
-  orientation: 'horizontal',
-  reversed: false,
-});
-
-const MOCK_NODES: WLEDNode[] = [
-  {
-    id: '1', name: 'WLED-Main', ip: '192.168.1.100', x: 200, y: 120, width: 240, height: 135,
-    pixelsX: 16, pixelsY: 16, totalPixels: 256, rotation: 0,
-    blurAmount: 20, sampleRadius: 5, interpolationSpeed: 50,
-    segments: [
-      createDefaultSegment(0, 0, 128),
-      createDefaultSegment(1, 128, 128),
-    ],
-  },
-  {
-    id: '2', name: 'WLED-Left', ip: '192.168.1.101', x: 40, y: 250, width: 60, height: 180,
-    pixelsX: 8, pixelsY: 18, totalPixels: 144, rotation: 0,
-    blurAmount: 30, sampleRadius: 8, interpolationSpeed: 50,
-    segments: [createDefaultSegment(0, 0, 144)],
-  },
-  {
-    id: '3', name: 'WLED-Right', ip: '192.168.1.102', x: 520, y: 200, width: 120, height: 50,
-    pixelsX: 20, pixelsY: 3, totalPixels: 60, rotation: 0,
-    blurAmount: 10, sampleRadius: 3, interpolationSpeed: 50,
-    segments: [createDefaultSegment(0, 0, 60)],
-  },
-];
 
 const ORIENTATION_LABELS: Record<SegmentOrientation, string> = {
   'horizontal': '→ Horizontal',
@@ -100,9 +27,6 @@ const rgbToHex = (r: number, g: number, b: number) => [r, g, b].map(v => Math.ma
 type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null;
 type SelectionType = 'node' | 'fixture' | 'mapping-fixture' | null;
 
-type BackgroundSource = 'video' | 'visualizer' | 'texture' | 'none';
-type TestPattern = 'blobs' | 'scanlines' | 'test-picture' | 'rgb-scanline' | 'color-bars' | 'gradient-sweep';
-
 export function StageBuilder() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -111,15 +35,26 @@ export function StageBuilder() {
   const vizCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const nodeOutputFramesRef = useRef<Record<string, string[]>>({});
   const lastNodeOutputRef = useRef<Record<string, string>>({});
-  const [nodes, setNodes] = useState<WLEDNode[]>(MOCK_NODES);
-  const [mappingFixtures, setMappingFixtures] = useState<MappingFixture[]>([]);
+
+  // Use persisted store instead of local state
+  const stageStore = useStageStore();
+  const { nodes, mappingFixtures, bgSource, testPattern, vizPreset, vizAudioInput, vizSensitivity, vizColorShift, showGrid, zoom } = stageStore;
+  const setNodes = stageStore.setNodes;
+  const setMappingFixtures = stageStore.setMappingFixtures;
+  const setBgSource = stageStore.setBgSource;
+  const setTestPattern = stageStore.setTestPattern;
+  const setVizPreset = stageStore.setVizPreset;
+  const setVizAudioInput = stageStore.setVizAudioInput;
+  const setVizSensitivity = stageStore.setVizSensitivity;
+  const setVizColorShift = stageStore.setVizColorShift;
+  const setShowGrid = stageStore.setShowGrid;
+  const setZoom = stageStore.setZoom;
+
   const [selectionType, setSelectionType] = useState<SelectionType>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragging, setDragging] = useState<{ type: SelectionType; id: string } | null>(null);
   const [resizing, setResizing] = useState<{ nodeId: string; handle: ResizeHandle; startX: number; startY: number; startNode: WLEDNode } | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [showGrid, setShowGrid] = useState(true);
   const [showProperties, setShowProperties] = useState(true);
   const animRef = useRef<number>(0);
   const canvasDims = useRef({ w: 0, h: 0 });
@@ -128,26 +63,21 @@ export function StageBuilder() {
   const mediaStore = useMediaStore();
   const stageFixtures = fixtureStore.instances.filter(i => i.onStage);
 
-  // Background source state
-  const [bgSource, setBgSource] = useState<BackgroundSource>('texture');
-  const [testPattern, setTestPattern] = useState<TestPattern>('blobs');
-  const [vizPreset, setVizPreset] = useState<VisualizerPreset>('plasma-wave');
-  const [vizAudioInput, setVizAudioInput] = useState<AudioInputSource>('microphone');
-  const [vizSensitivity, setVizSensitivity] = useState(1.0);
-  const [vizColorShift, setVizColorShift] = useState(0);
+  // Viz engine local runtime state (not persisted)
   const [vizRunning, setVizRunning] = useState(false);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
   const [showBgPanel, setShowBgPanel] = useState(false);
 
-  // Get active media item for video background
-  const activeItem = mediaStore.items.find(i => i.id === mediaStore.activeItemId);
-  const isVideoPlaying = mediaStore.isPlaying && activeItem?.type === 'video';
+  // Get active media item for video background — use stage store selection or fallback to media store
+  const stageMediaItemId = stageStore.selectedMediaItemId;
+  const stagePlaylistId = stageStore.selectedPlaylistId;
+  const activeItem = stageMediaItemId
+    ? mediaStore.items.find(i => i.id === stageMediaItemId)
+    : mediaStore.items.find(i => i.id === mediaStore.activeItemId);
+  const isVideoPlaying = bgSource === 'video' && activeItem?.type === 'video';
 
-  // Auto-switch to video source when video starts playing
-  useEffect(() => {
-    if (isVideoPlaying) setBgSource('video');
-  }, [isVideoPlaying]);
+  // No auto-switch — user manually selects video source
 
   // Load audio devices
   useEffect(() => {
@@ -733,8 +663,10 @@ export function StageBuilder() {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (isVideoPlaying && activeItem?.sourceType === 'file') {
-      video.src = activeItem.src;
+    if (isVideoPlaying && activeItem && (activeItem.sourceType === 'file' || activeItem.sourceType === 'url')) {
+      if (video.src !== activeItem.src) {
+        video.src = activeItem.src;
+      }
       video.play().catch(() => {});
     } else if (!isVideoPlaying) {
       video.pause();
@@ -1059,10 +991,55 @@ export function StageBuilder() {
             <option value="gradient-sweep">🔄 Gradient Sweep</option>
           </select>
           <Button variant={bgSource === 'video' ? 'secondary' : 'outline'} size="sm"
-            onClick={() => setBgSource('video')} className="h-7 text-[9px] gap-1 px-2"
-            disabled={!isVideoPlaying}>
+            onClick={() => setBgSource('video')} className="h-7 text-[9px] gap-1 px-2">
             <Film size={10} /> Video
           </Button>
+          {/* Media / Playlist selector for video background */}
+          {bgSource === 'video' && (
+            <div className="flex items-center gap-1">
+              <select
+                value={stageMediaItemId || ''}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (val) {
+                    stageStore.setSelectedMediaItemId(val);
+                    stageStore.setSelectedPlaylistId(null);
+                    // Also start playing in media store
+                    mediaStore.playItem(val);
+                  } else {
+                    stageStore.setSelectedMediaItemId(null);
+                  }
+                }}
+                className="h-7 text-[8px] bg-muted/30 border border-border/30 rounded px-1 text-foreground max-w-[140px]"
+              >
+                <option value="">Select media...</option>
+                {mediaStore.items.filter(i => i.type === 'video').map(item => (
+                  <option key={item.id} value={item.id}>🎬 {item.name}</option>
+                ))}
+              </select>
+              {mediaStore.playlists.length > 0 && (
+                <select
+                  value={stagePlaylistId || ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val) {
+                      stageStore.setSelectedPlaylistId(val);
+                      stageStore.setSelectedMediaItemId(null);
+                      mediaStore.playPlaylist(val);
+                    } else {
+                      stageStore.setSelectedPlaylistId(null);
+                    }
+                  }}
+                  className="h-7 text-[8px] bg-muted/30 border border-border/30 rounded px-1 text-foreground max-w-[120px]"
+                >
+                  <option value="">Playlist...</option>
+                  {mediaStore.playlists.map(pl => (
+                    <option key={pl.id} value={pl.id}>📋 {pl.name} ({pl.itemIds.length})</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
           <Button variant={bgSource === 'visualizer' ? 'secondary' : 'outline'} size="sm"
             onClick={() => setShowBgPanel(!showBgPanel)} className="h-7 text-[9px] gap-1 px-2">
             <Music size={10} /> Audio VFX
