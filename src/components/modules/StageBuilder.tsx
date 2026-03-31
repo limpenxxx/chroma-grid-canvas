@@ -1273,6 +1273,17 @@ export function StageBuilder() {
                 📂 File
                 <input type="file" accept="video/*" className="hidden" onChange={handleVideoFileSelect} />
               </label>
+              <input
+                type="text"
+                placeholder="Paste video URL..."
+                value={directUrl}
+                onChange={e => setDirectUrl(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleDirectUrlLoad(); }}
+                className="h-7 text-[8px] bg-muted/30 border border-border/30 rounded px-2 text-foreground w-[160px] placeholder:text-muted-foreground/50"
+              />
+              <Button variant="outline" size="sm" className="h-7 text-[8px] px-2" onClick={handleDirectUrlLoad} disabled={!directUrl.trim()}>
+                🔗 Load
+              </Button>
               <div className="w-px h-5 bg-border/30" />
               <Button variant={videoPlaying ? 'secondary' : 'outline'} size="sm" className="h-7 w-7 p-0" onClick={toggleVideoPlayback}
                 title={videoPlaying ? 'Pause' : 'Play'}>
