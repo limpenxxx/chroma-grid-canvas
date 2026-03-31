@@ -13,8 +13,9 @@ import {
 } from '@/store/fixtureStore';
 import { useWledStore, type WledFixture } from '@/store/wledStore';
 import { WledPanel } from './WledPanel';
+import { HuePanel } from './HuePanel';
 
-type Tab = 'instances' | 'library' | 'editor' | 'wled' | 'io';
+type Tab = 'instances' | 'library' | 'editor' | 'wled' | 'hue' | 'io';
 
 const FIXTURE_TYPES: FixtureDefinition['type'][] = [
   'moving-head', 'par', 'strip', 'wash', 'spot', 'beam', 'strobe', 'laser', 'effect', 'dimmer', 'other',
@@ -243,16 +244,16 @@ export function Devices() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-border/30">
-        {(['instances', 'library', 'editor', 'wled', 'io'] as Tab[]).map(t => (
+      <div className="flex border-b border-border/30 overflow-x-auto">
+        {(['instances', 'library', 'editor', 'wled', 'hue', 'io'] as Tab[]).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-4 py-2 text-[10px] uppercase tracking-wider font-semibold transition-colors border-b-2 ${
+            className={`px-4 py-2 text-[10px] uppercase tracking-wider font-semibold transition-colors border-b-2 whitespace-nowrap ${
               tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {t === 'instances' ? 'Patched Fixtures' : t === 'library' ? 'Fixture Library' : t === 'editor' ? 'Fixture Editor' : t === 'wled' ? '📡 WLED Devices' : '🔌 I/O Setup'}
+            {t === 'instances' ? 'Patched Fixtures' : t === 'library' ? 'Fixture Library' : t === 'editor' ? 'Fixture Editor' : t === 'wled' ? '📡 WLED' : t === 'hue' ? '💡 Philips Hue' : '🔌 I/O Setup'}
           </button>
         ))}
       </div>
@@ -850,8 +851,10 @@ export function Devices() {
       {/* WLED TAB */}
       {tab === 'wled' && <WledPanel />}
 
+      {/* HUE TAB */}
+      {tab === 'hue' && <HuePanel />}
+
       {/* I/O SETUP TAB */}
-      {tab === 'io' && (
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div className="glass-panel p-4 space-y-3">
             <div className="text-[10px] uppercase tracking-widest text-primary font-semibold">Input / Output Configuration</div>

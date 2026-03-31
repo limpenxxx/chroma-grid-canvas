@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Home, Crosshair, Wifi, RefreshCw } from 'lucide-react';
+import { Home, Crosshair, Wifi, RefreshCw, Lightbulb } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,8 @@ import {
   type ColorSystem, type ColorWheelSlot, getFixtureTypeIcon, getFixtureIconEmoji,
 } from '@/store/fixtureStore';
 import { useWledStore, type WledFixture } from '@/store/wledStore';
+import { useHueStore } from '@/store/hueStore';
+import { xyToRgb } from '@/lib/hueApi';
 import { setWledBrightness, setWledPower, setWledState } from '@/lib/wledApi';
 import { fetchWledPresets, isWledDeviceTarget, wledDeviceToFixture } from '@/lib/wledUtils';
 
@@ -452,12 +454,102 @@ function WledFixtureLivePanel({ fixture, state, updateState }: {
   );
 }
 
+// ── Hue Light Panel ──
+function HueLightPanel({ bridgeId, lightId, state: fixtureState, updateState }: {
+  bridgeId: string;
+  lightId: string;
+  state: FixtureState;
+  updateState: (u: Partial<FixtureState>) => void;
+}) {
+  const hueStore = useHueStore();
+  const lights = hueStore.lights[bridgeId] || [];
+  const light = lights.find(l => l.id === lightId);
+  const bridge = hueStore.bridges.find(b => b.id === bridgeId);
+  const [brightness, setBrightness] = useState(fixtureState.dimmer * 2.55 | 0);
+
+  const handleColorChange = async (c: { r: number; g: number; b: number }) => {
+    updateState({ color: { ...fixtureState.color, ...c } });
+    await hueStore.setColor(bridgeId, lightId, c.r, c.g, c.b);
+  };
+
+  const handleBrightness = async (bri: number) => {
+    setBrightness(bri);
+    updateState({ dimmer: Math.round(bri / 2.55) });
+    await hueStore.setBrightness(bridgeId, lightId, Math.round(bri / 2.55));
+  };
+
+  return (
+    <div className="flex flex-wrap gap-8 items-start">
+      {/* Color */}
+      <div className="space-y-3">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground block text-center">COLOR</label>
+        <ColorWheel color={fixtureState.color} onChange={handleColorChange} />
+        {['r', 'g', 'b'].map(ch => (
+          <div key={ch} className="flex items-center gap-2">
+            <span className="text-[9px] text-muted-foreground w-4 uppercase font-semibold">{ch}</span>
+            <Slider
+              value={[fixtureState.color[ch as keyof typeof fixtureState.color]]}
+              onValueChange={([v]) => handleColorChange({ ...fixtureState.color, [ch]: v })}
+              max={255}
+              className="flex-1"
+            />
+            <span className="text-[9px] font-mono text-muted-foreground w-6">{fixtureState.color[ch as keyof typeof fixtureState.color]}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Brightness */}
+      <div className="space-y-3">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground block text-center">BRIGHTNESS</label>
+        <div className="h-44 w-12 rounded-lg fader-track border border-border/30 relative mx-auto">
+          <motion.div
+            className="absolute bottom-0 left-0 w-full rounded-b-lg bg-gradient-to-t from-yellow-500/60 to-yellow-500/20"
+            animate={{ height: `${(brightness / 255) * 100}%` }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          />
+          <input type="range" min={0} max={255} value={brightness}
+            onChange={(e) => handleBrightness(Number(e.target.value))}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-ns-resize"
+            style={{ writingMode: 'vertical-lr', direction: 'rtl' } as React.CSSProperties}
+          />
+        </div>
+        <div className="text-[9px] font-mono text-muted-foreground text-center">{brightness}/255</div>
+      </div>
+
+      {/* Info */}
+      <div className="space-y-3 min-w-[160px]">
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground block">HUE LIGHT INFO</label>
+        <div className="space-y-1.5 text-[9px]">
+          <div className="flex justify-between"><span className="text-muted-foreground">Name:</span> <span>{light?.name || '?'}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Type:</span> <span>{light?.type || '?'}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Bridge:</span> <span className="font-mono">{bridge?.ip || '?'}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Model:</span> <span>{light?.modelId || '?'}</span></div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Status:</span>
+            <span className={light?.state.reachable ? 'text-green-500' : 'text-red-500'}>{light?.state.reachable ? '● Reachable' : '○ Unreachable'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Color:</span>
+            <span>{light?.capabilities.hasColor ? '✓ RGB' : light?.capabilities.hasColorTemp ? '✓ CT' : 'Dimmable'}</span>
+          </div>
+        </div>
+        {/* Power toggle */}
+        <Button variant={light?.state.on ? 'secondary' : 'outline'} size="sm" className="w-full h-7 text-[10px]"
+          onClick={() => hueStore.setPower(bridgeId, lightId, !light?.state.on).then(() => hueStore.refreshBridge(bridgeId))}>
+          {light?.state.on ? '💡 Turn OFF' : '🔌 Turn ON'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Component ──
-type FixtureTab = 'dmx' | 'wled';
+type FixtureTab = 'dmx' | 'wled' | 'hue';
 
 export function FixtureControls() {
   const store = useFixtureStore();
   const wledStore = useWledStore();
+  const hueStore = useHueStore();
   const [states, setStates] = useState<Record<string, FixtureState>>({});
   const [selectedId, setSelectedId] = useState<string>(store.instances[0]?.id || '');
   const [fixtureTab, setFixtureTab] = useState<FixtureTab>('dmx');
@@ -473,15 +565,39 @@ export function FixtureControls() {
     return def?.category === 'wled';
   });
 
+  // Hue lights as fixtures
+  type HueLightRef = { bridgeId: string; lightId: string; name: string; type: string; reachable: boolean; hasColor: boolean; rgb: { r: number; g: number; b: number } };
+  const hueLightFixtures: HueLightRef[] = hueStore.bridges
+    .filter(b => b.apiKey)
+    .flatMap(bridge => (hueStore.lights[bridge.id] || []).map(light => {
+      const col = light.state.xy ? xyToRgb(light.state.xy[0], light.state.xy[1], light.state.bri || 127) : { r: 200, g: 200, b: 200 };
+      return {
+        bridgeId: bridge.id,
+        lightId: light.id,
+        name: light.name,
+        type: light.type,
+        reachable: light.state.reachable,
+        hasColor: light.capabilities.hasColor,
+        rgb: col,
+      };
+    }));
+
+  const selectedHueLight = fixtureTab === 'hue' ? hueLightFixtures.find(h => `hue-${h.bridgeId}-${h.lightId}` === selectedId) : undefined;
+
   useEffect(() => {
     if (fixtureTab === 'wled' && !selectedId && (wledStoreFixtures[0] || legacyWledInstances[0])) {
       setSelectedId(wledStoreFixtures[0]?.id || legacyWledInstances[0]?.id || '');
     }
-  }, [fixtureTab, selectedId, wledStoreFixtures, legacyWledInstances]);
+    if (fixtureTab === 'hue' && hueLightFixtures.length > 0 && !selectedHueLight) {
+      const first = hueLightFixtures[0];
+      setSelectedId(`hue-${first.bridgeId}-${first.lightId}`);
+    }
+  }, [fixtureTab, selectedId, wledStoreFixtures, legacyWledInstances, hueLightFixtures, selectedHueLight]);
 
   const currentInstances = fixtureTab === 'dmx' ? dmxInstances : legacyWledInstances;
   const selected = fixtureTab === 'wled' 
     ? (wledStoreFixtures.find(f => f.id === selectedId) ? null : currentInstances.find(i => i.id === selectedId) || currentInstances[0])
+    : fixtureTab === 'hue' ? null
     : (currentInstances.find(i => i.id === selectedId) || currentInstances[0]);
   const selectedWledFixture = fixtureTab === 'wled'
     ? (wledStoreFixtures.find(f => f.id === selectedId) || (!selected && wledStoreFixtures[0]) || undefined)
@@ -511,6 +627,12 @@ export function FixtureControls() {
               fixtureTab === 'wled' ? 'bg-[#ff6600]/10 text-[#ff6600] border border-[#ff6600]/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
             }`}>
             <Wifi size={10} /> WLED
+          </button>
+          <button onClick={() => setFixtureTab('hue')}
+            className={`px-3 py-1 rounded text-[10px] font-semibold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+              fixtureTab === 'hue' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
+            }`}>
+            <Lightbulb size={10} /> HUE
           </button>
         </div>
       </div>
@@ -580,11 +702,47 @@ export function FixtureControls() {
               </button>
             );
           })}
+          {/* Hue lights */}
+          {fixtureTab === 'hue' && hueLightFixtures.length === 0 && (
+            <div className="text-[10px] text-muted-foreground text-center py-4">
+              No Hue lights.<br />Go to Devices → Hue tab to pair a bridge.
+            </div>
+          )}
+          {fixtureTab === 'hue' && hueLightFixtures.map(hLight => {
+            const id = `hue-${hLight.bridgeId}-${hLight.lightId}`;
+            const previewColor = `rgb(${hLight.rgb.r},${hLight.rgb.g},${hLight.rgb.b})`;
+            return (
+              <button
+                key={id}
+                onClick={() => setSelectedId(id)}
+                className={`w-full flex items-center gap-2 p-2 rounded text-xs transition-all ${
+                  selectedId === id ? 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-500' : 'hover:bg-muted/50 text-muted-foreground'
+                }`}
+              >
+                <span className="text-sm">💡</span>
+                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: previewColor, boxShadow: `0 0 6px ${previewColor}` }} />
+                <div className="flex-1 text-left min-w-0">
+                  <div className="truncate text-[10px] font-semibold">{hLight.name}</div>
+                  <div className="text-[8px] text-muted-foreground/60">{hLight.hasColor ? 'Color' : 'Dimmable'}</div>
+                  <div className={`text-[7px] ${hLight.reachable ? 'text-green-500' : 'text-red-500'}`}>
+                    {hLight.reachable ? '● Reachable' : '○ Unreachable'}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Controls */}
         <div className="flex-1 p-6 overflow-y-auto">
-          {selectedWledFixture ? (
+          {selectedHueLight ? (
+            <HueLightPanel
+              bridgeId={selectedHueLight.bridgeId}
+              lightId={selectedHueLight.lightId}
+              state={getState(`hue-${selectedHueLight.bridgeId}-${selectedHueLight.lightId}`)}
+              updateState={(u) => updateState(`hue-${selectedHueLight.bridgeId}-${selectedHueLight.lightId}`, u)}
+            />
+          ) : selectedWledFixture ? (
             <WledFixtureLivePanel fixture={selectedWledFixture} state={getState(selectedWledFixture.id)} updateState={(u) => updateState(selectedWledFixture.id, u)} />
           ) : !selected || !selectedDef ? (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Select a fixture</div>
