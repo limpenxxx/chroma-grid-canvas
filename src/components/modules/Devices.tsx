@@ -1,10 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, Trash2, Upload, Download, Search, Edit2, Save, X, ChevronDown, ChevronRight, Copy, Wifi
+  Plus, Trash2, Upload, Download, Search, Edit2, Save, X, ChevronDown, ChevronRight, Copy, Wifi, RefreshCw, Lightbulb, Link2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 import {
   useFixtureStore, type FixtureDefinition, type FixtureInstance, type FixtureMode,
   type FixtureChannel, type ChannelFunction, type ColorSystem, type ColorWheelSlot,
@@ -12,9 +13,11 @@ import {
   FIXTURE_ICON_OPTIONS, getFixtureIconEmoji, type FixtureIcon,
 } from '@/store/fixtureStore';
 import { useWledStore, type WledFixture } from '@/store/wledStore';
+import { useHueStore } from '@/store/hueStore';
+import { xyToRgb } from '@/lib/hueApi';
 import { WledPanel } from './WledPanel';
 
-type Tab = 'instances' | 'library' | 'editor' | 'wled' | 'io';
+type Tab = 'instances' | 'library' | 'editor' | 'wled' | 'hue' | 'io';
 
 const FIXTURE_TYPES: FixtureDefinition['type'][] = [
   'moving-head', 'par', 'strip', 'wash', 'spot', 'beam', 'strobe', 'laser', 'effect', 'dimmer', 'other',
