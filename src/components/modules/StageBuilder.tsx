@@ -1109,8 +1109,8 @@ export function StageBuilder() {
                 className="h-7 text-[8px] bg-muted/30 border border-border/30 rounded px-1 text-foreground max-w-[140px]"
               >
                 <option value="">Select media...</option>
-                {mediaStore.items.filter(i => i.type === 'video').map(item => (
-                  <option key={item.id} value={item.id}>🎬 {item.name}</option>
+                {mediaStore.items.filter(i => i.type === 'video' && i.sourceType !== 'youtube' && i.sourceType !== 'vimeo').map(item => (
+                  <option key={item.id} value={item.id}>{item.sourceType === 'url' ? '🔗' : '🎬'} {item.name}</option>
                 ))}
               </select>
               {mediaStore.playlists.length > 0 && (
