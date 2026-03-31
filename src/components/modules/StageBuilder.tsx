@@ -1085,7 +1085,6 @@ export function StageBuilder() {
                   if (val) {
                     stageStore.setSelectedMediaItemId(val);
                     stageStore.setSelectedPlaylistId(null);
-                    // Also start playing in media store
                     mediaStore.playItem(val);
                   } else {
                     stageStore.setSelectedMediaItemId(null);
@@ -1119,6 +1118,22 @@ export function StageBuilder() {
                   ))}
                 </select>
               )}
+              <label className="h-7 text-[8px] bg-muted/30 border border-border/30 rounded px-2 text-foreground flex items-center gap-1 cursor-pointer hover:bg-muted/50 transition-colors">
+                📂 File
+                <input type="file" accept="video/*" className="hidden" onChange={handleVideoFileSelect} />
+              </label>
+              <div className="w-px h-5 bg-border/30" />
+              <Button variant={videoPlaying ? 'secondary' : 'outline'} size="sm" className="h-7 w-7 p-0" onClick={toggleVideoPlayback}
+                title={videoPlaying ? 'Pause' : 'Play'}>
+                {videoPlaying ? <Square size={10} /> : <Play size={10} />}
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={stopVideo} title="Stop">
+                <Square size={10} className="text-destructive" />
+              </Button>
+              <Button variant={videoLoop ? 'secondary' : 'outline'} size="sm" className="h-7 w-7 p-0"
+                onClick={() => setVideoLoop(!videoLoop)} title={videoLoop ? 'Loop ON' : 'Loop OFF'}>
+                <Repeat size={10} />
+              </Button>
             </div>
           )}
           <Button variant={bgSource === 'visualizer' ? 'secondary' : 'outline'} size="sm"
