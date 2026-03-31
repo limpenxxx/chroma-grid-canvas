@@ -251,17 +251,22 @@ export function Devices() {
 
       {/* Tabs */}
       <div className="flex border-b border-border/30 overflow-x-auto">
-        {(['instances', 'library', 'editor', 'wled', 'hue', 'magichome', 'io'] as Tab[]).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-[10px] uppercase tracking-wider font-semibold transition-colors border-b-2 whitespace-nowrap ${
-              tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {t === 'instances' ? 'Patched Fixtures' : t === 'library' ? 'Fixture Library' : t === 'editor' ? 'Fixture Editor' : t === 'wled' ? '📡 WLED' : t === 'hue' ? '💡 Philips Hue' : t === 'magichome' ? '🏠 MagicHome' : '🔌 I/O Setup'}
-          </button>
-        ))}
+        {(['instances', 'library', 'editor', 'wled', 'hue', 'magichome', 'io'] as Tab[]).map(t => {
+          const activeColor = t === 'hue' ? 'border-purple-400 text-purple-400'
+            : t === 'magichome' ? 'border-yellow-400 text-yellow-400'
+            : 'border-primary text-primary';
+          return (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-4 py-2 text-[10px] uppercase tracking-wider font-semibold transition-colors border-b-2 whitespace-nowrap ${
+                tab === t ? activeColor : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {t === 'instances' ? 'Patched Fixtures' : t === 'library' ? 'Fixture Library' : t === 'editor' ? 'Fixture Editor' : t === 'wled' ? '📡 WLED' : t === 'hue' ? '💡 Philips Hue' : t === 'magichome' ? '✦ MagicHome' : '🔌 I/O Setup'}
+            </button>
+          );
+        })}
       </div>
 
       {/* Search */}
