@@ -30,6 +30,10 @@ export type VisualizerPreset =
   | 'disco-ball'
   | 'northern-lights'
   | 'retro-grid'
+  | 'retro-grid-2'
+  | 'retro-grid-3'
+  | 'retro-grid-4'
+  | 'retro-grid-5'
   | 'dna-helix'
   | 'starburst'
   | 'glitch-wave';
