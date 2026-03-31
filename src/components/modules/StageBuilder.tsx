@@ -8,7 +8,7 @@ import { useFixtureStore, getFixtureTypeIcon, getChannelColor, getFixtureIconEmo
 import { useWledStore } from '@/store/wledStore';
 import { useHueStore } from '@/store/hueStore';
 import { useMagicHomeStore } from '@/store/magicHomeStore';
-import { setWledState } from '@/lib/wledApi';
+import { sendWledOutput } from '@/lib/wsSync';
 import { useMediaStore, getEmbedUrl } from '@/store/mediaStore';
 import { useStageStore, createDefaultSegment, type WLEDNode, type WLEDSegment, type MappingFixture, type BackgroundSource, type TestPattern } from '@/store/stageStore';
 import { AudioVisualizerEngine, PRESET_LABELS, INPUT_LABELS, type VisualizerPreset, type AudioInputSource } from '@/lib/audioVisualizer';
@@ -686,12 +686,12 @@ export function StageBuilder() {
         lastNodeOutputRef.current[node.id] = signature;
         const segmentPayload = offset > 0 ? [offset, ...payloadFrame] : payloadFrame;
 
-        return [
-          setWledState(fixture.deviceIp, {
-            on: true,
-            seg: [{ id: fixture.segmentId, i: segmentPayload }],
-          }).catch(() => {})
-        ];
+        // Route through engine server instead of direct HTTP
+        sendWledOutput(fixture.deviceIp, {
+          on: true,
+          seg: [{ id: fixture.segmentId, i: segmentPayload }],
+        });
+        return [];
       });
 
       void Promise.all(pendingSends);
