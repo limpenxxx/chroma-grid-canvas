@@ -13,6 +13,7 @@ import { useHueStore } from '@/store/hueStore';
 import { xyToRgb } from '@/lib/hueApi';
 import { setWledBrightness, setWledPower, setWledState } from '@/lib/wledApi';
 import { fetchWledPresets, isWledDeviceTarget, wledDeviceToFixture } from '@/lib/wledUtils';
+import { useMagicHomeStore } from '@/store/magicHomeStore';
 
 // ── Live channel values per instance ──
 interface FixtureState {
