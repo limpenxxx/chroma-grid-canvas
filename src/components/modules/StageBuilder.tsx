@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { useFixtureStore, getFixtureTypeIcon, getChannelColor, getFixtureIconEmoji } from '@/store/fixtureStore';
 import { useWledStore } from '@/store/wledStore';
+import { useHueStore } from '@/store/hueStore';
+import { useMagicHomeStore } from '@/store/magicHomeStore';
 import { setWledState } from '@/lib/wledApi';
 import { useMediaStore, getEmbedUrl } from '@/store/mediaStore';
 import { useStageStore, createDefaultSegment, type WLEDNode, type WLEDSegment, type MappingFixture, type BackgroundSource, type TestPattern } from '@/store/stageStore';
@@ -60,6 +62,8 @@ export function StageBuilder() {
   const canvasDims = useRef({ w: 0, h: 0 });
   const fixtureStore = useFixtureStore();
   const wledStore = useWledStore();
+  const hueStore = useHueStore();
+  const magicStore = useMagicHomeStore();
   const mediaStore = useMediaStore();
   const stageFixtures = fixtureStore.instances.filter(i => i.onStage);
 
@@ -552,19 +556,29 @@ export function StageBuilder() {
       ctx.restore();
     });
 
-    // Draw mapping fixtures (DMX fixtures with blur/radius on the mapping canvas)
+    // Draw mapping fixtures (DMX/Hue/MagicHome fixtures with blur/radius on the mapping canvas)
     mappingFixtures.forEach((mf) => {
-      const inst = fixtureStore.instances.find(i => i.id === mf.fixtureInstanceId);
-      const def = inst ? fixtureStore.definitions.find(d => d.id === inst.definitionId) : null;
-      if (!inst || !def) return;
+      // Validate fixture exists based on source type
+      if (mf.sourceType === 'dmx') {
+        const inst = fixtureStore.instances.find(i => i.id === mf.fixtureInstanceId);
+        if (!inst) return;
+      } else if (mf.sourceType === 'hue') {
+        const lights = mf.hueBridgeId ? hueStore.lights[mf.hueBridgeId] : [];
+        if (!lights?.find(l => l.id === mf.hueLightId)) return;
+      } else if (mf.sourceType === 'magichome') {
+        if (!magicStore.devices.find(d => d.id === mf.magicDeviceId)) return;
+      }
 
       const isSelected2 = selectionType === 'mapping-fixture' && selectedId === mf.id;
+      const label = getMFLabel(mf);
+      const icon = getMFIcon(mf);
+      const ringColor = mf.sourceType === 'hue' ? '255,200,50' : mf.sourceType === 'magichome' ? '120,255,80' : '0,229,255';
 
       ctx.save();
 
       // Sample radius indicator (outer ring)
       if (mf.sampleRadius > 1) {
-        ctx.strokeStyle = `rgba(0,229,255,${isSelected2 ? 0.4 : 0.15})`;
+        ctx.strokeStyle = `rgba(${ringColor},${isSelected2 ? 0.4 : 0.15})`;
         ctx.lineWidth = 1;
         ctx.setLineDash([3, 3]);
         ctx.beginPath();
@@ -576,7 +590,7 @@ export function StageBuilder() {
       // Blur glow
       if (mf.blurAmount > 0) {
         const blurGrad = ctx.createRadialGradient(mf.x, mf.y, mf.radius * 0.5, mf.x, mf.y, mf.radius + mf.blurAmount / 3);
-        blurGrad.addColorStop(0, `rgba(0,229,255,${Math.min(0.3, mf.blurAmount / 200)})`);
+        blurGrad.addColorStop(0, `rgba(${ringColor},${Math.min(0.3, mf.blurAmount / 200)})`);
         blurGrad.addColorStop(1, 'transparent');
         ctx.fillStyle = blurGrad;
         ctx.beginPath();
@@ -589,7 +603,7 @@ export function StageBuilder() {
       ctx.fillStyle = isSelected2
         ? `rgba(${mr},${mg},${mb},0.85)`
         : `rgba(${mr},${mg},${mb},0.7)`;
-      ctx.strokeStyle = isSelected2 ? '#00e5ff' : 'rgba(0,229,255,0.5)';
+      ctx.strokeStyle = isSelected2 ? `rgba(${ringColor},1)` : `rgba(${ringColor},0.5)`;
       ctx.lineWidth = isSelected2 ? 2 : 1;
       ctx.beginPath();
       ctx.arc(mf.x, mf.y, mf.radius, 0, Math.PI * 2);
@@ -597,26 +611,26 @@ export function StageBuilder() {
       ctx.stroke();
 
       if (isSelected2) {
-        ctx.shadowColor = '#00e5ff';
+        ctx.shadowColor = `rgba(${ringColor},1)`;
         ctx.shadowBlur = 10;
         ctx.stroke();
         ctx.shadowBlur = 0;
       }
 
       // Icon
-      ctx.fillStyle = isSelected2 ? '#00e5ff' : 'rgba(255,255,255,0.8)';
+      ctx.fillStyle = isSelected2 ? `rgba(${ringColor},1)` : 'rgba(255,255,255,0.8)';
       ctx.font = `${Math.max(10, mf.radius * 0.7)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(getFixtureTypeIcon(def.type), mf.x, mf.y);
+      ctx.fillText(icon, mf.x, mf.y);
 
       // Label
-      ctx.fillStyle = isSelected2 ? '#00e5ff' : 'rgba(255,255,255,0.5)';
+      ctx.fillStyle = isSelected2 ? `rgba(${ringColor},1)` : 'rgba(255,255,255,0.5)';
       ctx.font = '8px Inter, sans-serif';
       ctx.textBaseline = 'top';
-      ctx.fillText(inst.name, mf.x, mf.y + mf.radius + 3);
+      ctx.fillText(label, mf.x, mf.y + mf.radius + 3);
       if (mf.blurAmount > 0 || mf.sampleRadius > 1) {
-        ctx.fillStyle = 'rgba(0,229,255,0.4)';
+        ctx.fillStyle = `rgba(${ringColor},0.4)`;
         ctx.font = '7px monospace';
         ctx.fillText(`b:${mf.blurAmount} r:${mf.sampleRadius}`, mf.x, mf.y + mf.radius + 12);
       }
@@ -643,7 +657,7 @@ export function StageBuilder() {
     nodeOutputFramesRef.current = nextNodeFrames;
     ctx.restore();
     animRef.current = requestAnimationFrame(drawCanvas);
-  }, [nodes, selectionType, selectedId, showGrid, stageFixtures, mappingFixtures, fixtureStore, isVideoPlaying, bgSource]);
+  }, [nodes, selectionType, selectedId, showGrid, stageFixtures, mappingFixtures, fixtureStore, hueStore, magicStore, isVideoPlaying, bgSource]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -808,7 +822,7 @@ export function StageBuilder() {
     // Check stage fixtures
     for (let i = stageFixtures.length - 1; i >= 0; i--) {
       const f = stageFixtures[i];
-      if (mappingFixtures.some(mf => mf.fixtureInstanceId === f.id)) continue;
+      if (mappingFixtures.some(mf => mf.sourceType === 'dmx' && mf.fixtureInstanceId === f.id)) continue;
       const cx = f.stageX + f.stageWidth / 2;
       const cy = f.stageY + f.stageHeight / 2;
       const dist = Math.sqrt((mx - cx) ** 2 + (my - cy) ** 2);
@@ -912,10 +926,50 @@ export function StageBuilder() {
   };
 
   const addMappingFixture = (fixtureInstanceId: string) => {
-    if (mappingFixtures.some(mf => mf.fixtureInstanceId === fixtureInstanceId)) return;
+    if (mappingFixtures.some(mf => mf.sourceType === 'dmx' && mf.fixtureInstanceId === fixtureInstanceId)) return;
     const mf: MappingFixture = {
       id: `mf-${Date.now()}`,
+      sourceType: 'dmx',
       fixtureInstanceId,
+      x: 300 + Math.random() * 100,
+      y: 200 + Math.random() * 80,
+      radius: 20,
+      blurAmount: 25,
+      sampleRadius: 15,
+      interpolationSpeed: 50,
+    };
+    setMappingFixtures(prev => [...prev, mf]);
+    setSelectionType('mapping-fixture');
+    setSelectedId(mf.id);
+  };
+
+  const addHueMappingFixture = (bridgeId: string, lightId: string) => {
+    if (mappingFixtures.some(mf => mf.sourceType === 'hue' && mf.hueBridgeId === bridgeId && mf.hueLightId === lightId)) return;
+    const mf: MappingFixture = {
+      id: `mf-${Date.now()}`,
+      sourceType: 'hue',
+      fixtureInstanceId: '',
+      hueBridgeId: bridgeId,
+      hueLightId: lightId,
+      x: 300 + Math.random() * 100,
+      y: 200 + Math.random() * 80,
+      radius: 20,
+      blurAmount: 25,
+      sampleRadius: 15,
+      interpolationSpeed: 50,
+    };
+    setMappingFixtures(prev => [...prev, mf]);
+    setSelectionType('mapping-fixture');
+    setSelectedId(mf.id);
+  };
+
+  const addMagicMappingFixture = (deviceId: string) => {
+    if (mappingFixtures.some(mf => mf.sourceType === 'magichome' && mf.magicDeviceId === deviceId)) return;
+    const mf: MappingFixture = {
+      id: `mf-${Date.now()}`,
+      sourceType: 'magichome',
+      fixtureInstanceId: '',
+      magicDeviceId: deviceId,
       x: 300 + Math.random() * 100,
       y: 200 + Math.random() * 80,
       radius: 20,
@@ -1012,14 +1066,51 @@ export function StageBuilder() {
 
   const selectedNode = selectionType === 'node' ? nodes.find(n => n.id === selectedId) : null;
   const selectedMF = selectionType === 'mapping-fixture' ? mappingFixtures.find(mf => mf.id === selectedId) : null;
-  const selectedMFInst = selectedMF ? fixtureStore.instances.find(i => i.id === selectedMF.fixtureInstanceId) : null;
+  const selectedMFInst = selectedMF?.sourceType === 'dmx' ? fixtureStore.instances.find(i => i.id === selectedMF.fixtureInstanceId) : null;
   const selectedMFDef = selectedMFInst ? fixtureStore.definitions.find(d => d.id === selectedMFInst.definitionId) : null;
+
+  // Resolve name/info for any mapping fixture type
+  const getMFLabel = (mf: MappingFixture): string => {
+    if (mf.sourceType === 'dmx') {
+      const inst = fixtureStore.instances.find(i => i.id === mf.fixtureInstanceId);
+      return inst?.name || 'DMX';
+    }
+    if (mf.sourceType === 'hue') {
+      const lights = mf.hueBridgeId ? hueStore.lights[mf.hueBridgeId] : [];
+      const light = lights?.find(l => l.id === mf.hueLightId);
+      return light?.name || 'Hue Light';
+    }
+    if (mf.sourceType === 'magichome') {
+      const dev = magicStore.devices.find(d => d.id === mf.magicDeviceId);
+      return dev?.name || 'MagicHome';
+    }
+    return '?';
+  };
+
+  const getMFIcon = (mf: MappingFixture): string => {
+    if (mf.sourceType === 'dmx') {
+      const inst = fixtureStore.instances.find(i => i.id === mf.fixtureInstanceId);
+      const def = inst ? fixtureStore.definitions.find(d => d.id === inst.definitionId) : null;
+      return def ? getFixtureTypeIcon(def.type) : '●';
+    }
+    if (mf.sourceType === 'hue') return '💡';
+    if (mf.sourceType === 'magichome') return '✦';
+    return '●';
+  };
 
   // Get RGBW-capable fixtures for adding to mapping
   const rgbwFixtures = fixtureStore.instances.filter(inst => {
     const def = fixtureStore.definitions.find(d => d.id === inst.definitionId);
     return def && ['rgb', 'rgbw', 'rgbww', 'rgbwc'].includes(def.colorSystem);
   });
+
+  // Get paired Hue lights
+  const hueLights = hueStore.bridges.filter(b => b.apiKey).flatMap(b =>
+    (hueStore.lights[b.id] || []).map(l => ({ bridgeId: b.id, light: l }))
+  );
+
+  // Get MagicHome devices
+  const magicDevices = magicStore.devices;
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full flex flex-col">
@@ -1038,8 +1129,33 @@ export function StageBuilder() {
           <select className="h-7 text-[9px] bg-muted/30 border border-border/30 rounded px-2 text-foreground"
             value="" onChange={e => { if (e.target.value) addMappingFixture(e.target.value); }}>
             <option value="" disabled>+ DMX Fixture</option>
-            {rgbwFixtures.filter(f => !mappingFixtures.some(mf => mf.fixtureInstanceId === f.id)).map(f => (
+            {rgbwFixtures.filter(f => !mappingFixtures.some(mf => mf.sourceType === 'dmx' && mf.fixtureInstanceId === f.id)).map(f => (
               <option key={f.id} value={f.id}>{f.name}</option>
+            ))}
+          </select>
+        )}
+
+        {/* Add Hue light dropdown */}
+        {hueLights.length > 0 && (
+          <select className="h-7 text-[9px] bg-muted/30 border border-border/30 rounded px-2 text-foreground"
+            value="" onChange={e => {
+              const [bId, lId] = e.target.value.split('::');
+              if (bId && lId) addHueMappingFixture(bId, lId);
+            }}>
+            <option value="" disabled>+ 💡 Hue Light</option>
+            {hueLights.filter(h => !mappingFixtures.some(mf => mf.sourceType === 'hue' && mf.hueBridgeId === h.bridgeId && mf.hueLightId === h.light.id)).map(h => (
+              <option key={`${h.bridgeId}::${h.light.id}`} value={`${h.bridgeId}::${h.light.id}`}>{h.light.name}</option>
+            ))}
+          </select>
+        )}
+
+        {/* Add MagicHome device dropdown */}
+        {magicDevices.length > 0 && (
+          <select className="h-7 text-[9px] bg-muted/30 border border-border/30 rounded px-2 text-foreground"
+            value="" onChange={e => { if (e.target.value) addMagicMappingFixture(e.target.value); }}>
+            <option value="" disabled>+ ✦ MagicHome</option>
+            {magicDevices.filter(d => !mappingFixtures.some(mf => mf.sourceType === 'magichome' && mf.magicDeviceId === d.id)).map(d => (
+              <option key={d.id} value={d.id}>{d.name}</option>
             ))}
           </select>
         )}
@@ -1571,23 +1687,36 @@ export function StageBuilder() {
                 )}
 
                 {/* ── Mapping Fixture Properties ── */}
-                {selectedMF && selectedMFInst && selectedMFDef && (
+                {selectedMF && (
                   <>
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase tracking-widest text-stokio-cyan font-semibold">DMX Fixture Mapping</span>
+                      <span className="text-[10px] uppercase tracking-widest text-stokio-cyan font-semibold">
+                        {selectedMF.sourceType === 'hue' ? '💡 Hue' : selectedMF.sourceType === 'magichome' ? '✦ MagicHome' : 'DMX'} Fixture Mapping
+                      </span>
                       <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setShowProperties(false)}>
                         <ChevronDown size={12} className="rotate-90" />
                       </Button>
                     </div>
 
                     <div className="glass-panel p-3 space-y-2">
-                      <div className="text-[10px] font-semibold">{selectedMFInst.name}</div>
+                      <div className="text-[10px] font-semibold">{getMFLabel(selectedMF)}</div>
                       <div className="text-[8px] text-muted-foreground">
-                        {selectedMFDef.manufacturer} {selectedMFDef.model} • U{selectedMFInst.universe}.{selectedMFInst.dmxAddress}
+                        {selectedMF.sourceType === 'dmx' && selectedMFInst && selectedMFDef && (
+                          <>{selectedMFDef.manufacturer} {selectedMFDef.model} • U{selectedMFInst.universe}.{selectedMFInst.dmxAddress}</>
+                        )}
+                        {selectedMF.sourceType === 'hue' && <>Philips Hue • Bridge {selectedMF.hueBridgeId?.slice(0, 8)}</>}
+                        {selectedMF.sourceType === 'magichome' && <>MagicHome • {magicStore.devices.find(d => d.id === selectedMF.magicDeviceId)?.address || '?'}</>}
                       </div>
-                      <div className="text-[8px] text-muted-foreground">
-                        Color: <span className="text-stokio-cyan uppercase">{selectedMFDef.colorSystem}</span>
-                      </div>
+                      {selectedMF.sourceType === 'dmx' && selectedMFDef && (
+                        <div className="text-[8px] text-muted-foreground">
+                          Color: <span className="text-stokio-cyan uppercase">{selectedMFDef.colorSystem}</span>
+                        </div>
+                      )}
+                      {selectedMF.sourceType !== 'dmx' && (
+                        <div className="text-[8px] text-muted-foreground">
+                          Color: <span className="text-stokio-cyan uppercase">RGB</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Position & Size */}
@@ -1660,7 +1789,7 @@ export function StageBuilder() {
           className="p-2 border-t border-border/30 flex items-center justify-between px-4">
           <div className="text-[10px] text-muted-foreground">
             Selected: <span className="text-primary font-semibold">
-              {selectedNode?.name || selectedMFInst?.name || '—'}
+              {selectedNode?.name || (selectedMF ? getMFLabel(selectedMF) : '—')}
             </span>
           </div>
           <Button variant="ghost" size="sm" className="h-5 text-[9px]" onClick={() => setShowProperties(true)}>
