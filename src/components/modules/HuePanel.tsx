@@ -69,7 +69,7 @@ export function HuePanel() {
       {/* Discovery & Add */}
       <div className="glass-panel p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <div className="text-[10px] uppercase tracking-widest text-primary font-semibold">💡 Philips Hue Bridges</div>
+          <div className="text-[10px] uppercase tracking-widest text-purple-400 font-semibold">💡 Philips Hue Bridges</div>
           <div className="flex gap-1">
             <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1" onClick={handleDiscover}
               disabled={hueStore.discovering}>
