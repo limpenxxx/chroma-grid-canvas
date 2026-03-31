@@ -632,13 +632,13 @@ export function FixtureControls() {
           </button>
           <button onClick={() => setFixtureTab('hue')}
             className={`px-3 py-1 rounded text-[10px] font-semibold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
-              fixtureTab === 'hue' ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
+              fixtureTab === 'hue' ? 'bg-purple-400/10 text-purple-400 border border-purple-400/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
             }`}>
             <Lightbulb size={10} /> HUE
           </button>
           <button onClick={() => setFixtureTab('magichome')}
             className={`px-3 py-1 rounded text-[10px] font-semibold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
-              fixtureTab === 'magichome' ? 'bg-green-500/10 text-green-500 border border-green-500/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
+              fixtureTab === 'magichome' ? 'bg-yellow-400/10 text-yellow-400 border border-yellow-400/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
             }`}>
             <Zap size={10} /> MAGIC
           </button>
@@ -724,7 +724,7 @@ export function FixtureControls() {
                 key={id}
                 onClick={() => setSelectedId(id)}
                 className={`w-full flex items-center gap-2 p-2 rounded text-xs transition-all ${
-                  selectedId === id ? 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-500' : 'hover:bg-muted/50 text-muted-foreground'
+                  selectedId === id ? 'bg-purple-400/10 border border-purple-400/30 text-purple-400' : 'hover:bg-muted/50 text-muted-foreground'
                 }`}
               >
                 <span className="text-sm">💡</span>
@@ -754,7 +754,7 @@ export function FixtureControls() {
                 key={id}
                 onClick={() => setSelectedId(id)}
                 className={`w-full flex items-center gap-2 p-2 rounded text-xs transition-all ${
-                  selectedId === id ? 'bg-green-500/10 border border-green-500/30 text-green-500' : 'hover:bg-muted/50 text-muted-foreground'
+                  selectedId === id ? 'bg-yellow-400/10 border border-yellow-400/30 text-yellow-400' : 'hover:bg-muted/50 text-muted-foreground'
                 }`}
               >
                 <span className="text-sm">🏠</span>

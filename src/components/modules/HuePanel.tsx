@@ -47,6 +47,7 @@ export function HuePanel() {
     if (result.success) {
       setPairingStatus('');
       setPairingBridgeId(null);
+      setExpandedBridge(pairingBridgeId);
       toast.success('Bridge paired successfully!');
     } else {
       setPairingStatus(`Failed: ${result.error}. Press the link button and try again.`);
@@ -68,7 +69,7 @@ export function HuePanel() {
       {/* Discovery & Add */}
       <div className="glass-panel p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <div className="text-[10px] uppercase tracking-widest text-primary font-semibold">💡 Philips Hue Bridges</div>
+          <div className="text-[10px] uppercase tracking-widest text-purple-400 font-semibold">💡 Philips Hue Bridges</div>
           <div className="flex gap-1">
             <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1" onClick={handleDiscover}
               disabled={hueStore.discovering}>
@@ -113,11 +114,11 @@ export function HuePanel() {
         const scenes = hueStore.scenes[bridge.id] || [];
 
         return (
-          <div key={bridge.id} className={`glass-panel overflow-hidden transition-all ${isPaired ? 'border-primary/20' : 'border-yellow-500/30'}`}>
+          <div key={bridge.id} className={`glass-panel overflow-hidden transition-all ${isPaired ? 'border-purple-400/20' : 'border-yellow-500/30'}`}>
             {/* Bridge header */}
             <div className="flex items-center gap-3 p-3 cursor-pointer" onClick={() => setExpandedBridge(isExpanded ? null : bridge.id)}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-lg ${
-                isPaired ? 'bg-primary/10 border border-primary/30' : 'bg-yellow-500/10 border border-yellow-500/30'
+                isPaired ? 'bg-purple-400/10 border border-purple-400/30' : 'bg-yellow-500/10 border border-yellow-500/30'
               }`}>
                 💡
               </div>
@@ -126,7 +127,7 @@ export function HuePanel() {
                 <div className="text-[9px] text-muted-foreground font-mono">{bridge.ip}</div>
               </div>
               {isPaired ? (
-                <span className="text-[8px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                <span className="text-[8px] px-2 py-0.5 rounded-full bg-purple-400/10 text-purple-400 border border-purple-400/20">
                   ✓ Paired • {lights.length} lights
                 </span>
               ) : (
