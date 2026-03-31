@@ -27,9 +27,6 @@ const rgbToHex = (r: number, g: number, b: number) => [r, g, b].map(v => Math.ma
 type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw' | null;
 type SelectionType = 'node' | 'fixture' | 'mapping-fixture' | null;
 
-type BackgroundSource = 'video' | 'visualizer' | 'texture' | 'none';
-type TestPattern = 'blobs' | 'scanlines' | 'test-picture' | 'rgb-scanline' | 'color-bars' | 'gradient-sweep';
-
 export function StageBuilder() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -38,15 +35,26 @@ export function StageBuilder() {
   const vizCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const nodeOutputFramesRef = useRef<Record<string, string[]>>({});
   const lastNodeOutputRef = useRef<Record<string, string>>({});
-  const [nodes, setNodes] = useState<WLEDNode[]>(MOCK_NODES);
-  const [mappingFixtures, setMappingFixtures] = useState<MappingFixture[]>([]);
+
+  // Use persisted store instead of local state
+  const stageStore = useStageStore();
+  const { nodes, mappingFixtures, bgSource, testPattern, vizPreset, vizAudioInput, vizSensitivity, vizColorShift, showGrid, zoom } = stageStore;
+  const setNodes = stageStore.setNodes;
+  const setMappingFixtures = stageStore.setMappingFixtures;
+  const setBgSource = stageStore.setBgSource;
+  const setTestPattern = stageStore.setTestPattern;
+  const setVizPreset = stageStore.setVizPreset;
+  const setVizAudioInput = stageStore.setVizAudioInput;
+  const setVizSensitivity = stageStore.setVizSensitivity;
+  const setVizColorShift = stageStore.setVizColorShift;
+  const setShowGrid = stageStore.setShowGrid;
+  const setZoom = stageStore.setZoom;
+
   const [selectionType, setSelectionType] = useState<SelectionType>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragging, setDragging] = useState<{ type: SelectionType; id: string } | null>(null);
   const [resizing, setResizing] = useState<{ nodeId: string; handle: ResizeHandle; startX: number; startY: number; startNode: WLEDNode } | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [showGrid, setShowGrid] = useState(true);
   const [showProperties, setShowProperties] = useState(true);
   const animRef = useRef<number>(0);
   const canvasDims = useRef({ w: 0, h: 0 });
@@ -55,21 +63,19 @@ export function StageBuilder() {
   const mediaStore = useMediaStore();
   const stageFixtures = fixtureStore.instances.filter(i => i.onStage);
 
-  // Background source state
-  const [bgSource, setBgSource] = useState<BackgroundSource>('texture');
-  const [testPattern, setTestPattern] = useState<TestPattern>('blobs');
-  const [vizPreset, setVizPreset] = useState<VisualizerPreset>('plasma-wave');
-  const [vizAudioInput, setVizAudioInput] = useState<AudioInputSource>('microphone');
-  const [vizSensitivity, setVizSensitivity] = useState(1.0);
-  const [vizColorShift, setVizColorShift] = useState(0);
+  // Viz engine local runtime state (not persisted)
   const [vizRunning, setVizRunning] = useState(false);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
   const [showBgPanel, setShowBgPanel] = useState(false);
 
-  // Get active media item for video background
-  const activeItem = mediaStore.items.find(i => i.id === mediaStore.activeItemId);
-  const isVideoPlaying = mediaStore.isPlaying && activeItem?.type === 'video';
+  // Get active media item for video background — use stage store selection or fallback to media store
+  const stageMediaItemId = stageStore.selectedMediaItemId;
+  const stagePlaylistId = stageStore.selectedPlaylistId;
+  const activeItem = stageMediaItemId
+    ? mediaStore.items.find(i => i.id === stageMediaItemId)
+    : mediaStore.items.find(i => i.id === mediaStore.activeItemId);
+  const isVideoPlaying = bgSource === 'video' && activeItem?.type === 'video';
 
   // Auto-switch to video source when video starts playing
   useEffect(() => {
