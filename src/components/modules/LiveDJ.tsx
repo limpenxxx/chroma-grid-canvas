@@ -130,6 +130,17 @@ interface AudioConfig {
   freqHigh: number;      // Hz, high cutoff for frequency filter
 }
 
+interface PioneerDeckLocal {
+  name: string;
+  deviceNumber: number;
+  bpm: number;
+  beat: number;
+  playing: boolean;
+  master: boolean;
+  ip: string;
+  lastSeen: number;
+}
+
 interface BPMState {
   bpm: number;
   tapTimes: number[];
@@ -139,6 +150,8 @@ interface BPMState {
   bpmMode: 'manual' | 'auto';
   autoBpm: number;    // BPM detected by audio analysis
   audioLevel: number; // 0-255 current audio input level
+  pioneerDecks: Record<number, PioneerDeckLocal>;
+  pioneerSyncDeck: number; // which deck to sync BPM from (0 = master)
 }
 
 const AUDIO_SOURCES: { value: AudioSource; label: string; description: string }[] = [
