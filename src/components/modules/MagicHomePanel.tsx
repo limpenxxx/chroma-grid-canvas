@@ -52,10 +52,12 @@ export function MagicHomePanel() {
 
   const handleAddManual = () => {
     const ip = addIp.trim();
-    if (!ip) return;
-    store.addDevice(ip);
+    const mac = addMac.trim();
+    if (!ip && !mac) return;
+    store.addDevice(ip || 'N/A', undefined, mac || undefined);
     setAddIp('');
-    toast.success(`Device added: ${ip}`);
+    setAddMac('');
+    toast.success(`Device added: ${mac || ip}`);
   };
 
   const handleSaveProxy = () => {
