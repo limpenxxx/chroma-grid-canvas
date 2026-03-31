@@ -18,6 +18,7 @@ import { xyToRgb } from '@/lib/hueApi';
 import { WledPanel } from './WledPanel';
 import { HuePanel } from './HuePanel';
 import { MagicHomePanel } from './MagicHomePanel';
+import { DmxMixer } from './DmxMixer';
 
 type Tab = 'instances' | 'library' | 'editor' | 'wled' | 'hue' | 'magichome' | 'io' | 'mixer';
 
