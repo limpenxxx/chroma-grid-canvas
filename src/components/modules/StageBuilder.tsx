@@ -77,10 +77,7 @@ export function StageBuilder() {
     : mediaStore.items.find(i => i.id === mediaStore.activeItemId);
   const isVideoPlaying = bgSource === 'video' && activeItem?.type === 'video';
 
-  // Auto-switch to video source when video starts playing
-  useEffect(() => {
-    if (isVideoPlaying) setBgSource('video');
-  }, [isVideoPlaying]);
+  // No auto-switch — user manually selects video source
 
   // Load audio devices
   useEffect(() => {
