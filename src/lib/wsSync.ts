@@ -73,6 +73,14 @@ export function onEngineStatus(listener: EngineStatusListener): () => void {
   };
 }
 
+/** Subscribe to Pioneer DJ updates */
+export function onPioneerData(listener: PioneerListener): () => void {
+  pioneerListeners.push(listener);
+  return () => {
+    pioneerListeners = pioneerListeners.filter((l) => l !== listener);
+  };
+}
+
 /** Broadcast a partial state update to other clients */
 export function broadcastState(storeKey: string, state: Record<string, unknown>) {
   if (isRemoteUpdate) return; // don't echo back
