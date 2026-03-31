@@ -57,6 +57,9 @@ const state = {
   // Master controls
   masterDimmer: 100,
   blackout: false,
+
+  // Pioneer DJ (ProDJ Link)
+  pioneerDecks: {},  // { deviceNumber: { name, bpm, beat, playing, master, ip, lastSeen } }
 };
 
 // Last-sent cache to avoid redundant network calls
