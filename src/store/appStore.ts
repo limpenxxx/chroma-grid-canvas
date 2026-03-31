@@ -31,9 +31,16 @@ export const useAppStore = create<AppState>()(
       activeModule: 'stage',
       setActiveModule: (m) => set({ activeModule: m }),
       masterDimmer: 100,
-      setMasterDimmer: (v) => set({ masterDimmer: v }),
+      setMasterDimmer: (v) => {
+        set({ masterDimmer: v });
+        sendMasterDimmer(v);
+      },
       blackout: false,
-      toggleBlackout: () => set((s) => ({ blackout: !s.blackout })),
+      toggleBlackout: () => {
+        const newVal = !get().blackout;
+        set({ blackout: newVal });
+        sendBlackout(newVal);
+      },
       userRole: null,
       setUserRole: (r) => set({ userRole: r, activeModule: r === 'user' ? 'media' : 'stage' }),
       logout: () => set({ userRole: null }),
