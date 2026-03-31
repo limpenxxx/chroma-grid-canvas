@@ -434,10 +434,14 @@ function ControlWidget({
         setPerFixturePos(fxPositions);
       }
 
-      patternAnimRef.current = requestAnimationFrame(animate);
+      if (document.hidden) {
+        patternAnimRef.current = window.setTimeout(animate, 33) as unknown as number;
+      } else {
+        patternAnimRef.current = requestAnimationFrame(animate);
+      }
     };
     patternAnimRef.current = requestAnimationFrame(animate);
-    return () => { if (patternAnimRef.current) cancelAnimationFrame(patternAnimRef.current); };
+    return () => { if (patternAnimRef.current) { cancelAnimationFrame(patternAnimRef.current); clearTimeout(patternAnimRef.current); } };
   }, [widget.type, widget.mhProgram?.running, widget.mhProgram?.pattern, widget.mhProgram?.speed, widget.mhProgram?.size, widget.mhProgram?.bpmSync, widget.mhProgram?.fixtureConfigs, widget.linkedFixtureIds, bpm]);
 
   // Color program animation
@@ -478,10 +482,14 @@ function ControlWidget({
           },
         });
       }
-      colorProgAnimRef.current = requestAnimationFrame(animate);
+      if (document.hidden) {
+        colorProgAnimRef.current = window.setTimeout(animate, 33) as unknown as number;
+      } else {
+        colorProgAnimRef.current = requestAnimationFrame(animate);
+      }
     };
     colorProgAnimRef.current = requestAnimationFrame(animate);
-    return () => { if (colorProgAnimRef.current) cancelAnimationFrame(colorProgAnimRef.current); };
+    return () => { if (colorProgAnimRef.current) { cancelAnimationFrame(colorProgAnimRef.current); clearTimeout(colorProgAnimRef.current); } };
   }, [widget.type, widget.colorProgram?.running, widget.colorProgram?.mode, widget.colorProgram?.speed, widget.colorProgram?.bpmSync, widget.colorProgram?.colors?.length, bpm]);
 
   const startInteraction = useCallback((e: React.MouseEvent, mode: DragMode) => {
@@ -1207,13 +1215,17 @@ function ControlWidget({
               const ctx = canvasRef.current.getContext('2d');
               if (ctx) engineRef.current.render(ctx, canvasRef.current.width, canvasRef.current.height);
             }
-            animRef.current = requestAnimationFrame(animate);
+            if (document.hidden) {
+              animRef.current = window.setTimeout(animate, 33) as unknown as number;
+            } else {
+              animRef.current = requestAnimationFrame(animate);
+            }
           };
           animRef.current = requestAnimationFrame(animate);
 
           return () => {
             engine.stop();
-            if (animRef.current) cancelAnimationFrame(animRef.current);
+            if (animRef.current) { cancelAnimationFrame(animRef.current); clearTimeout(animRef.current); }
           };
         }, []);
 

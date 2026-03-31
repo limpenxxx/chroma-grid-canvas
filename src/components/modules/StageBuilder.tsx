@@ -657,7 +657,12 @@ export function StageBuilder() {
 
     nodeOutputFramesRef.current = nextNodeFrames;
     ctx.restore();
-    animRef.current = requestAnimationFrame(drawCanvas);
+    // Use setTimeout fallback when tab is hidden (RAF pauses in background)
+    if (document.hidden) {
+      animRef.current = window.setTimeout(drawCanvas, 33) as unknown as number;
+    } else {
+      animRef.current = requestAnimationFrame(drawCanvas);
+    }
   }, [nodes, selectionType, selectedId, showGrid, stageFixtures, mappingFixtures, fixtureStore, hueStore, magicStore, isVideoPlaying, bgSource]);
 
   useEffect(() => {
@@ -707,7 +712,7 @@ export function StageBuilder() {
     canvas.height = ch * 2;
     canvasDims.current = { w: cw, h: ch };
     drawCanvas();
-    return () => cancelAnimationFrame(animRef.current);
+    return () => { cancelAnimationFrame(animRef.current); clearTimeout(animRef.current); };
   }, [drawCanvas, zoom]);
 
   // Video element sync
