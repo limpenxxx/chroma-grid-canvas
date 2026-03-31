@@ -761,7 +761,31 @@ export function StageBuilder() {
     setBgSource('video');
   };
 
-  const toggleVideoPlayback = () => {
+  const handleDirectUrlLoad = () => {
+    const url = directUrl.trim();
+    if (!url) return;
+    if (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('vimeo.com')) {
+      toast.error('YouTube/Vimeo cannot be used for pixel mapping. Use a direct video file URL (.mp4, .webm).');
+      return;
+    }
+    const id = `url-${Date.now()}`;
+    mediaStore.addItem({
+      id,
+      name: url.split('/').pop()?.split('?')[0] || 'URL Video',
+      type: 'video',
+      sourceType: 'url',
+      src: url,
+      duration: 0,
+      crossfade: 0,
+      createdAt: Date.now(),
+    });
+    stageStore.setSelectedMediaItemId(id);
+    stageStore.setSelectedPlaylistId(null);
+    setBgSource('video');
+    setDirectUrl('');
+  };
+
+
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
