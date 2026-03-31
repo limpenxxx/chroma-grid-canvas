@@ -2548,7 +2548,7 @@ export function LiveDJ() {
 
     // Helper: get frequency band energy from analyser
     const getBandEnergy = (freqData: Uint8Array | null, band: string, sampleRate: number, binCount: number): number => {
-      if (!freqData) return 0;
+      if (!freqData || freqData.length === 0) return 0;
       const binHz = (sampleRate / 2) / binCount;
       let lo = 0, hi = freqData.length;
       if (band === 'bass') { lo = Math.floor(30 / binHz); hi = Math.ceil(200 / binHz); }
