@@ -657,7 +657,7 @@ export function StageBuilder() {
     nodeOutputFramesRef.current = nextNodeFrames;
     ctx.restore();
     animRef.current = requestAnimationFrame(drawCanvas);
-  }, [nodes, selectionType, selectedId, showGrid, stageFixtures, mappingFixtures, fixtureStore, isVideoPlaying, bgSource]);
+  }, [nodes, selectionType, selectedId, showGrid, stageFixtures, mappingFixtures, fixtureStore, hueStore, magicStore, isVideoPlaying, bgSource]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
