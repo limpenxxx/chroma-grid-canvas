@@ -735,7 +735,14 @@ export function FixtureControls() {
 
         {/* Controls */}
         <div className="flex-1 p-6 overflow-y-auto">
-          {selectedWledFixture ? (
+          {selectedHueLight ? (
+            <HueLightPanel
+              bridgeId={selectedHueLight.bridgeId}
+              lightId={selectedHueLight.lightId}
+              state={getState(`hue-${selectedHueLight.bridgeId}-${selectedHueLight.lightId}`)}
+              updateState={(u) => updateState(`hue-${selectedHueLight.bridgeId}-${selectedHueLight.lightId}`, u)}
+            />
+          ) : selectedWledFixture ? (
             <WledFixtureLivePanel fixture={selectedWledFixture} state={getState(selectedWledFixture.id)} updateState={(u) => updateState(selectedWledFixture.id, u)} />
           ) : !selected || !selectedDef ? (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">Select a fixture</div>
