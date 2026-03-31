@@ -636,6 +636,12 @@ export function FixtureControls() {
             }`}>
             <Lightbulb size={10} /> HUE
           </button>
+          <button onClick={() => setFixtureTab('magichome')}
+            className={`px-3 py-1 rounded text-[10px] font-semibold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+              fixtureTab === 'magichome' ? 'bg-green-500/10 text-green-500 border border-green-500/30' : 'text-muted-foreground hover:text-foreground hover:bg-muted/20'
+            }`}>
+            <Zap size={10} /> MAGIC
+          </button>
         </div>
       </div>
 
