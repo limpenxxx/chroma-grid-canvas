@@ -1215,13 +1215,17 @@ function ControlWidget({
               const ctx = canvasRef.current.getContext('2d');
               if (ctx) engineRef.current.render(ctx, canvasRef.current.width, canvasRef.current.height);
             }
-            animRef.current = requestAnimationFrame(animate);
+            if (document.hidden) {
+              animRef.current = window.setTimeout(animate, 33) as unknown as number;
+            } else {
+              animRef.current = requestAnimationFrame(animate);
+            }
           };
           animRef.current = requestAnimationFrame(animate);
 
           return () => {
             engine.stop();
-            if (animRef.current) cancelAnimationFrame(animRef.current);
+            if (animRef.current) { cancelAnimationFrame(animRef.current); clearTimeout(animRef.current); }
           };
         }, []);
 
