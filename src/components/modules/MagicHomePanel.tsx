@@ -68,7 +68,7 @@ export function MagicHomePanel() {
       {/* Header & Discovery */}
       <div className="glass-panel p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <div className="text-[10px] uppercase tracking-widest text-primary font-semibold">🏠 MagicHome / flux_led</div>
+          <div className="text-[10px] uppercase tracking-widest text-yellow-400 font-semibold">✦ MagicHome / flux_led</div>
           <div className="flex gap-1">
             <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1" onClick={handleDiscover}
               disabled={store.discovering}>
@@ -140,7 +140,7 @@ export function MagicHomePanel() {
 
         return (
           <div key={device.id} className={`glass-panel overflow-hidden transition-all ${
-            device.online ? 'border-primary/20' : 'border-destructive/20'
+            device.online ? 'border-yellow-400/20' : 'border-destructive/20'
           }`}>
             {/* Device header */}
             <div className="flex items-center gap-3 p-3 cursor-pointer" onClick={() => setExpandedDevice(isExpanded ? null : device.id)}>
@@ -155,7 +155,7 @@ export function MagicHomePanel() {
               </div>
               <span className={`text-[8px] px-2 py-0.5 rounded-full border ${
                 device.online
-                  ? 'bg-primary/10 text-primary border-primary/20'
+                  ? 'bg-yellow-400/10 text-yellow-400 border-yellow-400/20'
                   : 'bg-destructive/10 text-destructive border-destructive/20'
               }`}>
                 {device.online ? (isOn ? `ON ${briPercent}%` : 'OFF') : 'Offline'}
