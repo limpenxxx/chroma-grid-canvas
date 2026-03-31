@@ -91,6 +91,8 @@ export const useHueStore = create<HueStore>()(
           set((s) => ({
             bridges: s.bridges.map(b => b.id === bridgeId ? { ...b, apiKey: result.apiKey! } : b),
           }));
+          // Register bridge with engine
+          sendHueBridge(bridgeId, bridge.ip, result.apiKey);
           // Auto-refresh after pairing
           setTimeout(() => get().refreshBridge(bridgeId), 500);
         }
