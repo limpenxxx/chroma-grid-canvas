@@ -704,7 +704,45 @@ export function StageBuilder() {
     return () => window.clearInterval(timer);
   }, [nodes, getLinkedFixture, wledStore.devices]);
 
+  // Output loop for Hue & MagicHome mapping fixtures
   useEffect(() => {
+    const timer = window.setInterval(() => {
+      mappingFixtures.forEach((mf) => {
+        const color = mfColorsRef.current[mf.id];
+        if (!color) return;
+        const sig = `${mf.id}:${color.r},${color.g},${color.b}`;
+        if (lastMfOutputRef.current[mf.id] === sig) return;
+        lastMfOutputRef.current[mf.id] = sig;
+
+        if (mf.sourceType === 'hue' && mf.hueBridgeId && mf.hueLightId) {
+          const r2 = color.r / 255, g2 = color.g / 255, b2 = color.b / 255;
+          const rL = r2 > 0.04045 ? Math.pow((r2 + 0.055) / 1.055, 2.4) : r2 / 12.92;
+          const gL = g2 > 0.04045 ? Math.pow((g2 + 0.055) / 1.055, 2.4) : g2 / 12.92;
+          const bL = b2 > 0.04045 ? Math.pow((b2 + 0.055) / 1.055, 2.4) : b2 / 12.92;
+          const X = rL * 0.4124 + gL * 0.3576 + bL * 0.1805;
+          const Y = rL * 0.2126 + gL * 0.7152 + bL * 0.0722;
+          const Z = rL * 0.0193 + gL * 0.1192 + bL * 0.9505;
+          const sum = X + Y + Z;
+          const bri = Math.min(254, Math.max(1, Math.round(Y * 254)));
+          const isOff = color.r < 3 && color.g < 3 && color.b < 3;
+          if (sum > 0) {
+            sendHueLight(mf.hueBridgeId, mf.hueLightId, {
+              on: !isOff, bri, xy: [X / sum, Y / sum], transitiontime: 1,
+            });
+          } else {
+            sendHueLight(mf.hueBridgeId, mf.hueLightId, { on: false });
+          }
+        } else if (mf.sourceType === 'magichome' && mf.magicDeviceId) {
+          const isOff = color.r < 3 && color.g < 3 && color.b < 3;
+          sendMagicSet(mf.magicDeviceId, magicStore.proxyUrl, !isOff, color.r, color.g, color.b);
+        }
+      });
+    }, 200);
+
+    return () => window.clearInterval(timer);
+  }, [mappingFixtures, magicStore.proxyUrl]);
+
+
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
