@@ -822,7 +822,7 @@ export function StageBuilder() {
     // Check stage fixtures
     for (let i = stageFixtures.length - 1; i >= 0; i--) {
       const f = stageFixtures[i];
-      if (mappingFixtures.some(mf => mf.fixtureInstanceId === f.id)) continue;
+      if (mappingFixtures.some(mf => mf.sourceType === 'dmx' && mf.fixtureInstanceId === f.id)) continue;
       const cx = f.stageX + f.stageWidth / 2;
       const cy = f.stageY + f.stageHeight / 2;
       const dist = Math.sqrt((mx - cx) ** 2 + (my - cy) ** 2);
