@@ -30,7 +30,7 @@ interface FixtureAssignment {
   mode: ControlMode;
 }
 
-type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'dmx-reset';
+type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset';
 
 // ── Preset Scene Entry ──
 interface PresetSceneEntry {
@@ -80,7 +80,7 @@ interface MHProgram {
 }
 
 // ── Audio / BPM Types ──
-type AudioSource = 'none' | 'tap-tempo' | 'wled-analog' | 'wled-i2s-inmp441' | 'wled-i2s-max98357' | 'wled-i2s-sph0645' | 'wled-udp-sync' | 'browser-mic';
+type AudioSource = 'none' | 'tap-tempo' | 'wled-analog' | 'wled-i2s-inmp441' | 'wled-i2s-max98357' | 'wled-i2s-sph0645' | 'wled-udp-sync' | 'browser-mic' | 'system-audio';
 
 interface AudioConfig {
   source: AudioSource;
@@ -104,12 +104,13 @@ interface BPMState {
 const AUDIO_SOURCES: { value: AudioSource; label: string; description: string }[] = [
   { value: 'none', label: 'None', description: 'No audio input' },
   { value: 'tap-tempo', label: 'TAP-TEMPO', description: 'Manual tap tempo for BPM sync' },
+  { value: 'system-audio', label: 'System Audio', description: 'Capture audio from Chrome, Spotify, or any app on this computer via screen/tab sharing' },
+  { value: 'browser-mic', label: 'Browser Microphone', description: "Use this device's microphone via Web Audio API" },
   { value: 'wled-analog', label: 'WLED Analog Mic', description: 'MAX4466 / MAX9814 analog microphone on WLED ESP32' },
   { value: 'wled-i2s-inmp441', label: 'WLED I2S INMP441', description: 'Digital I2S MEMS microphone (recommended)' },
   { value: 'wled-i2s-max98357', label: 'WLED I2S MAX98357', description: 'I2S line-in via MAX98357 amplifier' },
   { value: 'wled-i2s-sph0645', label: 'WLED I2S SPH0645', description: 'SPH0645 I2S digital microphone' },
   { value: 'wled-udp-sync', label: 'WLED UDP Sound Sync', description: 'Receive audio data from another WLED instance via UDP' },
-  { value: 'browser-mic', label: 'Browser Microphone', description: "Use this device's microphone via Web Audio API" },
 ];
 
 interface DJWidget {
@@ -154,9 +155,15 @@ interface DJWidget {
   // Fader-specific
   bgColor?: string;              // separate background color for fader widget
   faderColorSyncWidgetId?: string | null; // sync fader color with a color-wheel widget
+  faderFixtureFunction?: string;  // what the fader controls: 'dimmer', 'preset', 'color', 'brightness', 'pan', 'strobe', etc.
   // XY pad: per-fixture positions and selected fixture for individual control
   selectedFixtureId?: string | null;
   fixturePositions?: Record<string, { x: number; y: number }>;
+  // WLED Fixture widget
+  wledFixtureDeviceId?: string;
+  wledFixtureBrightness?: number;
+  wledFixtureColor?: { r: number; g: number; b: number };
+  wledFixtureActivePresetId?: number;
 }
 
 type ColorProgramMode = 'static' | 'switch' | 'fade';
@@ -249,6 +256,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'media-trigger', label: 'Media', icon: Film, w: 120, h: 120 },
   { type: 'vfx', label: 'Audio VFX', icon: Sparkles, w: 200, h: 200 },
   { type: 'wled-preset', label: 'WLED Preset', icon: Wifi, w: 120, h: 120 },
+  { type: 'wled-fixture', label: 'WLED Fixture', icon: Wifi, w: 200, h: 260 },
   { type: 'dmx-reset', label: 'DMX Reset', icon: Square, w: 120, h: 80 },
 ];
 
@@ -547,8 +555,9 @@ function ControlWidget({
   const isButtonActive = widget.flash ? isPressed : !!widget.toggled;
 
   return (
-    <div className={`absolute select-none group transition-shadow ${isSelected ? 'ring-1 ring-primary/60 z-30' : 'z-10'} ${interacting ? 'z-50' : ''}`}
-      style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height }}>
+    <div className={`absolute select-none group transition-shadow ${isSelected ? 'ring-2 ring-primary/80 z-30' : 'z-10'} ${interacting ? 'z-50' : ''}`}
+      style={{ left: widget.x, top: widget.y, width: widget.width, height: widget.height,
+        boxShadow: isSelected ? '0 0 20px hsl(155 100% 50% / 0.4), 0 0 40px hsl(155 100% 50% / 0.15)' : undefined }}>
 
       {/* Strobe sync flash overlay */}
       {isStrobeSynced && (
@@ -1340,6 +1349,100 @@ function ControlWidget({
           </div>
         );
       })()}
+
+      {/* WLED FIXTURE WIDGET */}
+      {widget.type === 'wled-fixture' && (() => {
+        const wledStore2 = useWledStore.getState();
+        const linkedDeviceId = widget.wledFixtureDeviceId;
+        const device = linkedDeviceId ? wledStore2.devices.find(d => d.id === linkedDeviceId) : undefined;
+        const color = widget.wledFixtureColor || { r: 255, g: 0, b: 0 };
+        const brightness = widget.wledFixtureBrightness ?? 128;
+        const activePresetId = widget.wledFixtureActivePresetId;
+        const presets = widget.wledPresets || [];
+
+        const handleColor = (c: { r: number; g: number; b: number }) => {
+          onUpdate({ wledFixtureColor: c });
+          if (device?.online) {
+            void setWledState(device.ip, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+          }
+        };
+        const handleBri = (bri: number) => {
+          onUpdate({ wledFixtureBrightness: bri });
+          if (device?.online) {
+            void setWledState(device.ip, { on: bri > 0, bri }).catch(() => {});
+          }
+        };
+        const handlePreset = (presetId: number) => {
+          onUpdate({ wledFixtureActivePresetId: presetId });
+          if (device?.online) {
+            void setWledPreset(device.ip, presetId).catch(() => {});
+          }
+        };
+
+        const s = Math.min(widget.width, widget.height);
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-[#ff6600]/30 flex flex-col overflow-hidden relative"
+            style={{ ...bgStyle }} onClick={onSelect}>
+            {/* Header */}
+            <div className="px-2 py-1.5 flex items-center gap-1.5 border-b border-border/20 shrink-0" style={{ background: 'rgba(255,102,0,0.08)' }}>
+              <Wifi size={10} className="text-[#ff6600]" />
+              <span className="text-[9px] font-semibold truncate flex-1" style={{ color: '#ff6600' }}>{widget.label}</span>
+              <div className={`w-2 h-2 rounded-full ${device?.online ? 'bg-green-500 shadow-[0_0_6px_#22c55e]' : 'bg-red-500'}`} />
+              <span className="text-[7px] text-muted-foreground/50">{device?.online ? 'ON' : 'OFF'}</span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+              {!device ? (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground/40 text-center">
+                  <Wifi size={18} />
+                  <span className="text-[8px] mt-1">Select WLED device in properties</span>
+                </div>
+              ) : (
+                <>
+                  {/* Color preview + picker */}
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full border border-border/30 cursor-pointer shrink-0"
+                      style={{ background: `rgb(${color.r},${color.g},${color.b})`, boxShadow: `0 0 12px rgb(${color.r},${color.g},${color.b})` }}
+                    />
+                    <div className="flex-1 flex flex-wrap gap-0.5">
+                      {QUICK_COLORS.slice(0, 8).map(qc => (
+                        <button key={qc.label} onClick={e => { e.stopPropagation(); handleColor(qc.color); }}
+                          className="w-5 h-5 rounded border border-border/20 hover:scale-110 transition-transform"
+                          style={{ background: `rgb(${qc.color.r},${qc.color.g},${qc.color.b})` }}
+                          title={qc.label} />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Brightness */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[7px] text-muted-foreground uppercase w-6 shrink-0">BRI</span>
+                    <input type="range" min={0} max={255} value={brightness}
+                      onClick={e => e.stopPropagation()}
+                      onChange={e => { e.stopPropagation(); handleBri(Number(e.target.value)); }}
+                      className="flex-1 accent-[#ff6600] h-2 cursor-pointer" />
+                    <span className="text-[8px] font-mono text-muted-foreground w-6 text-right">{brightness}</span>
+                  </div>
+
+                  {/* Presets */}
+                  {presets.length > 0 && (
+                    <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${Math.max(1, Math.floor(widget.width / 55))}, 1fr)` }}>
+                      {presets.slice(0, 12).map(p => (
+                        <button key={p.id} onClick={e => { e.stopPropagation(); handlePreset(p.id); }}
+                          className={`px-1 py-0.5 rounded text-[7px] font-medium border truncate transition-all ${
+                            activePresetId === p.id
+                              ? 'bg-[#ff6600]/20 border-[#ff6600]/40 text-[#ff6600]'
+                              : 'border-border/20 text-muted-foreground hover:border-[#ff6600]/30'
+                          }`}>{p.name}</button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1541,8 +1644,31 @@ function loadSavedLayouts(): SavedLayout[] {
   } catch { return []; }
 }
 
+function stripLargeImages(layouts: SavedLayout[]): SavedLayout[] {
+  return layouts.map(layout => ({
+    ...layout,
+    pages: layout.pages.map(page => ({
+      ...page,
+      bgImage: page.bgImage && page.bgImage.length > 50000 ? null : page.bgImage,
+      widgets: page.widgets.map(w => ({
+        ...w,
+        bgImage: w.bgImage && w.bgImage.length > 50000 ? null : w.bgImage,
+      })),
+    })),
+  }));
+}
+
 function persistLayouts(layouts: SavedLayout[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts));
+  } catch {
+    // Quota exceeded — strip large base64 images and retry
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stripLargeImages(layouts)));
+    } catch {
+      console.warn('Could not save layouts: storage quota exceeded');
+    }
+  }
 }
 
 /** Create a virtual FixtureInstance + FixtureDefinition for a WLED device-list fixture so LiveDJ can treat it like any other fixture */
@@ -1835,6 +1961,99 @@ export function LiveDJ() {
     return () => { cancelled = true; cleanup(); };
   }, [audioConfig.source, audioConfig.sensitivity, audioConfig.freqLow, audioConfig.freqHigh]);
 
+  // ── System Audio → BPM detection via getDisplayMedia ──
+  const sysAudioRef = useRef<{ ctx: AudioContext | null; analyser: AnalyserNode | null; stream: MediaStream | null; raf: number; peaks: number[]; lastEnergy: number; lastPeakTime: number; sourceName: string }>({
+    ctx: null, analyser: null, stream: null, raf: 0, peaks: [], lastEnergy: 0, lastPeakTime: 0, sourceName: '',
+  });
+
+  useEffect(() => {
+    const sys = sysAudioRef.current;
+    const cleanup = () => {
+      if (sys.raf) cancelAnimationFrame(sys.raf);
+      sys.stream?.getTracks().forEach(t => t.stop());
+      sys.ctx?.close().catch(() => {});
+      sys.ctx = null; sys.analyser = null; sys.stream = null; sys.raf = 0;
+      sys.peaks = []; sys.lastEnergy = 0; sys.lastPeakTime = 0; sys.sourceName = '';
+    };
+
+    if (audioConfig.source !== 'system-audio') { cleanup(); return cleanup; }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        // getDisplayMedia with audio captures system/tab audio
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { width: 1, height: 1 }, // minimal video (required by API)
+          audio: true,
+        } as DisplayMediaStreamOptions);
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+
+        // Stop video track — we only need audio
+        stream.getVideoTracks().forEach(t => t.stop());
+
+        const audioTracks = stream.getAudioTracks();
+        if (audioTracks.length === 0) {
+          console.warn('No audio track from system audio capture');
+          return;
+        }
+
+        sys.sourceName = audioTracks[0].label || 'System Audio';
+        sys.stream = stream;
+
+        const ctx = new AudioContext();
+        const source = ctx.createMediaStreamSource(new MediaStream(audioTracks));
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        source.connect(analyser);
+        sys.ctx = ctx; sys.analyser = analyser;
+
+        const freqData = new Uint8Array(analyser.frequencyBinCount);
+        const nyquist = ctx.sampleRate / 2;
+        const binHz = nyquist / analyser.frequencyBinCount;
+
+        const detect = () => {
+          if (cancelled) return;
+          analyser.getByteFrequencyData(freqData);
+          const lowBin = Math.max(0, Math.floor(audioConfig.freqLow / binHz));
+          const highBin = Math.min(freqData.length - 1, Math.ceil(audioConfig.freqHigh / binHz));
+          let sum = 0, count = 0;
+          for (let i = lowBin; i <= highBin; i++) { sum += freqData[i]; count++; }
+          const energy = count > 0 ? sum / count : 0;
+          const threshold = (255 - audioConfig.sensitivity) * 0.6 + 15;
+          const now = Date.now();
+          if (energy > threshold && sys.lastEnergy <= threshold && now - sys.lastPeakTime > 200) {
+            sys.lastPeakTime = now;
+            sys.peaks = [...sys.peaks.filter(t => now - t < 6000), now];
+            if (sys.peaks.length >= 4) {
+              const intervals = sys.peaks.slice(1).map((t, i) => t - sys.peaks[i]);
+              const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+              const detectedBpm = Math.round(60000 / avgInterval);
+              if (detectedBpm >= 40 && detectedBpm <= 300) {
+                setBpmState(prev => ({ ...prev, bpm: detectedBpm, isSynced: true }));
+              }
+            }
+          }
+          sys.lastEnergy = energy;
+          sys.raf = requestAnimationFrame(detect);
+        };
+        sys.raf = requestAnimationFrame(detect);
+
+        // When user stops sharing, clean up
+        audioTracks[0].onended = () => {
+          if (!cancelled) setAudioConfig(prev => ({ ...prev, source: 'none' }));
+        };
+      } catch {
+        console.warn('System audio capture denied or not supported');
+        setAudioConfig(prev => ({ ...prev, source: 'none' }));
+      }
+    })();
+
+    return () => { cancelled = true; cleanup(); };
+  }, [audioConfig.source, audioConfig.sensitivity, audioConfig.freqLow, audioConfig.freqHigh]);
+
+  // Expose system audio source name for bottom bar
+  const systemAudioSourceName = sysAudioRef.current?.sourceName || '';
+
   const toggleBpmWidgetLink = (widgetId: string) => {
     setBpmState(prev => ({
       ...prev,
@@ -1909,7 +2128,7 @@ export function LiveDJ() {
       y: 20 + Math.random() * 100,
       width: preset.w,
       height: preset.h,
-      color: '#00e5ff',
+      color: type === 'wled-fixture' ? '#ff6600' : '#00e5ff',
       flash: type === 'button',
       value: type === 'slider' ? 50 : undefined,
       linkedFixtureIds: [],
@@ -1920,8 +2139,10 @@ export function LiveDJ() {
       vfxPreset: type === 'vfx' ? 'plasma-wave' : undefined,
       vfxRunning: type === 'vfx' ? false : undefined,
       wledIp: type === 'wled-preset' ? '' : undefined,
-      wledPresets: type === 'wled-preset' ? [] : undefined,
+      wledPresets: type === 'wled-preset' || type === 'wled-fixture' ? [] : undefined,
       wledPresetId: type === 'wled-preset' ? -1 : undefined,
+      wledFixtureColor: type === 'wled-fixture' ? { r: 255, g: 0, b: 0 } : undefined,
+      wledFixtureBrightness: type === 'wled-fixture' ? 128 : undefined,
     }]);
   };
 
@@ -2563,8 +2784,13 @@ export function LiveDJ() {
                     </div>
                   </>
                 )}
-                {audioConfig.source === 'browser-mic' && (
+                {(audioConfig.source === 'browser-mic' || audioConfig.source === 'system-audio') && (
                   <div className="space-y-2">
+                    {audioConfig.source === 'system-audio' && systemAudioSourceName && (
+                      <div className="text-[8px] text-primary bg-primary/5 rounded p-1.5 border border-primary/20">
+                        🎵 Capturing: <strong>{systemAudioSourceName}</strong>
+                      </div>
+                    )}
                     <div>
                       <label className="text-[7px] uppercase text-muted-foreground">Sensitivity</label>
                       <Slider value={[audioConfig.sensitivity]} onValueChange={([v]) => setAudioConfig(prev => ({ ...prev, sensitivity: v }))} max={255} className="mt-1" />
@@ -2581,14 +2807,14 @@ export function LiveDJ() {
                       <span className="text-[7px] font-mono text-muted-foreground/50">{audioConfig.freqHigh} Hz</span>
                     </div>
                     <div className="text-[7px] text-muted-foreground/40 bg-muted/10 rounded p-1.5">
-                      💡 Low freq (60-200 Hz) = kick/bass detection. High freq (2k-8k Hz) = hi-hat/snare detection.
+                      💡 {audioConfig.source === 'system-audio' ? 'Select a Chrome tab or application to capture its audio. Works with Spotify, YouTube, etc.' : 'Low freq (60-200 Hz) = kick/bass detection. High freq (2k-8k Hz) = hi-hat/snare detection.'}
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* BPM / Tap Tempo — visible for TAP-TEMPO, WLED UDP Sync, and Browser Mic */}
-              {(audioConfig.source === 'tap-tempo' || audioConfig.source === 'wled-udp-sync' || audioConfig.source === 'browser-mic') && <div className="p-3 border-b border-border/20 space-y-2">
+              {/* BPM / Tap Tempo — visible for TAP-TEMPO, WLED UDP Sync, Browser Mic, and System Audio */}
+              {(audioConfig.source === 'tap-tempo' || audioConfig.source === 'wled-udp-sync' || audioConfig.source === 'browser-mic' || audioConfig.source === 'system-audio') && <div className="p-3 border-b border-border/20 space-y-2">
                 <span className="text-[9px] uppercase tracking-widest text-stokio-pink font-semibold flex items-center gap-1">
                   <Activity size={10} /> BPM / Tap Tempo
                 </span>
@@ -3552,6 +3778,82 @@ export function LiveDJ() {
                       <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
                         💡 Enter your WLED device IP and fetch presets. Click a preset on the widget to activate it via WLED JSON API.
                       </div>
+                    </div>
+                  )}
+
+                  {/* WLED Fixture Widget Config */}
+                  {selectedWidgetData.type === 'wled-fixture' && (
+                    <div className="space-y-2 border-t border-border/20 pt-2">
+                      <label className="text-[8px] uppercase tracking-widest font-semibold flex items-center gap-1" style={{ color: '#ff6600' }}>
+                        <Wifi size={10} /> WLED Fixture Config
+                      </label>
+                      <div>
+                        <label className="text-[7px] uppercase text-muted-foreground">WLED Device</label>
+                        <select
+                          value={selectedWidgetData.wledFixtureDeviceId || ''}
+                          onChange={e => updateWidget(selectedWidgetData.id, { wledFixtureDeviceId: e.target.value || undefined })}
+                          className="w-full h-7 rounded bg-muted/30 border border-border/30 text-[10px] px-2 text-foreground mt-1">
+                          <option value="">— Select device —</option>
+                          {wledStore.devices.map(dev => (
+                            <option key={dev.id} value={dev.id}>{dev.name} ({dev.ip}) {dev.online ? '●' : '○'}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <Button variant="outline" size="sm" className="w-full h-7 text-[10px] gap-1"
+                        onClick={async () => {
+                          const dev = wledStore.devices.find(d => d.id === selectedWidgetData.wledFixtureDeviceId);
+                          if (!dev) return;
+                          try {
+                            const presetsFromDevice = await fetchWledPresets(dev.ip);
+                            updateWidget(selectedWidgetData.id, { wledPresets: presetsFromDevice });
+                          } catch {
+                            updateWidget(selectedWidgetData.id, { wledPresets: [] });
+                          }
+                        }}>
+                        <Wifi size={10} /> Fetch Presets
+                      </Button>
+                      {(selectedWidgetData.wledPresets || []).length > 0 && (
+                        <div className="text-[8px] text-muted-foreground/50">{selectedWidgetData.wledPresets!.length} presets loaded</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Fader Function Dropdown */}
+                  {selectedWidgetData.type === 'slider' && (
+                    <div className="border-t border-border/20 pt-2">
+                      <label className="text-[7px] uppercase text-muted-foreground">Fader Function</label>
+                      <select
+                        value={selectedWidgetData.faderFixtureFunction || selectedWidgetData.linkedFunction || 'dimmer'}
+                        onChange={e => updateWidget(selectedWidgetData.id, { faderFixtureFunction: e.target.value, linkedFunction: e.target.value })}
+                        className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
+                        <optgroup label="General">
+                          <option value="dimmer">Dimmer / Brightness</option>
+                          <option value="strobe">Strobe</option>
+                          <option value="speed">Speed</option>
+                        </optgroup>
+                        <optgroup label="DMX">
+                          <option value="pan">Pan</option>
+                          <option value="tilt">Tilt</option>
+                          <option value="red">Red</option>
+                          <option value="green">Green</option>
+                          <option value="blue">Blue</option>
+                          <option value="white">White</option>
+                          <option value="color-wheel">Color Wheel</option>
+                          <option value="gobo">Gobo</option>
+                          <option value="focus">Focus</option>
+                          <option value="zoom">Zoom</option>
+                          <option value="iris">Iris</option>
+                          <option value="prism">Prism</option>
+                          <option value="frost">Frost</option>
+                          <option value="macro">Macro</option>
+                          <option value="custom">Custom Channel</option>
+                        </optgroup>
+                        <optgroup label="WLED">
+                          <option value="wled-brightness">WLED Brightness</option>
+                          <option value="wled-speed">WLED Effect Speed</option>
+                          <option value="wled-intensity">WLED Effect Intensity</option>
+                        </optgroup>
+                      </select>
                     </div>
                   )}
 

@@ -14,7 +14,7 @@ import {
 import { useWledStore, type WledFixture } from '@/store/wledStore';
 import { WledPanel } from './WledPanel';
 
-type Tab = 'instances' | 'library' | 'editor' | 'wled';
+type Tab = 'instances' | 'library' | 'editor' | 'wled' | 'io';
 
 const FIXTURE_TYPES: FixtureDefinition['type'][] = [
   'moving-head', 'par', 'strip', 'wash', 'spot', 'beam', 'strobe', 'laser', 'effect', 'dimmer', 'other',
@@ -244,7 +244,7 @@ export function Devices() {
 
       {/* Tabs */}
       <div className="flex border-b border-border/30">
-        {(['instances', 'library', 'editor', 'wled'] as Tab[]).map(t => (
+        {(['instances', 'library', 'editor', 'wled', 'io'] as Tab[]).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -252,7 +252,7 @@ export function Devices() {
               tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {t === 'instances' ? 'Patched Fixtures' : t === 'library' ? 'Fixture Library' : t === 'editor' ? 'Fixture Editor' : '📡 WLED Devices'}
+            {t === 'instances' ? 'Patched Fixtures' : t === 'library' ? 'Fixture Library' : t === 'editor' ? 'Fixture Editor' : t === 'wled' ? '📡 WLED Devices' : '🔌 I/O Setup'}
           </button>
         ))}
       </div>
@@ -849,6 +849,102 @@ export function Devices() {
 
       {/* WLED TAB */}
       {tab === 'wled' && <WledPanel />}
+
+      {/* I/O SETUP TAB */}
+      {tab === 'io' && (
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="glass-panel p-4 space-y-3">
+            <div className="text-[10px] uppercase tracking-widest text-primary font-semibold">Input / Output Configuration</div>
+            <div className="text-[9px] text-muted-foreground">
+              Configure USB-DMX adapters and ArtNet network interfaces for DMX output. Similar to QLC+ Input/Output setup.
+            </div>
+          </div>
+
+          {/* USB-DMX Adapters */}
+          <div className="glass-panel p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-[9px] uppercase tracking-widest text-stokio-cyan font-semibold">🔌 USB-DMX Adapters</div>
+            </div>
+            <div className="text-[8px] text-muted-foreground/60 bg-muted/10 rounded p-2">
+              Supported adapters: Enttec Open DMX USB, Enttec DMX USB Pro, uDMX, DMXking ultraDMX.
+              <br />Connect via WebSerial API (requires Chrome/Edge and local HTTP access).
+            </div>
+            <div className="border border-border/20 rounded overflow-hidden">
+              <table className="w-full text-[9px]">
+                <thead><tr className="bg-muted/20 border-b border-border/20">
+                  <th className="text-left p-2 text-muted-foreground font-semibold">Universe</th>
+                  <th className="text-left p-2 text-muted-foreground font-semibold">Type</th>
+                  <th className="text-left p-2 text-muted-foreground font-semibold">Device</th>
+                  <th className="text-left p-2 text-muted-foreground font-semibold">Status</th>
+                  <th className="text-left p-2 text-muted-foreground font-semibold">Direction</th>
+                </tr></thead>
+                <tbody>
+                  <tr className="border-b border-border/10">
+                    <td className="p-2 font-mono">1</td>
+                    <td className="p-2">USB-DMX</td>
+                    <td className="p-2 text-muted-foreground/50 italic">No device connected</td>
+                    <td className="p-2"><span className="text-red-500">○ Disconnected</span></td>
+                    <td className="p-2">Output</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1">
+              <Plus size={12} /> Add USB-DMX Adapter
+            </Button>
+          </div>
+
+          {/* ArtNet */}
+          <div className="glass-panel p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-[9px] uppercase tracking-widest font-semibold" style={{ color: '#ff6600' }}>🌐 ArtNet / sACN Network</div>
+            </div>
+            <div className="text-[8px] text-muted-foreground/60 bg-muted/10 rounded p-2">
+              Send DMX over Ethernet via ArtNet or sACN (E1.31). Configure network interfaces and universe mapping.
+              <br />Requires local network access (HTTP only, not HTTPS).
+            </div>
+            <div className="border border-border/20 rounded overflow-hidden">
+              <table className="w-full text-[9px]">
+                <thead><tr className="bg-muted/20 border-b border-border/20">
+                  <th className="text-left p-2 text-muted-foreground font-semibold">Universe</th>
+                  <th className="text-left p-2 text-muted-foreground font-semibold">Protocol</th>
+                  <th className="text-left p-2 text-muted-foreground font-semibold">Target IP</th>
+                  <th className="text-left p-2 text-muted-foreground font-semibold">Status</th>
+                  <th className="text-left p-2 text-muted-foreground font-semibold">Direction</th>
+                </tr></thead>
+                <tbody>
+                  <tr className="border-b border-border/10">
+                    <td className="p-2 font-mono">1</td>
+                    <td className="p-2">ArtNet</td>
+                    <td className="p-2 font-mono text-muted-foreground/50">—</td>
+                    <td className="p-2"><span className="text-red-500">○ Not configured</span></td>
+                    <td className="p-2">Output</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-1">
+              <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1">
+                <Plus size={12} /> Add ArtNet Output
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1">
+                <Plus size={12} /> Add sACN Output
+              </Button>
+            </div>
+          </div>
+
+          {/* DDP */}
+          <div className="glass-panel p-4 space-y-3">
+            <div className="text-[9px] uppercase tracking-widest text-primary font-semibold">📡 DDP (Distributed Display Protocol)</div>
+            <div className="text-[8px] text-muted-foreground/60 bg-muted/10 rounded p-2">
+              Low-latency pixel streaming for WLED and ESP32 controllers over Ethernet. Recommended for large LED installations.
+            </div>
+            <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1">
+              <Plus size={12} /> Add DDP Output
+            </Button>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

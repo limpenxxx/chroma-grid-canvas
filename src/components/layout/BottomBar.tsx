@@ -2,7 +2,9 @@ import { useRef, useEffect, useCallback, useState } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
-import { Ban, Mic, MicOff } from 'lucide-react';
+import { Ban, Mic, MicOff, Monitor } from 'lucide-react';
+
+type AudioMode = 'none' | 'mic' | 'system';
 
 export function BottomBar() {
   const { masterDimmer, setMasterDimmer, blackout, toggleBlackout } = useAppStore();
@@ -11,7 +13,8 @@ export function BottomBar() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const dataArrayRef = useRef<Uint8Array | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const [audioActive, setAudioActive] = useState(false);
+  const [audioMode, setAudioMode] = useState<AudioMode>('none');
+  const [sourceName, setSourceName] = useState('No Media');
 
   const drawWaveform = useCallback(() => {
     const canvas = canvasRef.current;
@@ -47,7 +50,6 @@ export function BottomBar() {
       ctx.stroke();
       ctx.shadowBlur = 0;
     } else {
-      // Flat line when no audio
       ctx.beginPath();
       ctx.strokeStyle = 'hsl(155, 100%, 50%)';
       ctx.lineWidth = 1;
@@ -61,15 +63,17 @@ export function BottomBar() {
     animRef.current = requestAnimationFrame(drawWaveform);
   }, []);
 
-  const toggleAudio = useCallback(async () => {
-    if (audioActive) {
-      streamRef.current?.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-      analyserRef.current = null;
-      dataArrayRef.current = null;
-      setAudioActive(false);
-      return;
-    }
+  const stopAudio = useCallback(() => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    analyserRef.current = null;
+    dataArrayRef.current = null;
+    setAudioMode('none');
+    setSourceName('No Media');
+  }, []);
+
+  const startMic = useCallback(async () => {
+    stopAudio();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -80,11 +84,45 @@ export function BottomBar() {
       source.connect(analyser);
       analyserRef.current = analyser;
       dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
-      setAudioActive(true);
+      setAudioMode('mic');
+      setSourceName('Microphone');
     } catch {
       console.warn('Microphone access denied');
     }
-  }, [audioActive]);
+  }, [stopAudio]);
+
+  const startSystemAudio = useCallback(async () => {
+    stopAudio();
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { width: 1, height: 1 },
+        audio: true,
+      } as DisplayMediaStreamOptions);
+      stream.getVideoTracks().forEach(t => t.stop());
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length === 0) { console.warn('No audio track'); return; }
+      streamRef.current = stream;
+      const label = audioTracks[0].label || 'System Audio';
+      const audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(new MediaStream(audioTracks));
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+      dataArrayRef.current = new Uint8Array(analyser.frequencyBinCount);
+      setAudioMode('system');
+      setSourceName(label);
+      audioTracks[0].onended = () => stopAudio();
+    } catch {
+      console.warn('System audio capture denied');
+    }
+  }, [stopAudio]);
+
+  const toggleAudio = useCallback(async () => {
+    if (audioMode === 'mic') { stopAudio(); return; }
+    if (audioMode === 'system') { stopAudio(); return; }
+    await startMic();
+  }, [audioMode, stopAudio, startMic]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -138,9 +176,19 @@ export function BottomBar() {
           variant="ghost"
           size="sm"
           onClick={toggleAudio}
-          className={`h-7 w-7 p-0 shrink-0 ${audioActive ? 'text-primary' : 'text-muted-foreground'}`}
+          className={`h-7 w-7 p-0 shrink-0 ${audioMode === 'mic' ? 'text-primary' : 'text-muted-foreground'}`}
+          title="Microphone"
         >
-          {audioActive ? <Mic size={14} /> : <MicOff size={14} />}
+          {audioMode === 'mic' ? <Mic size={14} /> : <MicOff size={14} />}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={startSystemAudio}
+          className={`h-7 w-7 p-0 shrink-0 ${audioMode === 'system' ? 'text-primary' : 'text-muted-foreground'}`}
+          title="System Audio (Chrome, Spotify, etc.)"
+        >
+          <Monitor size={14} />
         </Button>
         <canvas
           ref={canvasRef}
@@ -149,11 +197,11 @@ export function BottomBar() {
         />
       </div>
 
-      {/* Now Playing */}
+      {/* Audio Source Status */}
       <div className="flex items-center gap-2 ml-auto">
-        <div className="w-2 h-2 rounded-full bg-primary animate-pulse-glow" />
-        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-          No Media
+        <div className={`w-2 h-2 rounded-full ${audioMode !== 'none' ? 'bg-primary animate-pulse-glow' : 'bg-muted-foreground/30'}`} />
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider truncate max-w-[150px]">
+          {sourceName}
         </span>
       </div>
     </div>
