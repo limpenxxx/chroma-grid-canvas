@@ -246,7 +246,7 @@ export function Devices() {
 
       {/* Tabs */}
       <div className="flex border-b border-border/30 overflow-x-auto">
-        {(['instances', 'library', 'editor', 'wled', 'hue', 'io'] as Tab[]).map(t => (
+        {(['instances', 'library', 'editor', 'wled', 'hue', 'magichome', 'io'] as Tab[]).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -254,7 +254,7 @@ export function Devices() {
               tab === t ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {t === 'instances' ? 'Patched Fixtures' : t === 'library' ? 'Fixture Library' : t === 'editor' ? 'Fixture Editor' : t === 'wled' ? '📡 WLED' : t === 'hue' ? '💡 Philips Hue' : '🔌 I/O Setup'}
+            {t === 'instances' ? 'Patched Fixtures' : t === 'library' ? 'Fixture Library' : t === 'editor' ? 'Fixture Editor' : t === 'wled' ? '📡 WLED' : t === 'hue' ? '💡 Philips Hue' : t === 'magichome' ? '🏠 MagicHome' : '🔌 I/O Setup'}
           </button>
         ))}
       </div>
