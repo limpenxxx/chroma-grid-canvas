@@ -252,10 +252,16 @@ export function Devices() {
 
       {/* Tabs */}
       <div className="flex border-b border-border/30 overflow-x-auto">
-        {(['instances', 'library', 'editor', 'wled', 'hue', 'magichome', 'io'] as Tab[]).map(t => {
+        {(['instances', 'library', 'editor', 'mixer', 'wled', 'hue', 'magichome', 'io'] as Tab[]).map(t => {
           const activeColor = t === 'hue' ? 'border-purple-400 text-purple-400'
             : t === 'magichome' ? 'border-yellow-400 text-yellow-400'
+            : t === 'mixer' ? 'border-red-400 text-red-400'
             : 'border-primary text-primary';
+          const label: Record<Tab, string> = {
+            instances: 'Patched Fixtures', library: 'Fixture Library', editor: 'Fixture Editor',
+            mixer: '🎛️ DMX Mixer', wled: '📡 WLED', hue: '💡 Philips Hue',
+            magichome: '✦ MagicHome', io: '🔌 I/O Setup',
+          };
           return (
             <button
               key={t}
@@ -264,7 +270,7 @@ export function Devices() {
                 tab === t ? activeColor : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              {t === 'instances' ? 'Patched Fixtures' : t === 'library' ? 'Fixture Library' : t === 'editor' ? 'Fixture Editor' : t === 'wled' ? '📡 WLED' : t === 'hue' ? '💡 Philips Hue' : t === 'magichome' ? '✦ MagicHome' : '🔌 I/O Setup'}
+              {label[t]}
             </button>
           );
         })}
