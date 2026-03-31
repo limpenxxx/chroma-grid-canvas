@@ -2529,7 +2529,7 @@ export function LiveDJ() {
   }>({ beatCount: 0, lastBeatTime: 0, currentLevel: {}, colorIdx: {}, posToggle: {}, presetIdx: {}, chasePos: {} });
 
   useEffect(() => {
-    // Get audio analyser from mic or system audio
+    // Get audio analyser dynamically (mic/system audio are created async)
     const getAnalyser = (): AnalyserNode | null => {
       if (audioConfig.source === 'browser-mic') return micBpmRef.current?.analyser || null;
       if (audioConfig.source === 'system-audio') return sysAudioRef.current?.analyser || null;
@@ -2540,7 +2540,6 @@ export function LiveDJ() {
     const arWidgets = widgets.filter(w => w.type === 'audio-reactive' && w.audioReactive?.running);
     if (arWidgets.length === 0) return;
 
-    const analyser = getAnalyser();
     // Even without an analyser, BPM-based effects can still work from tap-tempo
     const arState = arStateRef.current;
     let raf = 0;
@@ -2576,6 +2575,8 @@ export function LiveDJ() {
       if (now - lastFrameTime < 30) { raf = requestAnimationFrame(tick); return; } // ~33fps
       lastFrameTime = now;
 
+      // Read analyser each frame so async mic/system audio is picked up
+      const analyser = getAnalyser();
       let freqData: Uint8Array | null = null;
       let sampleRate = 44100;
       let binCount = 512;
