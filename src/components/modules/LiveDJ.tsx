@@ -2527,6 +2527,32 @@ export function LiveDJ() {
   // Expose system audio source name for bottom bar
   const systemAudioSourceName = sysAudioRef.current?.sourceName || '';
 
+  // ── Pioneer DJ (ProDJ Link) listener ──
+  useEffect(() => {
+    if (audioConfig.source !== 'pioneer-dj') return;
+
+    const unsub = onPioneerData((data: PioneerData) => {
+      if (data.type === 'pioneer-decks' && data.decks) {
+        setBpmState(prev => ({ ...prev, pioneerDecks: data.decks as Record<number, PioneerDeckLocal> }));
+      }
+      if (data.type === 'pioneer-beat' && data.bpm && data.bpm > 0) {
+        const syncDeckNum = bpmState.pioneerSyncDeck;
+        // Sync from specific deck or any playing deck
+        const shouldSync = syncDeckNum === 0 || data.deviceNumber === syncDeckNum;
+        if (shouldSync) {
+          setBpmState(prev => ({
+            ...prev,
+            autoBpm: data.bpm!,
+            audioLevel: Math.min(255, (data.beat || 1) * 64), // simulate beat pulse
+            ...(prev.bpmMode === 'auto' ? { bpm: Math.round(data.bpm!), isSynced: true } : {}),
+          }));
+        }
+      }
+    });
+
+    return unsub;
+  }, [audioConfig.source, bpmState.pioneerSyncDeck]);
+
   const toggleBpmWidgetLink = (widgetId: string) => {
     setBpmState(prev => ({
       ...prev,
