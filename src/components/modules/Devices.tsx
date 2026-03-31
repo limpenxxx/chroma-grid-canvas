@@ -855,6 +855,9 @@ export function Devices() {
       {/* HUE TAB */}
       {tab === 'hue' && <HuePanel />}
 
+      {/* MAGICHOME TAB */}
+      {tab === 'magichome' && <MagicHomePanel />}
+
       {/* I/O SETUP TAB */}
       {tab === 'io' && (
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
