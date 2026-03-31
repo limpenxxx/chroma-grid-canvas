@@ -200,6 +200,8 @@ interface DJWidget {
   wledFixtureBrightness?: number;
   wledFixtureColor?: { r: number; g: number; b: number };
   wledFixtureActivePresetId?: number;
+  // Audio Reactive widget
+  audioReactive?: AudioReactiveConfig;
 }
 
 type ColorProgramMode = 'static' | 'switch' | 'fade';
