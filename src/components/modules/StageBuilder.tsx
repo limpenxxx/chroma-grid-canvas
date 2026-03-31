@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { useFixtureStore, getFixtureTypeIcon, getChannelColor, getFixtureIconEmoji } from '@/store/fixtureStore';
 import { useWledStore } from '@/store/wledStore';
+import { useHueStore } from '@/store/hueStore';
+import { useMagicHomeStore } from '@/store/magicHomeStore';
 import { setWledState } from '@/lib/wledApi';
 import { useMediaStore, getEmbedUrl } from '@/store/mediaStore';
 import { useStageStore, createDefaultSegment, type WLEDNode, type WLEDSegment, type MappingFixture, type BackgroundSource, type TestPattern } from '@/store/stageStore';
