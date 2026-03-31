@@ -250,6 +250,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'media-trigger', label: 'Media', icon: Film, w: 120, h: 120 },
   { type: 'vfx', label: 'Audio VFX', icon: Sparkles, w: 200, h: 200 },
   { type: 'wled-preset', label: 'WLED Preset', icon: Wifi, w: 120, h: 120 },
+  { type: 'wled-fixture', label: 'WLED Fixture', icon: Wifi, w: 200, h: 260 },
   { type: 'dmx-reset', label: 'DMX Reset', icon: Square, w: 120, h: 80 },
 ];
 
