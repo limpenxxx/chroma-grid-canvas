@@ -434,10 +434,14 @@ function ControlWidget({
         setPerFixturePos(fxPositions);
       }
 
-      patternAnimRef.current = requestAnimationFrame(animate);
+      if (document.hidden) {
+        patternAnimRef.current = window.setTimeout(animate, 33) as unknown as number;
+      } else {
+        patternAnimRef.current = requestAnimationFrame(animate);
+      }
     };
     patternAnimRef.current = requestAnimationFrame(animate);
-    return () => { if (patternAnimRef.current) cancelAnimationFrame(patternAnimRef.current); };
+    return () => { if (patternAnimRef.current) { cancelAnimationFrame(patternAnimRef.current); clearTimeout(patternAnimRef.current); } };
   }, [widget.type, widget.mhProgram?.running, widget.mhProgram?.pattern, widget.mhProgram?.speed, widget.mhProgram?.size, widget.mhProgram?.bpmSync, widget.mhProgram?.fixtureConfigs, widget.linkedFixtureIds, bpm]);
 
   // Color program animation
