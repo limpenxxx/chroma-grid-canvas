@@ -7,6 +7,7 @@ import {
   setDeviceColorWithBrightness, setDevicePattern,
   type MagicHomePattern,
 } from '@/lib/magicHomeApi';
+import { sendMagicSet } from '@/lib/wsSync';
 
 interface StoredDevice extends MagicHomeDevice {
   state: MagicHomeDeviceState | null;
