@@ -47,6 +47,7 @@ export function HuePanel() {
     if (result.success) {
       setPairingStatus('');
       setPairingBridgeId(null);
+      setExpandedBridge(pairingBridgeId);
       toast.success('Bridge paired successfully!');
     } else {
       setPairingStatus(`Failed: ${result.error}. Press the link button and try again.`);
