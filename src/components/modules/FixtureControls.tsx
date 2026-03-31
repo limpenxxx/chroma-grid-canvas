@@ -754,7 +754,7 @@ export function FixtureControls() {
                 key={id}
                 onClick={() => setSelectedId(id)}
                 className={`w-full flex items-center gap-2 p-2 rounded text-xs transition-all ${
-                  selectedId === id ? 'bg-green-500/10 border border-green-500/30 text-green-500' : 'hover:bg-muted/50 text-muted-foreground'
+                  selectedId === id ? 'bg-yellow-400/10 border border-yellow-400/30 text-yellow-400' : 'hover:bg-muted/50 text-muted-foreground'
                 }`}
               >
                 <span className="text-sm">🏠</span>
