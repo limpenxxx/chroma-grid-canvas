@@ -2784,8 +2784,13 @@ export function LiveDJ() {
                     </div>
                   </>
                 )}
-                {audioConfig.source === 'browser-mic' && (
+                {(audioConfig.source === 'browser-mic' || audioConfig.source === 'system-audio') && (
                   <div className="space-y-2">
+                    {audioConfig.source === 'system-audio' && systemAudioSourceName && (
+                      <div className="text-[8px] text-primary bg-primary/5 rounded p-1.5 border border-primary/20">
+                        🎵 Capturing: <strong>{systemAudioSourceName}</strong>
+                      </div>
+                    )}
                     <div>
                       <label className="text-[7px] uppercase text-muted-foreground">Sensitivity</label>
                       <Slider value={[audioConfig.sensitivity]} onValueChange={([v]) => setAudioConfig(prev => ({ ...prev, sensitivity: v }))} max={255} className="mt-1" />
@@ -2802,14 +2807,14 @@ export function LiveDJ() {
                       <span className="text-[7px] font-mono text-muted-foreground/50">{audioConfig.freqHigh} Hz</span>
                     </div>
                     <div className="text-[7px] text-muted-foreground/40 bg-muted/10 rounded p-1.5">
-                      💡 Low freq (60-200 Hz) = kick/bass detection. High freq (2k-8k Hz) = hi-hat/snare detection.
+                      💡 {audioConfig.source === 'system-audio' ? 'Select a Chrome tab or application to capture its audio. Works with Spotify, YouTube, etc.' : 'Low freq (60-200 Hz) = kick/bass detection. High freq (2k-8k Hz) = hi-hat/snare detection.'}
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* BPM / Tap Tempo — visible for TAP-TEMPO, WLED UDP Sync, and Browser Mic */}
-              {(audioConfig.source === 'tap-tempo' || audioConfig.source === 'wled-udp-sync' || audioConfig.source === 'browser-mic') && <div className="p-3 border-b border-border/20 space-y-2">
+              {/* BPM / Tap Tempo — visible for TAP-TEMPO, WLED UDP Sync, Browser Mic, and System Audio */}
+              {(audioConfig.source === 'tap-tempo' || audioConfig.source === 'wled-udp-sync' || audioConfig.source === 'browser-mic' || audioConfig.source === 'system-audio') && <div className="p-3 border-b border-border/20 space-y-2">
                 <span className="text-[9px] uppercase tracking-widest text-stokio-pink font-semibold flex items-center gap-1">
                   <Activity size={10} /> BPM / Tap Tempo
                 </span>
