@@ -77,9 +77,7 @@ export function StageBuilder() {
   const activeItem = stageMediaItemId
     ? mediaStore.items.find(i => i.id === stageMediaItemId)
     : mediaStore.items.find(i => i.id === mediaStore.activeItemId);
-  const isVideoPlaying = bgSource === 'video' && activeItem?.type === 'video';
-
-  // No auto-switch — user manually selects video source
+  const isVideoPlaying = bgSource === 'video' && !!activeItem;
 
   // Load audio devices
   useEffect(() => {
