@@ -12,6 +12,9 @@ import {
   FIXTURE_ICON_OPTIONS, getFixtureIconEmoji, type FixtureIcon,
 } from '@/store/fixtureStore';
 import { useWledStore, type WledFixture } from '@/store/wledStore';
+import { useHueStore } from '@/store/hueStore';
+import { useMagicHomeStore } from '@/store/magicHomeStore';
+import { xyToRgb } from '@/lib/hueApi';
 import { WledPanel } from './WledPanel';
 import { HuePanel } from './HuePanel';
 import { MagicHomePanel } from './MagicHomePanel';
