@@ -132,24 +132,32 @@ export const useHueStore = create<HueStore>()(
         const bridge = get().bridges.find(br => br.id === bridgeId);
         if (!bridge?.apiKey) return;
         await setLightColor(bridge.ip, bridge.apiKey, lightId, r, g, b);
+        // Also send to engine for persistent output
+        const { rgbToXy } = await import('@/lib/hueApi');
+        const xy = rgbToXy(r, g, b);
+        sendHueLight(bridgeId, lightId, { xy, on: true });
       },
 
       setBrightness: async (bridgeId, lightId, bri) => {
         const bridge = get().bridges.find(b => b.id === bridgeId);
         if (!bridge?.apiKey) return;
+        const briVal = Math.max(1, Math.min(254, Math.round(bri * 2.54)));
         await setLightBrightness(bridge.ip, bridge.apiKey, lightId, bri);
+        sendHueLight(bridgeId, lightId, { bri: briVal });
       },
 
       setPower: async (bridgeId, lightId, on) => {
         const bridge = get().bridges.find(b => b.id === bridgeId);
         if (!bridge?.apiKey) return;
         await setLightPower(bridge.ip, bridge.apiKey, lightId, on);
+        sendHueLight(bridgeId, lightId, { on });
       },
 
       setLight: async (bridgeId, lightId, state) => {
         const bridge = get().bridges.find(b => b.id === bridgeId);
         if (!bridge?.apiKey) return;
         await setLightState(bridge.ip, bridge.apiKey, lightId, state);
+        sendHueLight(bridgeId, lightId, state);
       },
 
       setGroupAction: async (bridgeId, groupId, state) => {
