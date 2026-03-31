@@ -2259,6 +2259,7 @@ export function LiveDJ() {
   const [bpmState, setBpmState] = useState<BPMState>({
     bpm: 120, tapTimes: [], isSynced: false, linkedWidgetIds: [], flashOn: false,
     bpmMode: 'auto', autoBpm: 0, audioLevel: 0,
+    pioneerDecks: {}, pioneerSyncDeck: 0,
   });
   const bpmFlashRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
