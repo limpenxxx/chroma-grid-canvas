@@ -2354,6 +2354,7 @@ export function LiveDJ() {
           let sum = 0, count = 0;
           for (let i = lowBin; i <= highBin; i++) { sum += freqData[i]; count++; }
           const energy = count > 0 ? sum / count : 0;
+          setBpmState(prev => ({ ...prev, audioLevel: Math.round(energy) }));
           const threshold = (255 - audioConfig.sensitivity) * 0.6 + 15;
           const now = Date.now();
           if (energy > threshold && sys.lastEnergy <= threshold && now - sys.lastPeakTime > 200) {
@@ -2364,7 +2365,10 @@ export function LiveDJ() {
               const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
               const detectedBpm = Math.round(60000 / avgInterval);
               if (detectedBpm >= 40 && detectedBpm <= 300) {
-                setBpmState(prev => ({ ...prev, bpm: detectedBpm, isSynced: true }));
+                setBpmState(prev => ({
+                  ...prev, autoBpm: detectedBpm,
+                  ...(prev.bpmMode === 'auto' ? { bpm: detectedBpm, isSynced: true } : {}),
+                }));
               }
             }
           }
