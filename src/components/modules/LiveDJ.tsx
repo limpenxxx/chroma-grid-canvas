@@ -3489,6 +3489,11 @@ export function LiveDJ() {
                   fixtureData={allFixturesWithDefs}
                   isFullscreen={isFullscreen}
                   bpm={bpmState.bpm}
+                  bpmState={bpmState}
+                  audioConfig={audioConfig}
+                  handleTap={handleTap}
+                  setBpmState={setBpmState}
+                  setAudioConfig={setAudioConfig}
                 />
               ))}
 
