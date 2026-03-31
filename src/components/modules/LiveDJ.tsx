@@ -2178,9 +2178,12 @@ export function LiveDJ() {
         // or data.um?.AudioReactive?.volumeSmth or similar
         const um = data?.um;
         const ar = um?.['AudioReactive'] || um?.['audioreactive'] || {};
-        const vol = ar?.volumeSmth ?? ar?.volume ?? ar?.inputLevel ?? data?.leds?.lx ?? 0;
+        const vol = Math.min(255, Math.max(0, ar?.volumeSmth ?? ar?.volume ?? ar?.inputLevel ?? data?.leds?.lx ?? 0));
         const now = Date.now();
         const threshold = audioConfig.squelch * 0.5 + 20;
+
+        // Update audio level
+        setBpmState(prev => ({ ...prev, audioLevel: vol }));
 
         // Simple beat detection: rising edge above threshold
         if (vol > threshold && beatData.lastVol <= threshold && now - beatData.lastPeakTime > 200) {
@@ -2192,7 +2195,10 @@ export function LiveDJ() {
             const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
             const detectedBpm = Math.round(60000 / avgInterval);
             if (detectedBpm >= 40 && detectedBpm <= 300) {
-              setBpmState(prev => ({ ...prev, bpm: detectedBpm, isSynced: true }));
+              setBpmState(prev => ({
+                ...prev, autoBpm: detectedBpm,
+                ...(prev.bpmMode === 'auto' ? { bpm: detectedBpm, isSynced: true } : {}),
+              }));
             }
           }
         }
