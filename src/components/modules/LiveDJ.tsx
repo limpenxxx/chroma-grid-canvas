@@ -2035,7 +2035,7 @@ export function LiveDJ() {
       y: 20 + Math.random() * 100,
       width: preset.w,
       height: preset.h,
-      color: '#00e5ff',
+      color: type === 'wled-fixture' ? '#ff6600' : '#00e5ff',
       flash: type === 'button',
       value: type === 'slider' ? 50 : undefined,
       linkedFixtureIds: [],
@@ -2046,8 +2046,10 @@ export function LiveDJ() {
       vfxPreset: type === 'vfx' ? 'plasma-wave' : undefined,
       vfxRunning: type === 'vfx' ? false : undefined,
       wledIp: type === 'wled-preset' ? '' : undefined,
-      wledPresets: type === 'wled-preset' ? [] : undefined,
+      wledPresets: type === 'wled-preset' || type === 'wled-fixture' ? [] : undefined,
       wledPresetId: type === 'wled-preset' ? -1 : undefined,
+      wledFixtureColor: type === 'wled-fixture' ? { r: 255, g: 0, b: 0 } : undefined,
+      wledFixtureBrightness: type === 'wled-fixture' ? 128 : undefined,
     }]);
   };
 
