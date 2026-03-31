@@ -785,7 +785,7 @@ export function StageBuilder() {
     setDirectUrl('');
   };
 
-
+  const toggleVideoPlayback = () => {
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
