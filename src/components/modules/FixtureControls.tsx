@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Home, Crosshair, Wifi, RefreshCw } from 'lucide-react';
+import { Home, Crosshair, Wifi, RefreshCw, Lightbulb } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,8 @@ import {
   type ColorSystem, type ColorWheelSlot, getFixtureTypeIcon, getFixtureIconEmoji,
 } from '@/store/fixtureStore';
 import { useWledStore, type WledFixture } from '@/store/wledStore';
+import { useHueStore } from '@/store/hueStore';
+import { xyToRgb } from '@/lib/hueApi';
 import { setWledBrightness, setWledPower, setWledState } from '@/lib/wledApi';
 import { fetchWledPresets, isWledDeviceTarget, wledDeviceToFixture } from '@/lib/wledUtils';
 
