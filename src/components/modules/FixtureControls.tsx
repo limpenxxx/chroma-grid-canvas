@@ -702,6 +702,35 @@ export function FixtureControls() {
               </button>
             );
           })}
+          {/* Hue lights */}
+          {fixtureTab === 'hue' && hueLightFixtures.length === 0 && (
+            <div className="text-[10px] text-muted-foreground text-center py-4">
+              No Hue lights.<br />Go to Devices → Hue tab to pair a bridge.
+            </div>
+          )}
+          {fixtureTab === 'hue' && hueLightFixtures.map(hLight => {
+            const id = `hue-${hLight.bridgeId}-${hLight.lightId}`;
+            const previewColor = `rgb(${hLight.rgb.r},${hLight.rgb.g},${hLight.rgb.b})`;
+            return (
+              <button
+                key={id}
+                onClick={() => setSelectedId(id)}
+                className={`w-full flex items-center gap-2 p-2 rounded text-xs transition-all ${
+                  selectedId === id ? 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-500' : 'hover:bg-muted/50 text-muted-foreground'
+                }`}
+              >
+                <span className="text-sm">💡</span>
+                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: previewColor, boxShadow: `0 0 6px ${previewColor}` }} />
+                <div className="flex-1 text-left min-w-0">
+                  <div className="truncate text-[10px] font-semibold">{hLight.name}</div>
+                  <div className="text-[8px] text-muted-foreground/60">{hLight.hasColor ? 'Color' : 'Dimmable'}</div>
+                  <div className={`text-[7px] ${hLight.reachable ? 'text-green-500' : 'text-red-500'}`}>
+                    {hLight.reachable ? '● Reachable' : '○ Unreachable'}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Controls */}
