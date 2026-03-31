@@ -509,6 +509,7 @@ type DragMode = 'none' | 'move' | 'resize-br' | 'resize-bl' | 'resize-tr' | 'res
 
 function ControlWidget({
   widget, isSelected, onSelect, onUpdate, onPress, onRelease, allWidgets, fixtureData, isFullscreen = false, bpm = 120,
+  bpmState: bpmStateProp, audioConfig: audioConfigProp, handleTap: handleTapProp, setBpmState: setBpmStateProp, setAudioConfig: setAudioConfigProp,
 }: {
   widget: DJWidget;
   isSelected: boolean;
@@ -520,6 +521,11 @@ function ControlWidget({
   fixtureData: { inst: FixtureInstance; def: FixtureDefinition }[];
   isFullscreen?: boolean;
   bpm?: number;
+  bpmState?: BPMState;
+  audioConfig?: AudioConfig;
+  handleTap?: () => void;
+  setBpmState?: React.Dispatch<React.SetStateAction<BPMState>>;
+  setAudioConfig?: React.Dispatch<React.SetStateAction<AudioConfig>>;
 }) {
   const dragRef = useRef<{
     mode: DragMode;
