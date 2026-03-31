@@ -1961,6 +1961,99 @@ export function LiveDJ() {
     return () => { cancelled = true; cleanup(); };
   }, [audioConfig.source, audioConfig.sensitivity, audioConfig.freqLow, audioConfig.freqHigh]);
 
+  // ── System Audio → BPM detection via getDisplayMedia ──
+  const sysAudioRef = useRef<{ ctx: AudioContext | null; analyser: AnalyserNode | null; stream: MediaStream | null; raf: number; peaks: number[]; lastEnergy: number; lastPeakTime: number; sourceName: string }>({
+    ctx: null, analyser: null, stream: null, raf: 0, peaks: [], lastEnergy: 0, lastPeakTime: 0, sourceName: '',
+  });
+
+  useEffect(() => {
+    const sys = sysAudioRef.current;
+    const cleanup = () => {
+      if (sys.raf) cancelAnimationFrame(sys.raf);
+      sys.stream?.getTracks().forEach(t => t.stop());
+      sys.ctx?.close().catch(() => {});
+      sys.ctx = null; sys.analyser = null; sys.stream = null; sys.raf = 0;
+      sys.peaks = []; sys.lastEnergy = 0; sys.lastPeakTime = 0; sys.sourceName = '';
+    };
+
+    if (audioConfig.source !== 'system-audio') { cleanup(); return cleanup; }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        // getDisplayMedia with audio captures system/tab audio
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { width: 1, height: 1 }, // minimal video (required by API)
+          audio: true,
+        } as DisplayMediaStreamOptions);
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+
+        // Stop video track — we only need audio
+        stream.getVideoTracks().forEach(t => t.stop());
+
+        const audioTracks = stream.getAudioTracks();
+        if (audioTracks.length === 0) {
+          console.warn('No audio track from system audio capture');
+          return;
+        }
+
+        sys.sourceName = audioTracks[0].label || 'System Audio';
+        sys.stream = stream;
+
+        const ctx = new AudioContext();
+        const source = ctx.createMediaStreamSource(new MediaStream(audioTracks));
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 2048;
+        source.connect(analyser);
+        sys.ctx = ctx; sys.analyser = analyser;
+
+        const freqData = new Uint8Array(analyser.frequencyBinCount);
+        const nyquist = ctx.sampleRate / 2;
+        const binHz = nyquist / analyser.frequencyBinCount;
+
+        const detect = () => {
+          if (cancelled) return;
+          analyser.getByteFrequencyData(freqData);
+          const lowBin = Math.max(0, Math.floor(audioConfig.freqLow / binHz));
+          const highBin = Math.min(freqData.length - 1, Math.ceil(audioConfig.freqHigh / binHz));
+          let sum = 0, count = 0;
+          for (let i = lowBin; i <= highBin; i++) { sum += freqData[i]; count++; }
+          const energy = count > 0 ? sum / count : 0;
+          const threshold = (255 - audioConfig.sensitivity) * 0.6 + 15;
+          const now = Date.now();
+          if (energy > threshold && sys.lastEnergy <= threshold && now - sys.lastPeakTime > 200) {
+            sys.lastPeakTime = now;
+            sys.peaks = [...sys.peaks.filter(t => now - t < 6000), now];
+            if (sys.peaks.length >= 4) {
+              const intervals = sys.peaks.slice(1).map((t, i) => t - sys.peaks[i]);
+              const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+              const detectedBpm = Math.round(60000 / avgInterval);
+              if (detectedBpm >= 40 && detectedBpm <= 300) {
+                setBpmState(prev => ({ ...prev, bpm: detectedBpm, isSynced: true }));
+              }
+            }
+          }
+          sys.lastEnergy = energy;
+          sys.raf = requestAnimationFrame(detect);
+        };
+        sys.raf = requestAnimationFrame(detect);
+
+        // When user stops sharing, clean up
+        audioTracks[0].onended = () => {
+          if (!cancelled) setAudioConfig(prev => ({ ...prev, source: 'none' }));
+        };
+      } catch {
+        console.warn('System audio capture denied or not supported');
+        setAudioConfig(prev => ({ ...prev, source: 'none' }));
+      }
+    })();
+
+    return () => { cancelled = true; cleanup(); };
+  }, [audioConfig.source, audioConfig.sensitivity, audioConfig.freqLow, audioConfig.freqHigh]);
+
+  // Expose system audio source name for bottom bar
+  const systemAudioSourceName = sysAudioRef.current?.sourceName || '';
+
   const toggleBpmWidgetLink = (widgetId: string) => {
     setBpmState(prev => ({
       ...prev,
