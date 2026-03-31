@@ -14,8 +14,8 @@ import {
 } from '@/store/fixtureStore';
 import { useWledStore, type WledFixture } from '@/store/wledStore';
 import { useHueStore } from '@/store/hueStore';
-import { xyToRgb } from '@/lib/hueApi';
 import { WledPanel } from './WledPanel';
+import { HuePanel } from './HuePanel';
 
 type Tab = 'instances' | 'library' | 'editor' | 'wled' | 'hue' | 'io';
 
