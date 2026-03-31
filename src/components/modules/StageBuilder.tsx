@@ -74,6 +74,7 @@ export function StageBuilder() {
   const [showBgPanel, setShowBgPanel] = useState(false);
   const [videoLoop, setVideoLoop] = useState(true);
   const [videoPlaying, setVideoPlaying] = useState(false);
+  const [directUrl, setDirectUrl] = useState('');
 
   // Get active media item for video background — use stage store selection or fallback to media store
   const stageMediaItemId = stageStore.selectedMediaItemId;
@@ -760,6 +761,30 @@ export function StageBuilder() {
     setBgSource('video');
   };
 
+  const handleDirectUrlLoad = () => {
+    const url = directUrl.trim();
+    if (!url) return;
+    if (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('vimeo.com')) {
+      toast.error('YouTube/Vimeo cannot be used for pixel mapping. Use a direct video file URL (.mp4, .webm).');
+      return;
+    }
+    const id = `url-${Date.now()}`;
+    mediaStore.addItem({
+      id,
+      name: url.split('/').pop()?.split('?')[0] || 'URL Video',
+      type: 'video',
+      sourceType: 'url',
+      src: url,
+      duration: 0,
+      crossfade: 0,
+      createdAt: Date.now(),
+    });
+    stageStore.setSelectedMediaItemId(id);
+    stageStore.setSelectedPlaylistId(null);
+    setBgSource('video');
+    setDirectUrl('');
+  };
+
   const toggleVideoPlayback = () => {
     const video = videoRef.current;
     if (!video) return;
@@ -1248,6 +1273,17 @@ export function StageBuilder() {
                 📂 File
                 <input type="file" accept="video/*" className="hidden" onChange={handleVideoFileSelect} />
               </label>
+              <input
+                type="text"
+                placeholder="Paste video URL..."
+                value={directUrl}
+                onChange={e => setDirectUrl(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleDirectUrlLoad(); }}
+                className="h-7 text-[8px] bg-muted/30 border border-border/30 rounded px-2 text-foreground w-[160px] placeholder:text-muted-foreground/50"
+              />
+              <Button variant="outline" size="sm" className="h-7 text-[8px] px-2" onClick={handleDirectUrlLoad} disabled={!directUrl.trim()}>
+                🔗 Load
+              </Button>
               <div className="w-px h-5 bg-border/30" />
               <Button variant={videoPlaying ? 'secondary' : 'outline'} size="sm" className="h-7 w-7 p-0" onClick={toggleVideoPlayback}
                 title={videoPlaying ? 'Pause' : 'Play'}>
