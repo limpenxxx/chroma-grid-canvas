@@ -1076,6 +1076,9 @@ export function Devices() {
           </div>
         </div>
       )}
+
+      {/* MIXER TAB */}
+      {tab === 'mixer' && <DmxMixer />}
     </motion.div>
   );
 }
