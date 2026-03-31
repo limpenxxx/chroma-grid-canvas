@@ -4045,6 +4045,240 @@ export function LiveDJ() {
                       </div>
                     </div>
                   )}
+
+                  {/* Audio Reactive Widget Config */}
+                  {selectedWidgetData.type === 'audio-reactive' && (() => {
+                    const arConfig = selectedWidgetData.audioReactive || { running: false, effects: [], globalDecay: 180, sensitivity: 160 };
+                    const AR_EFFECT_OPTIONS: { value: AudioReactiveEffectType; label: string; icon: string; desc: string; bands: string[] }[] = [
+                      { value: 'color-pulse', label: 'Color Pulse', icon: '🔴', desc: 'Flash a color on each beat', bands: ['bass', 'mid', 'high', 'all'] },
+                      { value: 'dimmer-pump', label: 'Dimmer Pump', icon: '💡', desc: 'Pump brightness on beat, fade between beats', bands: ['bass', 'mid', 'high', 'all'] },
+                      { value: 'strobe-beat', label: 'Strobe Beat', icon: '⚡', desc: 'Quick strobe flash on each beat', bands: ['bass', 'high', 'all'] },
+                      { value: 'pos-alternate', label: 'Position Alternate', icon: '↔', desc: 'MH swaps between two positions each beat', bands: ['bass', 'all'] },
+                      { value: 'color-cycle', label: 'Color Cycle', icon: '🌈', desc: 'Step through colors each beat', bands: ['bass', 'mid', 'all'] },
+                      { value: 'bass-color-shift', label: 'Bass Color Shift', icon: '🎸', desc: 'Hue shifts with bass intensity', bands: ['bass'] },
+                      { value: 'wled-preset-cycle', label: 'WLED Preset Cycle', icon: '🔄', desc: 'Cycle WLED presets each beat', bands: ['bass', 'all'] },
+                      { value: 'wled-pixel-chase', label: 'Pixel Chase', icon: '🌊', desc: 'Color travels along LED strip per beat with fade trail', bands: ['bass', 'mid', 'all'] },
+                      { value: 'intensity-map', label: 'Intensity Map', icon: '📊', desc: 'Map audio level directly to brightness', bands: ['bass', 'mid', 'high', 'all'] },
+                      { value: 'hue-sweep', label: 'Hue Sweep', icon: '🎨', desc: 'Sweep through rainbow based on frequency energy', bands: ['all'] },
+                      { value: 'size-pulse', label: 'Size Pulse', icon: '🔍', desc: 'Pulse zoom/iris on beat', bands: ['bass', 'all'] },
+                    ];
+
+                    const addEffect = (fixtureId: string, effect: AudioReactiveEffectType) => {
+                      const newEffect: AudioReactiveFixtureEffect = {
+                        fixtureId, effect, enabled: true,
+                        color1: { r: 255, g: 0, b: 0 }, color2: { r: 0, g: 0, b: 255 },
+                        intensity: 200, decay: arConfig.globalDecay,
+                        posA: { pan: 64, tilt: 128 }, posB: { pan: 192, tilt: 128 },
+                        triggerBand: 'bass', wledPresets: [],
+                      };
+                      updateWidget(selectedWidgetData.id, {
+                        audioReactive: { ...arConfig, effects: [...arConfig.effects, newEffect] },
+                      });
+                    };
+
+                    const updateEffect = (idx: number, updates: Partial<AudioReactiveFixtureEffect>) => {
+                      const effects = [...arConfig.effects];
+                      effects[idx] = { ...effects[idx], ...updates };
+                      updateWidget(selectedWidgetData.id, { audioReactive: { ...arConfig, effects } });
+                    };
+
+                    const removeEffect = (idx: number) => {
+                      const effects = arConfig.effects.filter((_, i) => i !== idx);
+                      updateWidget(selectedWidgetData.id, { audioReactive: { ...arConfig, effects } });
+                    };
+
+                    return (
+                      <div className="space-y-2 border-t border-border/20 pt-2">
+                        <label className="text-[8px] uppercase tracking-widest font-semibold flex items-center gap-1" style={{ color: '#aa44ff' }}>
+                          <Radio size={10} /> Audio Reactive Config
+                        </label>
+
+                        {/* Global controls */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[7px] uppercase text-muted-foreground">Sensitivity</label>
+                            <Slider value={[arConfig.sensitivity]} onValueChange={([v]) => updateWidget(selectedWidgetData.id, {
+                              audioReactive: { ...arConfig, sensitivity: v },
+                            })} max={255} className="mt-1" />
+                            <span className="text-[7px] font-mono text-muted-foreground/50">{arConfig.sensitivity}</span>
+                          </div>
+                          <div>
+                            <label className="text-[7px] uppercase text-muted-foreground">Decay</label>
+                            <Slider value={[arConfig.globalDecay]} onValueChange={([v]) => updateWidget(selectedWidgetData.id, {
+                              audioReactive: { ...arConfig, globalDecay: v },
+                            })} max={255} className="mt-1" />
+                            <span className="text-[7px] font-mono text-muted-foreground/50">{arConfig.globalDecay}</span>
+                          </div>
+                        </div>
+
+                        {/* Run/Stop */}
+                        <Button
+                          size="sm"
+                          variant={arConfig.running ? 'destructive' : 'default'}
+                          className="h-7 text-[10px] gap-1 w-full"
+                          onClick={() => updateWidget(selectedWidgetData.id, {
+                            audioReactive: { ...arConfig, running: !arConfig.running },
+                          })}>
+                          {arConfig.running ? <><Square size={10} /> Stop</> : <><Play size={10} /> Start</>}
+                        </Button>
+
+                        {/* Add effect per fixture */}
+                        <div className="border-t border-border/10 pt-2">
+                          <label className="text-[7px] uppercase text-muted-foreground">Add Effect to Fixture</label>
+                          {selectedWidgetData.linkedFixtureIds.length === 0 ? (
+                            <div className="text-[8px] text-muted-foreground/40 text-center py-2">Link fixtures above first</div>
+                          ) : (
+                            <div className="space-y-1 mt-1">
+                              {selectedWidgetData.linkedFixtureIds.map(fid => {
+                                const inst = allFixturesWithDefs.find(f => f.inst.id === fid);
+                                if (!inst) return null;
+                                const isWled = inst.def.category === 'wled';
+                                const isMH = inst.def.type === 'moving-head';
+                                return (
+                                  <div key={fid} className="glass-panel p-1.5 rounded">
+                                    <div className="text-[8px] font-semibold flex items-center gap-1 mb-1">
+                                      <span>{getFixtureTypeIcon(inst.def.type)}</span> {inst.inst.name}
+                                    </div>
+                                    <select
+                                      value=""
+                                      onChange={e => { if (e.target.value) addEffect(fid, e.target.value as AudioReactiveEffectType); }}
+                                      className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[9px] px-1 text-foreground">
+                                      <option value="">+ Add Effect...</option>
+                                      {AR_EFFECT_OPTIONS
+                                        .filter(opt => {
+                                          if (opt.value === 'pos-alternate' || opt.value === 'size-pulse') return isMH;
+                                          if (opt.value === 'wled-preset-cycle' || opt.value === 'wled-pixel-chase') return isWled;
+                                          return true;
+                                        })
+                                        .map(opt => (
+                                          <option key={opt.value} value={opt.value}>{opt.icon} {opt.label}</option>
+                                        ))}
+                                    </select>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Effects list with config */}
+                        {arConfig.effects.length > 0 && (
+                          <div className="border-t border-border/10 pt-2 space-y-1.5">
+                            <label className="text-[7px] uppercase text-muted-foreground">Active Effects</label>
+                            {arConfig.effects.map((fx, idx) => {
+                              const inst = allFixturesWithDefs.find(f => f.inst.id === fx.fixtureId);
+                              const opt = AR_EFFECT_OPTIONS.find(o => o.value === fx.effect);
+                              return (
+                                <div key={idx} className="glass-panel p-2 rounded space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[8px] font-semibold flex items-center gap-1">
+                                      {opt?.icon} {inst?.inst.name?.slice(0, 10)} — {opt?.label}
+                                    </span>
+                                    <button onClick={() => removeEffect(idx)} className="text-muted-foreground hover:text-destructive">
+                                      <X size={10} />
+                                    </button>
+                                  </div>
+                                  <div className="text-[7px] text-muted-foreground/50">{opt?.desc}</div>
+
+                                  {/* Trigger Band */}
+                                  <div className="flex items-center gap-1">
+                                    <label className="text-[7px] text-muted-foreground w-10">Band</label>
+                                    <div className="flex gap-0.5 flex-1">
+                                      {(['bass', 'mid', 'high', 'all'] as const).map(band => (
+                                        <button key={band}
+                                          onClick={() => updateEffect(idx, { triggerBand: band })}
+                                          className={`flex-1 text-[7px] py-0.5 rounded border font-semibold transition-all ${
+                                            fx.triggerBand === band
+                                              ? 'border-[#aa44ff]/40 bg-[#aa44ff]/10 text-[#aa44ff]'
+                                              : 'border-border/20 text-muted-foreground hover:border-border/40'
+                                          }`}>{band.toUpperCase()}</button>
+                                      ))}
+                                    </div>
+                                  </div>
+
+                                  {/* Intensity */}
+                                  <div className="flex items-center gap-1">
+                                    <label className="text-[7px] text-muted-foreground w-10">Power</label>
+                                    <Slider value={[fx.intensity || 200]} onValueChange={([v]) => updateEffect(idx, { intensity: v })} max={255} className="flex-1" />
+                                    <span className="text-[7px] font-mono text-muted-foreground/50 w-6 text-right">{fx.intensity || 200}</span>
+                                  </div>
+
+                                  {/* Decay */}
+                                  <div className="flex items-center gap-1">
+                                    <label className="text-[7px] text-muted-foreground w-10">Decay</label>
+                                    <Slider value={[fx.decay || arConfig.globalDecay]} onValueChange={([v]) => updateEffect(idx, { decay: v })} max={255} className="flex-1" />
+                                    <span className="text-[7px] font-mono text-muted-foreground/50 w-6 text-right">{fx.decay || arConfig.globalDecay}</span>
+                                  </div>
+
+                                  {/* Color pickers for color effects */}
+                                  {(fx.effect === 'color-pulse' || fx.effect === 'color-cycle' || fx.effect === 'wled-pixel-chase') && (
+                                    <div className="flex items-center gap-1">
+                                      <label className="text-[7px] text-muted-foreground w-10">Colors</label>
+                                      <Input type="color"
+                                        value={fx.color1 ? `#${fx.color1.r.toString(16).padStart(2,'0')}${fx.color1.g.toString(16).padStart(2,'0')}${fx.color1.b.toString(16).padStart(2,'0')}` : '#ff0000'}
+                                        onChange={e => { const h = e.target.value; updateEffect(idx, { color1: { r: parseInt(h.slice(1,3),16), g: parseInt(h.slice(3,5),16), b: parseInt(h.slice(5,7),16) } }); }}
+                                        className="h-5 w-7 p-0 bg-transparent border-0 cursor-pointer" />
+                                      <Input type="color"
+                                        value={fx.color2 ? `#${fx.color2.r.toString(16).padStart(2,'0')}${fx.color2.g.toString(16).padStart(2,'0')}${fx.color2.b.toString(16).padStart(2,'0')}` : '#0000ff'}
+                                        onChange={e => { const h = e.target.value; updateEffect(idx, { color2: { r: parseInt(h.slice(1,3),16), g: parseInt(h.slice(3,5),16), b: parseInt(h.slice(5,7),16) } }); }}
+                                        className="h-5 w-7 p-0 bg-transparent border-0 cursor-pointer" />
+                                    </div>
+                                  )}
+
+                                  {/* Position A/B for pos-alternate */}
+                                  {fx.effect === 'pos-alternate' && (
+                                    <div className="grid grid-cols-2 gap-1">
+                                      <div>
+                                        <label className="text-[7px] text-muted-foreground">Pos A</label>
+                                        <div className="flex gap-0.5">
+                                          <Input type="number" min={0} max={255} value={fx.posA?.pan ?? 64}
+                                            onChange={e => updateEffect(idx, { posA: { pan: Number(e.target.value), tilt: fx.posA?.tilt ?? 128 } })}
+                                            className="h-5 text-[8px] bg-muted/20 border-border/20 font-mono px-1 flex-1" placeholder="Pan" />
+                                          <Input type="number" min={0} max={255} value={fx.posA?.tilt ?? 128}
+                                            onChange={e => updateEffect(idx, { posA: { pan: fx.posA?.pan ?? 64, tilt: Number(e.target.value) } })}
+                                            className="h-5 text-[8px] bg-muted/20 border-border/20 font-mono px-1 flex-1" placeholder="Tilt" />
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <label className="text-[7px] text-muted-foreground">Pos B</label>
+                                        <div className="flex gap-0.5">
+                                          <Input type="number" min={0} max={255} value={fx.posB?.pan ?? 192}
+                                            onChange={e => updateEffect(idx, { posB: { pan: Number(e.target.value), tilt: fx.posB?.tilt ?? 128 } })}
+                                            className="h-5 text-[8px] bg-muted/20 border-border/20 font-mono px-1 flex-1" placeholder="Pan" />
+                                          <Input type="number" min={0} max={255} value={fx.posB?.tilt ?? 128}
+                                            onChange={e => updateEffect(idx, { posB: { pan: fx.posB?.pan ?? 192, tilt: Number(e.target.value) } })}
+                                            className="h-5 text-[8px] bg-muted/20 border-border/20 font-mono px-1 flex-1" placeholder="Tilt" />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* WLED preset list for preset-cycle */}
+                                  {fx.effect === 'wled-preset-cycle' && (
+                                    <div>
+                                      <label className="text-[7px] text-muted-foreground">Preset IDs (comma separated)</label>
+                                      <Input
+                                        value={(fx.wledPresets || []).join(', ')}
+                                        onChange={e => {
+                                          const ids = e.target.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+                                          updateEffect(idx, { wledPresets: ids });
+                                        }}
+                                        className="h-5 text-[8px] bg-muted/20 border-border/20 font-mono px-1"
+                                        placeholder="1, 2, 3" />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                          💡 Link fixtures, add effects per fixture, choose frequency bands. Bass = kick/bass, Mid = melody, High = hi-hats. Effects react to audio in real-time when running.
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
