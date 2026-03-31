@@ -177,6 +177,10 @@ function connect() {
           for (const listener of engineStatusListeners) {
             listener(msg as EngineStatus);
           }
+        } else if (msg.type === 'pioneer-decks' || msg.type === 'pioneer-beat') {
+          for (const listener of pioneerListeners) {
+            listener(msg as PioneerData);
+          }
         }
       } catch { /* ignore bad messages */ }
     };
