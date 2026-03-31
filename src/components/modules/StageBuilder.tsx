@@ -1119,8 +1119,33 @@ export function StageBuilder() {
           <select className="h-7 text-[9px] bg-muted/30 border border-border/30 rounded px-2 text-foreground"
             value="" onChange={e => { if (e.target.value) addMappingFixture(e.target.value); }}>
             <option value="" disabled>+ DMX Fixture</option>
-            {rgbwFixtures.filter(f => !mappingFixtures.some(mf => mf.fixtureInstanceId === f.id)).map(f => (
+            {rgbwFixtures.filter(f => !mappingFixtures.some(mf => mf.sourceType === 'dmx' && mf.fixtureInstanceId === f.id)).map(f => (
               <option key={f.id} value={f.id}>{f.name}</option>
+            ))}
+          </select>
+        )}
+
+        {/* Add Hue light dropdown */}
+        {hueLights.length > 0 && (
+          <select className="h-7 text-[9px] bg-muted/30 border border-border/30 rounded px-2 text-foreground"
+            value="" onChange={e => {
+              const [bId, lId] = e.target.value.split('::');
+              if (bId && lId) addHueMappingFixture(bId, lId);
+            }}>
+            <option value="" disabled>+ 💡 Hue Light</option>
+            {hueLights.filter(h => !mappingFixtures.some(mf => mf.sourceType === 'hue' && mf.hueBridgeId === h.bridgeId && mf.hueLightId === h.light.id)).map(h => (
+              <option key={`${h.bridgeId}::${h.light.id}`} value={`${h.bridgeId}::${h.light.id}`}>{h.light.name}</option>
+            ))}
+          </select>
+        )}
+
+        {/* Add MagicHome device dropdown */}
+        {magicDevices.length > 0 && (
+          <select className="h-7 text-[9px] bg-muted/30 border border-border/30 rounded px-2 text-foreground"
+            value="" onChange={e => { if (e.target.value) addMagicMappingFixture(e.target.value); }}>
+            <option value="" disabled>+ ✦ MagicHome</option>
+            {magicDevices.filter(d => !mappingFixtures.some(mf => mf.sourceType === 'magichome' && mf.magicDeviceId === d.id)).map(d => (
+              <option key={d.id} value={d.id}>{d.name}</option>
             ))}
           </select>
         )}
