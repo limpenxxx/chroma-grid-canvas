@@ -426,7 +426,13 @@ wss.on('connection', (ws) => {
     wledTargets: Object.keys(state.wled).length,
     hueBridges: Object.keys(state.hue).length,
     magicDevices: Object.keys(state.magic).length,
+    pioneerDecks: state.pioneerDecks,
   }));
+
+  // Send Pioneer deck state if any
+  if (Object.keys(state.pioneerDecks).length > 0) {
+    ws.send(JSON.stringify({ type: 'pioneer-decks', decks: state.pioneerDecks }));
+  }
 
   ws.on('message', (raw) => {
     try {
