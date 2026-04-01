@@ -141,18 +141,18 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
   }, [drawWaveform]);
 
   return (
-    <div className={`border-t border-border/50 bg-[hsl(0_0%_3%)] flex items-center gap-3 ${
-      compact ? 'h-11 px-2' : 'h-14 px-4 gap-6'
+    <div className={`border-t border-border/50 bg-[hsl(0_0%_3%)] flex items-center ${
+      compact ? 'h-11 px-2 gap-2' : 'h-14 px-4 gap-6'
     }`}>
       {/* Master Dimmer */}
-      <div className={`flex items-center gap-2 ${compact ? 'min-w-[140px]' : 'min-w-[200px] gap-3'}`}>
+      <div className={`flex items-center gap-2 shrink-0 ${compact ? 'min-w-0' : 'min-w-[200px] gap-3'}`}>
         <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Master</span>
         <Slider
           value={[blackout ? 0 : masterDimmer]}
           onValueChange={([v]) => setMasterDimmer(v)}
           max={100}
           step={1}
-          className={compact ? 'w-16' : 'w-28'}
+          className={compact ? 'w-14' : 'w-28'}
           disabled={blackout}
         />
         <span className="text-xs font-mono text-primary w-8 text-right">
@@ -165,7 +165,7 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
         variant={blackout ? 'destructive' : 'outline'}
         size="sm"
         onClick={toggleBlackout}
-        className={`text-[10px] uppercase tracking-wider font-semibold h-8 px-3 ${
+        className={`text-[10px] uppercase tracking-wider font-semibold h-8 px-3 shrink-0 ${
           blackout ? 'glow-pink animate-pulse-glow' : ''
         }`}
       >
@@ -173,7 +173,7 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
         BO
       </Button>
 
-      {/* Waveform — hidden on mobile */}
+      {/* Waveform — hidden on compact */}
       {!compact && (
         <div className="flex-1 flex items-center gap-2 max-w-md">
           <Button variant="ghost" size="sm" onClick={toggleAudio}
@@ -190,8 +190,11 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
         </div>
       )}
 
-      {/* Layout Mode Switcher */}
-      <div className={`flex items-center gap-1 border-l border-border/30 pl-3 ${compact ? 'ml-auto' : 'ml-2'}`}>
+      {/* Spacer on compact to push layout switcher right */}
+      {compact && <div className="flex-1" />}
+
+      {/* Layout Mode Switcher — always visible */}
+      <div className={`flex items-center gap-1 shrink-0 ${!compact ? 'border-l border-border/30 pl-3 ml-2' : ''}`}>
         {([
           { mode: 'desktop' as LayoutMode, icon: MonitorDot, label: 'Desktop' },
           { mode: 'tablet' as LayoutMode, icon: Tablet, label: 'Tablet' },
@@ -213,7 +216,7 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
         ))}
       </div>
 
-      {/* Audio Source Status — hidden on mobile */}
+      {/* Audio Source Status — hidden on compact */}
       {!compact && (
         <div className="flex items-center gap-2 ml-auto">
           <div className={`w-2 h-2 rounded-full ${audioMode !== 'none' ? 'bg-primary animate-pulse-glow' : 'bg-muted-foreground/30'}`} />
