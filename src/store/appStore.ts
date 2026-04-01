@@ -16,7 +16,7 @@ interface AppState {
   blackout: boolean;
   toggleBlackout: () => void;
   // Role system
-  userRole: UserRole | null; // null = not selected yet (show start screen)
+  userRole: UserRole | null;
   setUserRole: (r: UserRole) => void;
   logout: () => void;
   userName: string;
@@ -24,6 +24,9 @@ interface AppState {
   setUserName: (n: string) => void;
   setAdminName: (n: string) => void;
   isModuleAllowed: (m: ModuleId) => boolean;
+  // Layout mode
+  layoutMode: LayoutMode;
+  setLayoutMode: (m: LayoutMode) => void;
 }
 
 export const useAppStore = create<AppState>()(
