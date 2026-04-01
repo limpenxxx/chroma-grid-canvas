@@ -2091,6 +2091,48 @@ function ScriptEditor({
 
 // ── Storage helpers ──
 const STORAGE_KEY = 'stokio-dj-layouts';
+const AUTOSAVE_KEY = 'stokio-dj-autosave-v1';
+
+interface AutosaveData {
+  pages: LayoutPage[];
+  groups: FixtureGroup[];
+  assignments: FixtureAssignment[];
+  scripts: DJScript[];
+  audioConfig: AudioConfig;
+  activePageId: string;
+}
+
+function loadAutosave(): AutosaveData | null {
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+function persistAutosave(data: AutosaveData) {
+  try {
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+  } catch {
+    // Quota exceeded — try stripping images
+    try {
+      const stripped: AutosaveData = {
+        ...data,
+        pages: data.pages.map(page => ({
+          ...page,
+          bgImage: page.bgImage && page.bgImage.length > 50000 ? null : page.bgImage,
+          widgets: page.widgets.map(w => ({
+            ...w,
+            bgImage: w.bgImage && w.bgImage.length > 50000 ? null : w.bgImage,
+          })),
+        })),
+      };
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(stripped));
+    } catch {
+      console.warn('Could not autosave LiveDJ: storage quota exceeded');
+    }
+  }
+}
 
 function loadSavedLayouts(): SavedLayout[] {
   try {
@@ -2117,7 +2159,6 @@ function persistLayouts(layouts: SavedLayout[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts));
   } catch {
-    // Quota exceeded — strip large base64 images and retry
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stripLargeImages(layouts)));
     } catch {
