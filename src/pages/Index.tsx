@@ -5,6 +5,7 @@ import stokioLogo from '@/assets/stokio-logo.png';
 import { useAppStore } from '@/store/appStore';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { BottomBar } from '@/components/layout/BottomBar';
+import { MobileNav } from '@/components/layout/MobileNav';
 import { StageBuilder } from '@/components/modules/StageBuilder';
 import { MediaServer } from '@/components/modules/MediaServer';
 import { TextOverlays } from '@/components/modules/TextOverlays';
@@ -195,6 +196,7 @@ function StartScreen() {
 const Index = () => {
   const activeModule = useAppStore((s) => s.activeModule);
   const userRole = useAppStore((s) => s.userRole);
+  const layoutMode = useAppStore((s) => s.layoutMode);
   const ActiveComponent = moduleComponents[activeModule];
   const [venueLogo, setVenueLogo] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -211,52 +213,72 @@ const Index = () => {
   // Show start screen if no role selected
   if (!userRole) return <StartScreen />;
 
+  const isMobile = layoutMode === 'mobile';
+  const isTablet = layoutMode === 'tablet';
+
   return (
     <div className="min-h-screen w-screen flex flex-col bg-background overflow-x-hidden">
-      {/* Top Bar — STOKIO logo left, Venue logo center */}
-      <div className="w-full flex items-center bg-[hsl(0_0%_3%)] border-b border-border/30 px-8 shrink-0 h-56">
-        {/* STOKIO Logo — left */}
+      {/* Top Bar — adapts to layout mode */}
+      <div className={`w-full flex items-center bg-[hsl(0_0%_3%)] border-b border-border/30 shrink-0 ${
+        isMobile ? 'px-3 h-14' : isTablet ? 'px-4 h-28' : 'px-8 h-56'
+      }`}>
         <div className="shrink-0">
-          <img src={stokioLogo} alt="STOKIO FX" className="h-48 w-48 object-contain drop-shadow-[0_0_16px_rgba(0,229,255,0.3)]" />
+          <img src={stokioLogo} alt="STOKIO FX" className={`object-contain drop-shadow-[0_0_16px_rgba(0,229,255,0.3)] ${
+            isMobile ? 'h-10 w-10' : isTablet ? 'h-24 w-24' : 'h-48 w-48'
+          }`} />
         </div>
 
-        {/* Venue Logo — center */}
-        <div className="flex-1 flex items-center justify-center">
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleVenueUpload} />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center justify-center transition-all overflow-hidden group"
-          >
-            {venueLogo ? (
-              <img
-                src={venueLogo}
-                alt="Venue Logo"
-                className="h-48 max-w-[1200px] object-contain opacity-80 hover:opacity-100 transition-opacity"
-              />
-            ) : (
-              <div className="flex items-center gap-3 px-8 py-4 rounded-lg border border-dashed border-border/20 hover:border-primary/30 bg-muted/5 hover:bg-muted/10 transition-all">
-                <ImagePlus size={24} className="text-muted-foreground/30 group-hover:text-muted-foreground/50" />
-                <span className="text-sm text-muted-foreground/30 group-hover:text-muted-foreground/50 uppercase tracking-widest">
-                  Upload Venue Logo · 1000×200px
-                </span>
-              </div>
-            )}
-          </button>
-        </div>
+        {/* Venue Logo — hidden on mobile */}
+        {!isMobile && (
+          <div className="flex-1 flex items-center justify-center">
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleVenueUpload} />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center justify-center transition-all overflow-hidden group"
+            >
+              {venueLogo ? (
+                <img
+                  src={venueLogo}
+                  alt="Venue Logo"
+                  className={`object-contain opacity-80 hover:opacity-100 transition-opacity ${
+                    isTablet ? 'h-20 max-w-[500px]' : 'h-48 max-w-[1200px]'
+                  }`}
+                />
+              ) : (
+                <div className={`flex items-center gap-3 rounded-lg border border-dashed border-border/20 hover:border-primary/30 bg-muted/5 hover:bg-muted/10 transition-all ${
+                  isTablet ? 'px-4 py-2' : 'px-8 py-4'
+                }`}>
+                  <ImagePlus size={isTablet ? 18 : 24} className="text-muted-foreground/30 group-hover:text-muted-foreground/50" />
+                  <span className={`text-muted-foreground/30 group-hover:text-muted-foreground/50 uppercase tracking-widest ${
+                    isTablet ? 'text-[10px]' : 'text-sm'
+                  }`}>
+                    Upload Venue Logo
+                  </span>
+                </div>
+              )}
+            </button>
+          </div>
+        )}
 
-        {/* Spacer to balance layout */}
-        <div className="w-48 shrink-0" />
+        {/* Mobile: show title text instead */}
+        {isMobile && (
+          <span className="flex-1 text-center text-[10px] font-semibold tracking-[0.2em] uppercase text-muted-foreground">
+            STOKIO FX
+          </span>
+        )}
+
+        <div className={`shrink-0 ${isMobile ? 'w-10' : isTablet ? 'w-24' : 'w-48'}`} />
       </div>
 
       <div className="flex-1 flex overflow-x-hidden">
-        <AppSidebar />
+        {/* Sidebar: desktop = full, tablet = compact, mobile = hidden (use bottom nav) */}
+        {!isMobile && <AppSidebar compact={isTablet} />}
+
         <main className="flex-1 overflow-auto touch-pan-y touch-pinch-zoom">
-          {/* Persistent modules: always mounted, hidden when not active */}
           <div className={activeModule === 'livedj' ? 'h-full' : 'hidden'}>
             <LiveDJ />
           </div>
 
-          {/* Regular modules: mount/unmount on switch */}
           {activeModule !== 'livedj' && (
             <AnimatePresence mode="wait">
               <motion.div
@@ -273,7 +295,10 @@ const Index = () => {
           )}
         </main>
       </div>
-      <BottomBar />
+
+      {/* Mobile: nav bar above bottom bar */}
+      {isMobile && <MobileNav />}
+      <BottomBar compact={isMobile} />
     </div>
   );
 };

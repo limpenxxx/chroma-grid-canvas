@@ -4,6 +4,7 @@ import { broadcastState, isSyncingFromRemote, onSyncState, sendMasterDimmer, sen
 
 export type ModuleId = 'stage' | 'media' | 'text' | 'fixtures' | 'nodes' | 'devices' | 'livedj';
 export type UserRole = 'admin' | 'user';
+export type LayoutMode = 'desktop' | 'tablet' | 'mobile';
 
 const USER_MODULES: ModuleId[] = ['media', 'text', 'livedj'];
 
@@ -15,7 +16,7 @@ interface AppState {
   blackout: boolean;
   toggleBlackout: () => void;
   // Role system
-  userRole: UserRole | null; // null = not selected yet (show start screen)
+  userRole: UserRole | null;
   setUserRole: (r: UserRole) => void;
   logout: () => void;
   userName: string;
@@ -23,6 +24,9 @@ interface AppState {
   setUserName: (n: string) => void;
   setAdminName: (n: string) => void;
   isModuleAllowed: (m: ModuleId) => boolean;
+  // Layout mode
+  layoutMode: LayoutMode;
+  setLayoutMode: (m: LayoutMode) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -53,10 +57,12 @@ export const useAppStore = create<AppState>()(
         if (role === 'admin' || !role) return true;
         return USER_MODULES.includes(m);
       },
+      layoutMode: 'desktop',
+      setLayoutMode: (m) => set({ layoutMode: m }),
     }),
     {
       name: 'stokio-app-v1',
-      partialize: (s) => ({ userName: s.userName, adminName: s.adminName }),
+      partialize: (s) => ({ userName: s.userName, adminName: s.adminName, layoutMode: s.layoutMode }),
     }
   )
 );

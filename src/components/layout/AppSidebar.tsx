@@ -26,7 +26,7 @@ const navItems: { id: ModuleId; icon: typeof Layout; label: string }[] = [
   { id: 'livedj', icon: Speaker, label: 'LIVE DJ' },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ compact = false }: { compact?: boolean }) {
   const { activeModule, setActiveModule, isModuleAllowed, userRole, logout } = useAppStore();
   const filteredNav = navItems.filter(item => isModuleAllowed(item.id));
   const [showProjectMenu, setShowProjectMenu] = useState(false);
@@ -78,7 +78,7 @@ export function AppSidebar() {
 
   return (
     <>
-    <div className="w-[100px] h-full flex flex-col items-center py-4 border-r border-border/50 bg-[hsl(0_0%_3%)]">
+    <div className={`${compact ? 'w-[60px]' : 'w-[100px]'} h-full flex flex-col items-center py-4 border-r border-border/50 bg-[hsl(0_0%_3%)] transition-all`}>
 
       {/* Nav Items */}
       <nav className="flex-1 flex flex-col gap-1 w-full px-2">
@@ -106,11 +106,13 @@ export function AppSidebar() {
                         : 'text-muted-foreground group-hover:text-foreground'
                     }`}
                   />
+                  {!compact && (
                   <span className={`relative z-10 text-[7px] uppercase tracking-wider transition-colors ${
                     isActive ? 'text-primary' : 'text-muted-foreground/50 group-hover:text-muted-foreground'
                   }`}>
                     {item.label.split(' ')[0]}
                   </span>
+                  )}
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" className="glass-panel-strong">
