@@ -26,7 +26,7 @@ const navItems: { id: ModuleId; icon: typeof Layout; label: string }[] = [
   { id: 'livedj', icon: Speaker, label: 'LIVE DJ' },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ compact = false }: { compact?: boolean }) {
   const { activeModule, setActiveModule, isModuleAllowed, userRole, logout } = useAppStore();
   const filteredNav = navItems.filter(item => isModuleAllowed(item.id));
   const [showProjectMenu, setShowProjectMenu] = useState(false);
