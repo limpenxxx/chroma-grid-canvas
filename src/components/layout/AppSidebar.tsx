@@ -78,7 +78,7 @@ export function AppSidebar({ compact = false }: { compact?: boolean }) {
 
   return (
     <>
-    <div className="w-[100px] h-full flex flex-col items-center py-4 border-r border-border/50 bg-[hsl(0_0%_3%)]">
+    <div className={`${compact ? 'w-[60px]' : 'w-[100px]'} h-full flex flex-col items-center py-4 border-r border-border/50 bg-[hsl(0_0%_3%)] transition-all`}>
 
       {/* Nav Items */}
       <nav className="flex-1 flex flex-col gap-1 w-full px-2">
