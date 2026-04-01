@@ -15,15 +15,17 @@ import { LiveDJ } from '@/components/modules/LiveDJ';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-const moduleComponents = {
+const moduleComponents: Record<string, React.ComponentType> = {
   stage: StageBuilder,
   media: MediaServer,
   text: TextOverlays,
   fixtures: FixtureControls,
   nodes: NodeLogic,
   devices: Devices,
-  livedj: LiveDJ,
 };
+
+// Modules that should stay mounted (complex state that must survive navigation)
+const PERSISTENT_MODULES = ['livedj'] as const;
 
 // ── Start Screen ──
 function StartScreen() {
