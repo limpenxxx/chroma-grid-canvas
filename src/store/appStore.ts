@@ -62,7 +62,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'stokio-app-v1',
-      partialize: (s) => ({ userName: s.userName, adminName: s.adminName }),
+      partialize: (s) => ({ userName: s.userName, adminName: s.adminName, layoutMode: s.layoutMode }),
     }
   )
 );
