@@ -4,6 +4,7 @@ import { broadcastState, isSyncingFromRemote, onSyncState, sendMasterDimmer, sen
 
 export type ModuleId = 'stage' | 'media' | 'text' | 'fixtures' | 'nodes' | 'devices' | 'livedj';
 export type UserRole = 'admin' | 'user';
+export type LayoutMode = 'desktop' | 'tablet' | 'mobile';
 
 const USER_MODULES: ModuleId[] = ['media', 'text', 'livedj'];
 
