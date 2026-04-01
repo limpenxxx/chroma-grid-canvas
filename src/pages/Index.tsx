@@ -5,6 +5,7 @@ import stokioLogo from '@/assets/stokio-logo.png';
 import { useAppStore } from '@/store/appStore';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { BottomBar } from '@/components/layout/BottomBar';
+import { MobileNav } from '@/components/layout/MobileNav';
 import { StageBuilder } from '@/components/modules/StageBuilder';
 import { MediaServer } from '@/components/modules/MediaServer';
 import { TextOverlays } from '@/components/modules/TextOverlays';
