@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 type AudioMode = 'none' | 'mic' | 'system';
 
-export function BottomBar() {
+export function BottomBar({ compact = false }: { compact?: boolean }) {
   const { masterDimmer, setMasterDimmer, blackout, toggleBlackout, layoutMode, setLayoutMode } = useAppStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
