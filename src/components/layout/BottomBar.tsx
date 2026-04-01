@@ -198,6 +198,31 @@ export function BottomBar() {
         />
       </div>
 
+      {/* Layout Mode Switcher */}
+      <div className="flex items-center gap-1 border-l border-border/30 pl-4 ml-2">
+        {([
+          { mode: 'desktop' as LayoutMode, icon: MonitorDot, label: 'Desktop' },
+          { mode: 'tablet' as LayoutMode, icon: Tablet, label: 'Tablet' },
+          { mode: 'mobile' as LayoutMode, icon: MonitorSmartphone, label: 'Mobile' },
+        ]).map(({ mode, icon: Icon, label }) => (
+          <Tooltip key={mode}>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setLayoutMode(mode)}
+                className={`p-1.5 rounded-md transition-all ${
+                  layoutMode === mode
+                    ? 'text-primary bg-primary/10 border border-primary/30'
+                    : 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/20'
+                }`}
+              >
+                <Icon size={14} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="glass-panel-strong text-[10px]">{label}</TooltipContent>
+          </Tooltip>
+        ))}
+      </div>
+
       {/* Audio Source Status */}
       <div className="flex items-center gap-2 ml-auto">
         <div className={`w-2 h-2 rounded-full ${audioMode !== 'none' ? 'bg-primary animate-pulse-glow' : 'bg-muted-foreground/30'}`} />
