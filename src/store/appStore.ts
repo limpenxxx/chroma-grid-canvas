@@ -8,6 +8,13 @@ export type LayoutMode = 'desktop' | 'tablet' | 'mobile';
 
 const USER_MODULES: ModuleId[] = ['media', 'text', 'livedj'];
 
+const getDefaultLayoutMode = (): LayoutMode => {
+  if (typeof window === 'undefined') return 'desktop';
+  if (window.innerWidth < 768) return 'mobile';
+  if (window.innerWidth < 1100) return 'tablet';
+  return 'desktop';
+};
+
 interface AppState {
   activeModule: ModuleId;
   setActiveModule: (m: ModuleId) => void;
@@ -26,7 +33,8 @@ interface AppState {
   isModuleAllowed: (m: ModuleId) => boolean;
   // Layout mode
   layoutMode: LayoutMode;
-  setLayoutMode: (m: LayoutMode) => void;
+  hasManualLayoutMode: boolean;
+  setLayoutMode: (m: LayoutMode, options?: { manual?: boolean }) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -57,12 +65,21 @@ export const useAppStore = create<AppState>()(
         if (role === 'admin' || !role) return true;
         return USER_MODULES.includes(m);
       },
-      layoutMode: 'desktop',
-      setLayoutMode: (m) => set({ layoutMode: m }),
+      layoutMode: getDefaultLayoutMode(),
+      hasManualLayoutMode: false,
+      setLayoutMode: (m, options) => set({
+        layoutMode: m,
+        hasManualLayoutMode: options?.manual ?? true,
+      }),
     }),
     {
       name: 'stokio-app-v1',
-      partialize: (s) => ({ userName: s.userName, adminName: s.adminName, layoutMode: s.layoutMode }),
+      partialize: (s) => ({
+        userName: s.userName,
+        adminName: s.adminName,
+        layoutMode: s.layoutMode,
+        hasManualLayoutMode: s.hasManualLayoutMode,
+      }),
     }
   )
 );
