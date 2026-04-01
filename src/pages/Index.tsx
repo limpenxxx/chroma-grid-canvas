@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ImagePlus, Shield, User, Pencil } from 'lucide-react';
 import stokioLogo from '@/assets/stokio-logo.png';
 import { useAppStore } from '@/store/appStore';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { AppSidebar } from '@/components/layout/AppSidebar';
 import { BottomBar } from '@/components/layout/BottomBar';
 import { MobileNav } from '@/components/layout/MobileNav';
