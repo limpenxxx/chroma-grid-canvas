@@ -106,11 +106,13 @@ export function AppSidebar({ compact = false }: { compact?: boolean }) {
                         : 'text-muted-foreground group-hover:text-foreground'
                     }`}
                   />
+                  {!compact && (
                   <span className={`relative z-10 text-[7px] uppercase tracking-wider transition-colors ${
                     isActive ? 'text-primary' : 'text-muted-foreground/50 group-hover:text-muted-foreground'
                   }`}>
                     {item.label.split(' ')[0]}
                   </span>
+                  )}
                 </button>
               </TooltipTrigger>
               <TooltipContent side="right" className="glass-panel-strong">
