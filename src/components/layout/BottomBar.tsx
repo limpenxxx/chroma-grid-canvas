@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import { useAppStore, type LayoutMode } from '@/store/appStore';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Ban, Mic, MicOff, Monitor, MonitorSmartphone, Tablet, MonitorDot } from 'lucide-react';
@@ -9,6 +10,8 @@ type AudioMode = 'none' | 'mic' | 'system';
 
 export function BottomBar({ compact = false }: { compact?: boolean }) {
   const { masterDimmer, setMasterDimmer, blackout, toggleBlackout, layoutMode, setLayoutMode } = useAppStore();
+  const isNarrowViewport = useIsMobile();
+  const compactView = compact || isNarrowViewport;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -142,17 +145,17 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
 
   return (
     <div className={`border-t border-border/50 bg-[hsl(0_0%_3%)] flex items-center ${
-      compact ? 'h-11 px-2 gap-2' : 'h-14 px-4 gap-6'
+      compactView ? 'h-11 px-2 gap-2' : 'h-14 px-4 gap-6'
     }`}>
       {/* Master Dimmer */}
-      <div className={`flex items-center gap-2 shrink-0 ${compact ? 'min-w-0' : 'min-w-[200px] gap-3'}`}>
+      <div className={`flex items-center gap-2 shrink-0 ${compactView ? 'min-w-0' : 'min-w-[200px] gap-3'}`}>
         <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Master</span>
         <Slider
           value={[blackout ? 0 : masterDimmer]}
           onValueChange={([v]) => setMasterDimmer(v)}
           max={100}
           step={1}
-          className={compact ? 'w-14' : 'w-28'}
+          className={compactView ? 'w-14' : 'w-28'}
           disabled={blackout}
         />
         <span className="text-xs font-mono text-primary w-8 text-right">
@@ -160,7 +163,6 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
         </span>
       </div>
 
-      {/* Blackout */}
       <Button
         variant={blackout ? 'destructive' : 'outline'}
         size="sm"
@@ -173,8 +175,7 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
         BO
       </Button>
 
-      {/* Waveform — hidden on compact */}
-      {!compact && (
+      {!compactView && (
         <div className="flex-1 flex items-center gap-2 max-w-md">
           <Button variant="ghost" size="sm" onClick={toggleAudio}
             className={`h-7 w-7 p-0 shrink-0 ${audioMode === 'mic' ? 'text-primary' : 'text-muted-foreground'}`}
@@ -190,11 +191,9 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
         </div>
       )}
 
-      {/* Spacer on compact to push layout switcher right */}
-      {compact && <div className="flex-1" />}
+      {compactView && <div className="flex-1" />}
 
-      {/* Layout Mode Switcher — always visible */}
-      <div className={`flex items-center gap-1 shrink-0 ${!compact ? 'border-l border-border/30 pl-3 ml-2' : ''}`}>
+      <div className={`flex items-center gap-1 shrink-0 ${!compactView ? 'border-l border-border/30 pl-3 ml-2' : ''}`}>
         {([
           { mode: 'desktop' as LayoutMode, icon: MonitorDot, label: 'Desktop' },
           { mode: 'tablet' as LayoutMode, icon: Tablet, label: 'Tablet' },
@@ -216,8 +215,7 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
         ))}
       </div>
 
-      {/* Audio Source Status — hidden on compact */}
-      {!compact && (
+      {!compactView && (
         <div className="flex items-center gap-2 ml-auto">
           <div className={`w-2 h-2 rounded-full ${audioMode !== 'none' ? 'bg-primary animate-pulse-glow' : 'bg-muted-foreground/30'}`} />
           <span className="text-[10px] text-muted-foreground uppercase tracking-wider truncate max-w-[150px]">
