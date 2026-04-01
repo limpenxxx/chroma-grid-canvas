@@ -251,18 +251,26 @@ const Index = () => {
       <div className="flex-1 flex overflow-x-hidden">
         <AppSidebar />
         <main className="flex-1 overflow-auto touch-pan-y touch-pinch-zoom">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeModule}
-              initial={{ opacity: 0, x: 8 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -8 }}
-              transition={{ duration: 0.15 }}
-              className="h-full"
-            >
-              <ActiveComponent />
-            </motion.div>
-          </AnimatePresence>
+          {/* Persistent modules: always mounted, hidden when not active */}
+          <div className={activeModule === 'livedj' ? 'h-full' : 'hidden'}>
+            <LiveDJ />
+          </div>
+
+          {/* Regular modules: mount/unmount on switch */}
+          {activeModule !== 'livedj' && (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeModule}
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.15 }}
+                className="h-full"
+              >
+                {ActiveComponent && <ActiveComponent />}
+              </motion.div>
+            </AnimatePresence>
+          )}
         </main>
       </div>
       <BottomBar />
