@@ -198,9 +198,18 @@ const Index = () => {
   const activeModule = useAppStore((s) => s.activeModule);
   const userRole = useAppStore((s) => s.userRole);
   const layoutMode = useAppStore((s) => s.layoutMode);
+  const hasManualLayoutMode = useAppStore((s) => s.hasManualLayoutMode);
+  const setLayoutMode = useAppStore((s) => s.setLayoutMode);
   const ActiveComponent = moduleComponents[activeModule];
+  const isNarrowViewport = useIsMobile();
   const [venueLogo, setVenueLogo] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!hasManualLayoutMode && isNarrowViewport && layoutMode !== 'mobile') {
+      setLayoutMode('mobile', { manual: false });
+    }
+  }, [hasManualLayoutMode, isNarrowViewport, layoutMode, setLayoutMode]);
 
   const handleVenueUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
