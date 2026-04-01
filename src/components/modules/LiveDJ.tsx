@@ -2091,6 +2091,48 @@ function ScriptEditor({
 
 // ── Storage helpers ──
 const STORAGE_KEY = 'stokio-dj-layouts';
+const AUTOSAVE_KEY = 'stokio-dj-autosave-v1';
+
+interface AutosaveData {
+  pages: LayoutPage[];
+  groups: FixtureGroup[];
+  assignments: FixtureAssignment[];
+  scripts: DJScript[];
+  audioConfig: AudioConfig;
+  activePageId: string;
+}
+
+function loadAutosave(): AutosaveData | null {
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
+function persistAutosave(data: AutosaveData) {
+  try {
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+  } catch {
+    // Quota exceeded — try stripping images
+    try {
+      const stripped: AutosaveData = {
+        ...data,
+        pages: data.pages.map(page => ({
+          ...page,
+          bgImage: page.bgImage && page.bgImage.length > 50000 ? null : page.bgImage,
+          widgets: page.widgets.map(w => ({
+            ...w,
+            bgImage: w.bgImage && w.bgImage.length > 50000 ? null : w.bgImage,
+          })),
+        })),
+      };
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(stripped));
+    } catch {
+      console.warn('Could not autosave LiveDJ: storage quota exceeded');
+    }
+  }
+}
 
 function loadSavedLayouts(): SavedLayout[] {
   try {
@@ -2117,7 +2159,6 @@ function persistLayouts(layouts: SavedLayout[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(layouts));
   } catch {
-    // Quota exceeded — strip large base64 images and retry
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stripLargeImages(layouts)));
     } catch {
@@ -2177,6 +2218,42 @@ function buildWledBrightnessState(target: WledFixture, bri: number) {
 
 // ── Main LIVE DJ Component ──
 
+const DEFAULT_PAGES: LayoutPage[] = [
+  {
+    id: 'page-1', name: 'Main',
+    widgets: [
+      { id: 'w1', type: 'button', label: 'STROBE', x: 20, y: 30, width: 100, height: 100, color: '#ff2d78', flash: true, linkedFixtureIds: [], linkedFunction: 'strobe', lockAxis: 'none' },
+      { id: 'w2', type: 'button', label: 'BLACKOUT', x: 140, y: 30, width: 100, height: 100, color: '#ffffff', flash: true, linkedFixtureIds: [], linkedFunction: 'dimmer', lockAxis: 'none' },
+      { id: 'w3', type: 'slider', label: 'MASTER', x: 260, y: 20, width: 70, height: 200, color: '#00ff66', value: 100, min: 0, max: 100, linkedFixtureIds: [], linkedFunction: 'dimmer', lockAxis: 'none' },
+      { id: 'w4', type: 'color-wheel', label: 'COLOR', x: 350, y: 20, width: 140, height: 140, color: '#00e5ff', colorValue: { r: 255, g: 0, b: 100 }, linkedFixtureIds: [], lockAxis: 'none' },
+      { id: 'w5', type: 'xy-pad', label: 'PAN/TILT', x: 510, y: 20, width: 180, height: 180, color: '#00e5ff', colorValue: { r: 128, g: 128, b: 128 }, linkedFixtureIds: [], lockAxis: 'none' },
+    ],
+  },
+];
+
+const DEFAULT_SCRIPTS: DJScript[] = [
+  {
+    id: 'sc1', name: 'Strobe Sequence', loop: true, linkedFixtureIds: [],
+    steps: [
+      { id: 's1', type: 'set-dimmer', params: { value: 255 }, duration: 100 },
+      { id: 's2', type: 'set-dimmer', params: { value: 0 }, duration: 100 },
+    ],
+  },
+  {
+    id: 'sc2', name: 'Color Chase', loop: true, linkedFixtureIds: [],
+    steps: [
+      { id: 's1', type: 'set-color', params: { color: '#ff0000' }, duration: 500 },
+      { id: 's2', type: 'set-color', params: { color: '#00ff00' }, duration: 500 },
+      { id: 's3', type: 'set-color', params: { color: '#0000ff' }, duration: 500 },
+    ],
+  },
+];
+
+const DEFAULT_AUDIO_CONFIG: AudioConfig = {
+  source: 'none', squelch: 10, gain: 128, udpPort: 11988, wledIp: '',
+  sensitivity: 128, freqLow: 60, freqHigh: 200,
+};
+
 export function LiveDJ() {
   const store = useFixtureStore();
   const wledStore = useWledStore();
@@ -2188,20 +2265,12 @@ export function LiveDJ() {
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
   const [editingPageName, setEditingPageName] = useState('');
 
+  // ── Load from autosave or defaults ──
+  const autosaved = useRef(loadAutosave());
+
   // ── Pages ──
-  const [pages, setPages] = useState<LayoutPage[]>([
-    {
-      id: 'page-1', name: 'Main',
-      widgets: [
-        { id: 'w1', type: 'button', label: 'STROBE', x: 20, y: 30, width: 100, height: 100, color: '#ff2d78', flash: true, linkedFixtureIds: [], linkedFunction: 'strobe', lockAxis: 'none' },
-        { id: 'w2', type: 'button', label: 'BLACKOUT', x: 140, y: 30, width: 100, height: 100, color: '#ffffff', flash: true, linkedFixtureIds: [], linkedFunction: 'dimmer', lockAxis: 'none' },
-        { id: 'w3', type: 'slider', label: 'MASTER', x: 260, y: 20, width: 70, height: 200, color: '#00ff66', value: 100, min: 0, max: 100, linkedFixtureIds: [], linkedFunction: 'dimmer', lockAxis: 'none' },
-        { id: 'w4', type: 'color-wheel', label: 'COLOR', x: 350, y: 20, width: 140, height: 140, color: '#00e5ff', colorValue: { r: 255, g: 0, b: 100 }, linkedFixtureIds: [], lockAxis: 'none' },
-        { id: 'w5', type: 'xy-pad', label: 'PAN/TILT', x: 510, y: 20, width: 180, height: 180, color: '#00e5ff', colorValue: { r: 128, g: 128, b: 128 }, linkedFixtureIds: [], lockAxis: 'none' },
-      ],
-    },
-  ]);
-  const [activePageId, setActivePageId] = useState('page-1');
+  const [pages, setPages] = useState<LayoutPage[]>(() => autosaved.current?.pages || DEFAULT_PAGES);
+  const [activePageId, setActivePageId] = useState(() => autosaved.current?.activePageId || 'page-1');
   const activePage = pages.find(p => p.id === activePageId) || pages[0];
   const widgets = activePage?.widgets || [];
 
@@ -2213,29 +2282,13 @@ export function LiveDJ() {
   };
 
   // ── Groups ──
-  const [groups, setGroups] = useState<FixtureGroup[]>([]);
+  const [groups, setGroups] = useState<FixtureGroup[]>(() => autosaved.current?.groups || []);
 
   // ── Assignments & Scripts ──
   const [assignments, setAssignments] = useState<FixtureAssignment[]>(() =>
-    store.instances.map(inst => ({ instanceId: inst.id, mode: 'buttons' as ControlMode }))
+    autosaved.current?.assignments || store.instances.map(inst => ({ instanceId: inst.id, mode: 'buttons' as ControlMode }))
   );
-  const [scripts, setScripts] = useState<DJScript[]>([
-    {
-      id: 'sc1', name: 'Strobe Sequence', loop: true, linkedFixtureIds: [],
-      steps: [
-        { id: 's1', type: 'set-dimmer', params: { value: 255 }, duration: 100 },
-        { id: 's2', type: 'set-dimmer', params: { value: 0 }, duration: 100 },
-      ],
-    },
-    {
-      id: 'sc2', name: 'Color Chase', loop: true, linkedFixtureIds: [],
-      steps: [
-        { id: 's1', type: 'set-color', params: { color: '#ff0000' }, duration: 500 },
-        { id: 's2', type: 'set-color', params: { color: '#00ff00' }, duration: 500 },
-        { id: 's3', type: 'set-color', params: { color: '#0000ff' }, duration: 500 },
-      ],
-    },
-  ]);
+  const [scripts, setScripts] = useState<DJScript[]>(() => autosaved.current?.scripts || DEFAULT_SCRIPTS);
 
   const [selectedWidget, setSelectedWidget] = useState<string | null>(null);
   const [snapToGrid, setSnapToGrid] = useState(false);
@@ -2252,15 +2305,22 @@ export function LiveDJ() {
   const lastWledSentRef = useRef<Record<string, string>>({});
 
   // ── Audio & BPM ──
-  const [audioConfig, setAudioConfig] = useState<AudioConfig>({
-    source: 'none', squelch: 10, gain: 128, udpPort: 11988, wledIp: '',
-    sensitivity: 128, freqLow: 60, freqHigh: 200,
-  });
+  const [audioConfig, setAudioConfig] = useState<AudioConfig>(() => autosaved.current?.audioConfig || DEFAULT_AUDIO_CONFIG);
   const [bpmState, setBpmState] = useState<BPMState>({
     bpm: 120, tapTimes: [], isSynced: false, linkedWidgetIds: [], flashOn: false,
     bpmMode: 'auto', autoBpm: 0, audioLevel: 0,
     pioneerDecks: {}, pioneerSyncDeck: 0,
   });
+
+  // ── Autosave: debounced persist on state changes ──
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = setTimeout(() => {
+      persistAutosave({ pages, groups, assignments, scripts, audioConfig, activePageId });
+    }, 1000);
+    return () => { if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current); };
+  }, [pages, groups, assignments, scripts, audioConfig, activePageId]);
   const bpmFlashRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleTap = () => {

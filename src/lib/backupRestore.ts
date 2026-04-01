@@ -5,12 +5,18 @@
 
 const BACKUP_VERSION = 1;
 const BACKUP_MAGIC = 'stokio-project-backup';
+const DEFAULT_PROJECT_KEY = 'stokio-default-project';
+const SAVED_PROJECTS_KEY = 'stokio-saved-projects';
 
 // All localStorage keys used by the app
 const PERSIST_KEYS = [
   'stokio-fixtures-v1',
   'stokio-media-v1',
   'stokio-dj-layouts',
+  'stokio-dj-autosave-v1',
+  'stokio-custom-color-presets',
+  'stokio-dmx-mixer-v1',
+  'stokio-app-v1',
   'sflc-node-logic-v2',
 ];
 
@@ -20,6 +26,14 @@ export interface StokioBackup {
   _createdAt: string;
   _appVersion: string;
   stores: Record<string, unknown>;
+}
+
+export interface SavedProject {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  data: StokioBackup;
 }
 
 /** Export full project state as JSON string */
@@ -48,12 +62,135 @@ export function importFullBackup(json: string): string | null {
     if (data._magic !== BACKUP_MAGIC) return 'Not a valid STOKIO backup file.';
     if (!data.stores || typeof data.stores !== 'object') return 'Backup data is corrupted.';
 
+    // Clear existing state first
+    for (const key of PERSIST_KEYS) {
+      localStorage.removeItem(key);
+    }
+
     for (const [key, value] of Object.entries(data.stores)) {
       localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
     }
     return null; // success
   } catch {
     return 'Failed to parse backup file.';
+  }
+}
+
+/** Create a backup object from current state */
+function createBackupObject(): StokioBackup {
+  const stores: Record<string, unknown> = {};
+  for (const key of PERSIST_KEYS) {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      try { stores[key] = JSON.parse(raw); } catch { stores[key] = raw; }
+    }
+  }
+  return {
+    _magic: BACKUP_MAGIC,
+    _version: BACKUP_VERSION,
+    _createdAt: new Date().toISOString(),
+    _appVersion: 'v0.1',
+    stores,
+  };
+}
+
+/** Restore a backup object into localStorage */
+function restoreBackupObject(data: StokioBackup) {
+  for (const key of PERSIST_KEYS) {
+    localStorage.removeItem(key);
+  }
+  for (const [key, value] of Object.entries(data.stores)) {
+    localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+  }
+}
+
+// ── Saved Projects Management ──
+
+export function getSavedProjects(): SavedProject[] {
+  try {
+    const raw = localStorage.getItem(SAVED_PROJECTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function persistSavedProjects(projects: SavedProject[]) {
+  try {
+    localStorage.setItem(SAVED_PROJECTS_KEY, JSON.stringify(projects));
+  } catch {
+    console.warn('Could not save projects list: quota exceeded');
+  }
+}
+
+/** Save current state as a named project */
+export function saveProject(name: string): SavedProject {
+  const projects = getSavedProjects();
+  const now = new Date().toISOString();
+  
+  // Check if project with same name exists — overwrite it
+  const existingIdx = projects.findIndex(p => p.name === name);
+  const project: SavedProject = {
+    id: existingIdx >= 0 ? projects[existingIdx].id : `proj-${Date.now()}`,
+    name,
+    createdAt: existingIdx >= 0 ? projects[existingIdx].createdAt : now,
+    updatedAt: now,
+    data: createBackupObject(),
+  };
+
+  if (existingIdx >= 0) {
+    projects[existingIdx] = project;
+  } else {
+    projects.push(project);
+  }
+  persistSavedProjects(projects);
+  return project;
+}
+
+/** Load a saved project (returns error or null) */
+export function loadProject(id: string): string | null {
+  const projects = getSavedProjects();
+  const project = projects.find(p => p.id === id);
+  if (!project) return 'Project not found.';
+  restoreBackupObject(project.data);
+  return null;
+}
+
+/** Delete a saved project */
+export function deleteProject(id: string) {
+  const projects = getSavedProjects().filter(p => p.id !== id);
+  persistSavedProjects(projects);
+}
+
+/** Save current state as the default project (loaded on startup) */
+export function saveAsDefault() {
+  const backup = createBackupObject();
+  try {
+    localStorage.setItem(DEFAULT_PROJECT_KEY, JSON.stringify(backup));
+  } catch {
+    console.warn('Could not save default project: quota exceeded');
+  }
+}
+
+/** Load the default project if one exists (returns true if loaded) */
+export function loadDefaultProject(): boolean {
+  try {
+    const raw = localStorage.getItem(DEFAULT_PROJECT_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw) as StokioBackup;
+    if (data._magic !== BACKUP_MAGIC) return false;
+    restoreBackupObject(data);
+    return true;
+  } catch { return false; }
+}
+
+/** Check if a default project is saved */
+export function hasDefaultProject(): boolean {
+  return localStorage.getItem(DEFAULT_PROJECT_KEY) !== null;
+}
+
+/** Clear all project state (new project) */
+export function clearAllState() {
+  for (const key of PERSIST_KEYS) {
+    localStorage.removeItem(key);
   }
 }
 
