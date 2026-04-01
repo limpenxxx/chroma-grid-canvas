@@ -57,6 +57,8 @@ export const useAppStore = create<AppState>()(
         if (role === 'admin' || !role) return true;
         return USER_MODULES.includes(m);
       },
+      layoutMode: 'desktop',
+      setLayoutMode: (m) => set({ layoutMode: m }),
     }),
     {
       name: 'stokio-app-v1',
