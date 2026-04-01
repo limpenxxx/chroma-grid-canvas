@@ -1,8 +1,9 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
-import { useAppStore } from '@/store/appStore';
+import { useAppStore, type LayoutMode } from '@/store/appStore';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
-import { Ban, Mic, MicOff, Monitor } from 'lucide-react';
+import { Ban, Mic, MicOff, Monitor, MonitorSmartphone, Tablet, MonitorDot } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 type AudioMode = 'none' | 'mic' | 'system';
 
