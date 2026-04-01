@@ -141,16 +141,18 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
   }, [drawWaveform]);
 
   return (
-    <div className="h-14 border-t border-border/50 bg-[hsl(0_0%_3%)] flex items-center px-4 gap-6">
+    <div className={`border-t border-border/50 bg-[hsl(0_0%_3%)] flex items-center gap-3 ${
+      compact ? 'h-11 px-2' : 'h-14 px-4 gap-6'
+    }`}>
       {/* Master Dimmer */}
-      <div className="flex items-center gap-3 min-w-[200px]">
+      <div className={`flex items-center gap-2 ${compact ? 'min-w-[140px]' : 'min-w-[200px] gap-3'}`}>
         <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium">Master</span>
         <Slider
           value={[blackout ? 0 : masterDimmer]}
           onValueChange={([v]) => setMasterDimmer(v)}
           max={100}
           step={1}
-          className="w-28"
+          className={compact ? 'w-16' : 'w-28'}
           disabled={blackout}
         />
         <span className="text-xs font-mono text-primary w-8 text-right">
@@ -171,35 +173,25 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
         BO
       </Button>
 
-      {/* Waveform */}
-      <div className="flex-1 flex items-center gap-2 max-w-md">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={toggleAudio}
-          className={`h-7 w-7 p-0 shrink-0 ${audioMode === 'mic' ? 'text-primary' : 'text-muted-foreground'}`}
-          title="Microphone"
-        >
-          {audioMode === 'mic' ? <Mic size={14} /> : <MicOff size={14} />}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={startSystemAudio}
-          className={`h-7 w-7 p-0 shrink-0 ${audioMode === 'system' ? 'text-primary' : 'text-muted-foreground'}`}
-          title="System Audio (Chrome, Spotify, etc.)"
-        >
-          <Monitor size={14} />
-        </Button>
-        <canvas
-          ref={canvasRef}
-          className="w-full h-8 rounded"
-          style={{ imageRendering: 'auto' }}
-        />
-      </div>
+      {/* Waveform — hidden on mobile */}
+      {!compact && (
+        <div className="flex-1 flex items-center gap-2 max-w-md">
+          <Button variant="ghost" size="sm" onClick={toggleAudio}
+            className={`h-7 w-7 p-0 shrink-0 ${audioMode === 'mic' ? 'text-primary' : 'text-muted-foreground'}`}
+            title="Microphone">
+            {audioMode === 'mic' ? <Mic size={14} /> : <MicOff size={14} />}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={startSystemAudio}
+            className={`h-7 w-7 p-0 shrink-0 ${audioMode === 'system' ? 'text-primary' : 'text-muted-foreground'}`}
+            title="System Audio">
+            <Monitor size={14} />
+          </Button>
+          <canvas ref={canvasRef} className="w-full h-8 rounded" style={{ imageRendering: 'auto' }} />
+        </div>
+      )}
 
       {/* Layout Mode Switcher */}
-      <div className="flex items-center gap-1 border-l border-border/30 pl-4 ml-2">
+      <div className={`flex items-center gap-1 border-l border-border/30 pl-3 ${compact ? 'ml-auto' : 'ml-2'}`}>
         {([
           { mode: 'desktop' as LayoutMode, icon: MonitorDot, label: 'Desktop' },
           { mode: 'tablet' as LayoutMode, icon: Tablet, label: 'Tablet' },
@@ -207,14 +199,12 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
         ]).map(({ mode, icon: Icon, label }) => (
           <Tooltip key={mode}>
             <TooltipTrigger asChild>
-              <button
-                onClick={() => setLayoutMode(mode)}
+              <button onClick={() => setLayoutMode(mode)}
                 className={`p-1.5 rounded-md transition-all ${
                   layoutMode === mode
                     ? 'text-primary bg-primary/10 border border-primary/30'
                     : 'text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/20'
-                }`}
-              >
+                }`}>
                 <Icon size={14} />
               </button>
             </TooltipTrigger>
@@ -223,13 +213,15 @@ export function BottomBar({ compact = false }: { compact?: boolean }) {
         ))}
       </div>
 
-      {/* Audio Source Status */}
-      <div className="flex items-center gap-2 ml-auto">
-        <div className={`w-2 h-2 rounded-full ${audioMode !== 'none' ? 'bg-primary animate-pulse-glow' : 'bg-muted-foreground/30'}`} />
-        <span className="text-[10px] text-muted-foreground uppercase tracking-wider truncate max-w-[150px]">
-          {sourceName}
-        </span>
-      </div>
+      {/* Audio Source Status — hidden on mobile */}
+      {!compact && (
+        <div className="flex items-center gap-2 ml-auto">
+          <div className={`w-2 h-2 rounded-full ${audioMode !== 'none' ? 'bg-primary animate-pulse-glow' : 'bg-muted-foreground/30'}`} />
+          <span className="text-[10px] text-muted-foreground uppercase tracking-wider truncate max-w-[150px]">
+            {sourceName}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
