@@ -855,34 +855,105 @@ export class AudioVisualizerEngine {
   }
 
   private renderMatrix(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, t: number) {
-    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    // Stronger trail on bass hits — flash effect
+    const fadeAlpha = Math.max(0.04, 0.12 - bass * 0.08);
+    ctx.fillStyle = `rgba(0,0,0,${fadeAlpha})`;
     ctx.fillRect(0, 0, w, h);
+
+    const hasAudio = energy > 0.01;
+    const mid = this.freqData.length > 0
+      ? Array.from(this.freqData.slice(20, 80)).reduce((a, b) => a + b, 0) / (60 * 255) * this._sensitivity
+      : 0;
+    const treble = this.freqData.length > 0
+      ? Array.from(this.freqData.slice(80, 160)).reduce((a, b) => a + b, 0) / (80 * 255) * this._sensitivity
+      : 0;
+
     const colW = 14;
     const cols = Math.floor(w / colW);
-    if (this.matrixDrops.length === 0) {
+    // Re-init drops if canvas size changed
+    if (this.matrixDrops.length !== cols) {
+      this.matrixDrops = [];
       for (let i = 0; i < cols; i++) {
         this.matrixDrops.push({
           x: i * colW, y: Math.random() * h,
           speed: 2 + Math.random() * 4,
-          chars: Array.from({ length: 20 }, () => String.fromCharCode(0x30A0 + Math.random() * 96)),
+          chars: Array.from({ length: 25 }, () => String.fromCharCode(0x30A0 + Math.random() * 96)),
         });
       }
     }
-    ctx.font = '12px monospace';
-    this.matrixDrops.forEach(drop => {
-      drop.y += drop.speed * (1 + energy * 2);
-      if (drop.y > h + 200) { drop.y = -200; drop.speed = 2 + Math.random() * 4; }
-      drop.chars.forEach((ch, i) => {
-        const cy = drop.y - i * 14;
-        if (cy < 0 || cy > h) return;
-        const alpha = i === 0 ? 1 : Math.max(0, 1 - i * 0.06);
-        const lightness = i === 0 ? 80 : 45;
-        ctx.fillStyle = `hsla(120, 100%, ${lightness}%, ${alpha})`;
-        if (i === 0) { ctx.shadowColor = '#00ff44'; ctx.shadowBlur = 8; }
-        ctx.fillText(Math.random() > 0.95 ? String.fromCharCode(0x30A0 + Math.random() * 96) : ch, drop.x, cy);
-        if (i === 0) ctx.shadowBlur = 0;
-      });
+
+    // Font size pulses with bass
+    const fontSize = hasAudio ? Math.floor(12 + bass * 4) : 12;
+    ctx.font = `${fontSize}px monospace`;
+
+    // Hue shifts with audio — green base, shifts toward cyan on treble, yellow on bass
+    const baseHue = hasAudio ? 120 + (treble - bass) * 30 : 120;
+
+    this.matrixDrops.forEach((drop, di) => {
+      // Per-column frequency mapping for speed
+      const freqIdx = Math.floor((di / cols) * Math.min(this.freqData.length, 128));
+      const colFreq = this.freqData.length > 0
+        ? (this.freqData[freqIdx] || 0) / 255 * this._sensitivity
+        : 0;
+
+      // Speed: base + audio reactivity
+      const speedMul = hasAudio ? 1 + energy * 3 + colFreq * 2 : 1;
+      drop.y += drop.speed * speedMul;
+      if (drop.y > h + 300) {
+        drop.y = -200 - Math.random() * 200;
+        drop.speed = 2 + Math.random() * 4;
+      }
+
+      // Trail length varies with energy
+      const trailLen = hasAudio ? Math.floor(15 + energy * 15) : 20;
+
+      for (let i = 0; i < Math.min(drop.chars.length, trailLen); i++) {
+        const cy = drop.y - i * (fontSize + 2);
+        if (cy < -20 || cy > h + 20) continue;
+
+        const isHead = i === 0;
+        const alpha = isHead ? 1 : Math.max(0, 1 - i / trailLen);
+
+        // Brightness reacts to column frequency
+        const lightBase = isHead ? 85 : 40;
+        const lightBoost = hasAudio ? colFreq * 20 : 0;
+        const lightness = Math.min(95, lightBase + lightBoost);
+        const sat = hasAudio ? 100 : 90;
+
+        ctx.fillStyle = `hsla(${baseHue}, ${sat}%, ${lightness}%, ${alpha})`;
+
+        // Head glow — stronger on bass
+        if (isHead) {
+          const glowStr = hasAudio ? 10 + bass * 25 : 8;
+          ctx.shadowColor = `hsl(${baseHue}, 100%, 60%)`;
+          ctx.shadowBlur = glowStr;
+        }
+
+        // Randomize chars more frequently on audio hits
+        const flickerChance = hasAudio ? 0.85 - energy * 0.3 : 0.95;
+        const ch = Math.random() > flickerChance
+          ? String.fromCharCode(0x30A0 + Math.random() * 96)
+          : drop.chars[i];
+        ctx.fillText(ch, drop.x, cy);
+
+        if (isHead) ctx.shadowBlur = 0;
+      }
     });
+
+    // Bass flash overlay
+    if (hasAudio && bass > 0.7) {
+      ctx.fillStyle = `rgba(0, 255, 60, ${(bass - 0.7) * 0.15})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+
+    // Scanline effect
+    ctx.strokeStyle = 'rgba(0,255,50,0.03)';
+    ctx.lineWidth = 1;
+    const scanY = (t * 120) % (h + 40) - 20;
+    ctx.beginPath();
+    ctx.moveTo(0, scanY);
+    ctx.lineTo(w, scanY);
+    ctx.stroke();
   }
 
   private renderDisco(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, treble: number, t: number) {
