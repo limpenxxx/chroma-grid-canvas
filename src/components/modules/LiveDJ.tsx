@@ -5260,6 +5260,13 @@ export function LiveDJ() {
           )}
         </div>
       )}
+
+      {/* ── MIXER TAB ── */}
+      {tab === 'mixer' && (
+        <div className="flex-1 overflow-y-auto">
+          <DmxMixer />
+        </div>
+      )}
     </motion.div>
   );
 }
