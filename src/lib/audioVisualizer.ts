@@ -1696,35 +1696,67 @@ export class AudioVisualizerEngine {
     ctx.fillStyle = '#3a2a18';
     ctx.fillRect(0, barY, w, p);
 
-    // === BARTENDER (bald, happy) ===
-    const btX = w * 0.5;
+    // === BARTENDER (bald, happy, running around serving beer) ===
+    // Bartender moves along the bar, audio-reactive speed
+    const btSpeed = hasAudio ? 1 + bass * 2 : 0.5;
+    const btCycle = (t * btSpeed * 0.3) % 2; // 0-1 going right, 1-2 going left
+    const btDir = btCycle < 1 ? 1 : -1;
+    const btProgress = btCycle < 1 ? btCycle : 2 - btCycle;
+    const btMinX = w * 0.15;
+    const btMaxX = w * 0.75;
+    const btX = btMinX + btProgress * (btMaxX - btMinX);
     const btY = barY - p * 16;
+    const legAnim = Math.floor(t * (hasAudio ? 12 : 5)) % 2; // leg animation frame
+    // Legs (running)
+    ctx.fillStyle = '#333';
+    if (legAnim === 0) {
+      ctx.fillRect(btX + p, btY + p * 14, p * 2, p * 2);
+      ctx.fillRect(btX + p * 3, btY + p * 15, p * 2, p);
+    } else {
+      ctx.fillRect(btX + p * 3, btY + p * 14, p * 2, p * 2);
+      ctx.fillRect(btX + p, btY + p * 15, p * 2, p);
+    }
+    // Body (apron)
+    ctx.fillStyle = '#eee';
+    ctx.fillRect(btX - p, btY + p * 6, p * 8, p * 8);
     // Head (bald, skin tone)
     ctx.fillStyle = '#e8c090';
     ctx.fillRect(btX, btY, p * 6, p * 6);
     // Shiny bald top
     ctx.fillStyle = '#f0d0a0';
     ctx.fillRect(btX + p, btY, p * 4, p * 2);
-    // Eyes
+    // Eyes (looking in movement direction)
     ctx.fillStyle = '#222';
-    ctx.fillRect(btX + p, btY + p * 2, p, p);
-    ctx.fillRect(btX + p * 4, btY + p * 2, p, p);
+    const eyeOff = btDir > 0 ? p : 0;
+    ctx.fillRect(btX + p + eyeOff, btY + p * 2, p, p);
+    ctx.fillRect(btX + p * 3 + eyeOff, btY + p * 2, p, p);
     // Big smile
     ctx.fillStyle = '#c0392b';
     ctx.fillRect(btX + p, btY + p * 4, p * 4, p);
     ctx.fillStyle = '#fff';
     ctx.fillRect(btX + p * 2, btY + p * 4, p * 2, p);
-    // Body (apron)
-    ctx.fillStyle = '#eee';
-    ctx.fillRect(btX - p, btY + p * 6, p * 8, p * 10);
-    // Arms (shaking drinks on beat)
-    const armOffset = hasAudio ? Math.floor(Math.sin(t * 8) * 2) * p : 0;
+    // Arms (carrying beer, bouncing)
+    const armBounce = Math.floor(Math.sin(t * 8) * 1.5) * p;
     ctx.fillStyle = '#e8c090';
-    ctx.fillRect(btX - p * 3, btY + p * 7 + armOffset, p * 2, p * 4);
-    ctx.fillRect(btX + p * 7, btY + p * 7 - armOffset, p * 2, p * 4);
-    // Shaker in hand
-    ctx.fillStyle = '#aaa';
-    ctx.fillRect(btX + p * 7, btY + p * 5 - armOffset, p * 2, p * 3);
+    // Back arm
+    ctx.fillRect(btX + (btDir > 0 ? -p * 2 : p * 6), btY + p * 7 + armBounce, p * 2, p * 4);
+    // Front arm (holding beer up)
+    const beerArmX = btX + (btDir > 0 ? p * 6 : -p * 2);
+    ctx.fillRect(beerArmX, btY + p * 4 - armBounce, p * 2, p * 4);
+    // Beer glass held high
+    ctx.fillStyle = 'hsla(45, 90%, 55%, 0.8)';
+    ctx.fillRect(beerArmX - p, btY + p * 2 - armBounce, p * 4, p * 3);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(beerArmX - p, btY + p - armBounce, p * 4, p); // foam
+    // Beer splash particles on beat
+    if (hasAudio && bass > 0.5) {
+      ctx.fillStyle = 'hsla(45, 90%, 60%, 0.6)';
+      for (let sp = 0; sp < 3; sp++) {
+        const spx = beerArmX + ((t * 20 + sp * 7) % 6 - 3) * p;
+        const spy = btY - armBounce + ((t * 15 + sp * 11) % 4) * p;
+        ctx.fillRect(Math.floor(spx / p) * p, Math.floor(spy / p) * p, p, p);
+      }
+    }
 
     // === LARGE CLOCK on wall (center) ===
     const clockCX = w * 0.5;
