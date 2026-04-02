@@ -5167,16 +5167,18 @@ export function LiveDJ() {
                           const fixture = allFixturesWithDefs.find(f => f.inst.id === zone.fixtureId);
                           if (!fixture) return;
                           const uni = fixture.inst.universe || 1;
-                          const startCh = fixture.inst.startChannel || 1;
+                          const startCh = fixture.inst.dmxAddress || 1;
+                          const mode = fixture.def.modes.find(m => m.id === fixture.inst.modeId) || fixture.def.modes[0];
+                          const chs = mode?.channels || [];
 
                           if (zone.action === 'dimmer') {
                             const min = zone.dimmerMin ?? 0;
                             const max = zone.dimmerMax ?? 255;
                             const val = Math.round(min + energy * (max - min));
-                            const dimCh = fixture.def.channels.findIndex(c => c.type === 'dimmer');
+                            const dimCh = chs.findIndex(c => c.function === 'dimmer');
                             if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, val);
                           } else if (zone.action === 'strobe') {
-                            const strobeCh = fixture.def.channels.findIndex(c => c.type === 'strobe');
+                            const strobeCh = chs.findIndex(c => c.function === 'strobe');
                             if (strobeCh >= 0) sendDmxChannel(uni, startCh + strobeCh, 255);
                             setTimeout(() => {
                               if (strobeCh >= 0) sendDmxChannel(uni, startCh + strobeCh, 0);
@@ -5184,15 +5186,14 @@ export function LiveDJ() {
                           } else if (zone.action === 'mh-position') {
                             const posA = zone.posA || { pan: 0, tilt: 0 };
                             const posB = zone.posB || { pan: 128, tilt: 128 };
-                            const panCh = fixture.def.channels.findIndex(c => c.type === 'pan');
-                            const tiltCh = fixture.def.channels.findIndex(c => c.type === 'tilt');
-                            // Toggle between positions
+                            const panCh = chs.findIndex(c => c.function === 'pan');
+                            const tiltCh = chs.findIndex(c => c.function === 'tilt');
                             const useB = Math.random() > 0.5;
                             const pos = useB ? posB : posA;
                             if (panCh >= 0) sendDmxChannel(uni, startCh + panCh, pos.pan);
                             if (tiltCh >= 0) sendDmxChannel(uni, startCh + tiltCh, pos.tilt);
                           } else if (zone.action === 'on-off') {
-                            const dimCh = fixture.def.channels.findIndex(c => c.type === 'dimmer');
+                            const dimCh = chs.findIndex(c => c.function === 'dimmer');
                             if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, 255);
                             setTimeout(() => {
                               if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, 0);
