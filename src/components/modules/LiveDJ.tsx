@@ -8,6 +8,7 @@ import {
   Bookmark, Settings2, CircleDot, Maximize2, Minimize2, Film, Copy, Grid3X3
 } from 'lucide-react';
 import { AudioVisualizerEngine, PRESET_LABELS, type VisualizerPreset } from '@/lib/audioVisualizer';
+import { DmxMixer } from './DmxMixer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
@@ -300,7 +301,7 @@ interface SavedLayout {
   audioConfig: AudioConfig;
 }
 
-type Tab = 'controller' | 'assignments' | 'scripts' | 'groups';
+type Tab = 'controller' | 'assignments' | 'scripts' | 'groups' | 'mixer';
 
 const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: number; h: number }[] = [
   { type: 'button', label: 'Flash Button', icon: Zap, w: 100, h: 100 },
@@ -3302,6 +3303,7 @@ export function LiveDJ() {
           <div className="flex gap-1">
             {([
               { id: 'controller' as Tab, label: '🎛 Controller' },
+              { id: 'mixer' as Tab, label: '🎚️ DMX Mixer' },
               { id: 'assignments' as Tab, label: '📡 Assign' },
               { id: 'groups' as Tab, label: '👥 Groups' },
               { id: 'scripts' as Tab, label: '📜 Scripts' },
@@ -5256,6 +5258,13 @@ export function LiveDJ() {
               <span className="text-[10px] text-muted-foreground/50 mt-1">Create a script to automate fixture sequences</span>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── MIXER TAB ── */}
+      {tab === 'mixer' && (
+        <div className="flex-1 overflow-y-auto">
+          <DmxMixer />
         </div>
       )}
     </motion.div>

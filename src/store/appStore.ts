@@ -6,7 +6,7 @@ export type ModuleId = 'stage' | 'media' | 'text' | 'fixtures' | 'nodes' | 'devi
 export type UserRole = 'admin' | 'user';
 export type LayoutMode = 'desktop' | 'tablet' | 'mobile';
 
-const USER_MODULES: ModuleId[] = ['media', 'text', 'livedj'];
+const USER_MODULES: ModuleId[] = ['media', 'text', 'livedj', 'stage'];
 
 const getDefaultLayoutMode = (): LayoutMode => {
   if (typeof window === 'undefined') return 'desktop';
