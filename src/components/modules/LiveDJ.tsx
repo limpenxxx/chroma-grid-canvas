@@ -3639,6 +3639,16 @@ export function LiveDJ() {
                   handleTap={handleTap}
                   setBpmState={setBpmState}
                   setAudioConfig={setAudioConfig}
+                  analyserNode={(() => {
+                    if (audioConfig.source === 'browser-mic') return micBpmRef.current?.analyser || null;
+                    if (audioConfig.source === 'system-audio') return sysAudioRef.current?.analyser || null;
+                    return null;
+                  })()}
+                  sampleRate={(() => {
+                    if (audioConfig.source === 'browser-mic') return micBpmRef.current?.ctx?.sampleRate || 44100;
+                    if (audioConfig.source === 'system-audio') return sysAudioRef.current?.ctx?.sampleRate || 44100;
+                    return 44100;
+                  })()}
                 />
               ))}
 
