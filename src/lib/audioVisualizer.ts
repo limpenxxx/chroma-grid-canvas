@@ -2067,9 +2067,30 @@ export class AudioVisualizerEngine {
     ctx.fillStyle = '#3a2815';
     ctx.fillRect(0, barY, w, p);
 
-    // === BARTENDER (bald, smiling, bigger) ===
-    const btX = w * 0.42;
+    // === BARTENDER (bald, smiling, running around serving beer) ===
+    const btSpeed2 = hasAudio ? 1 + bass * 2.5 : 0.4;
+    const btCycle2 = (t * btSpeed2 * 0.25) % 2;
+    const btDir2 = btCycle2 < 1 ? 1 : -1;
+    const btProg2 = btCycle2 < 1 ? btCycle2 : 2 - btCycle2;
+    const btMinX2 = w * 0.08;
+    const btMaxX2 = w * 0.6;
+    const btX = btMinX2 + btProg2 * (btMaxX2 - btMinX2);
     const btY = barY - p * 18;
+    const legFrame = Math.floor(t * (hasAudio ? 14 : 6)) % 2;
+    // Legs (running)
+    ctx.fillStyle = '#333';
+    if (legFrame === 0) {
+      ctx.fillRect(btX + p * 2, btY + p * 16, p * 2, p * 2);
+      ctx.fillRect(btX + p * 4, btY + p * 17, p * 2, p);
+    } else {
+      ctx.fillRect(btX + p * 4, btY + p * 16, p * 2, p * 2);
+      ctx.fillRect(btX + p * 2, btY + p * 17, p * 2, p);
+    }
+    // Body/apron
+    ctx.fillStyle = '#eee';
+    ctx.fillRect(btX - p, btY + p * 7, p * 10, p * 9);
+    ctx.fillStyle = '#ddd';
+    ctx.fillRect(btX + p * 3, btY + p * 8, p * 2, p * 7);
     // Head
     ctx.fillStyle = '#e8c090';
     ctx.fillRect(btX, btY, p * 8, p * 7);
@@ -2078,10 +2099,11 @@ export class AudioVisualizerEngine {
     ctx.fillRect(btX + p, btY, p * 6, p * 2);
     ctx.fillStyle = '#fce5c0';
     ctx.fillRect(btX + p * 2, btY - p, p * 4, p);
-    // Eyes (happy squint)
+    // Eyes (looking in direction)
     ctx.fillStyle = '#222';
-    ctx.fillRect(btX + p * 2, btY + p * 3, p, p);
-    ctx.fillRect(btX + p * 5, btY + p * 3, p, p);
+    const eyeOff2 = btDir2 > 0 ? p : 0;
+    ctx.fillRect(btX + p * 2 + eyeOff2, btY + p * 3, p, p);
+    ctx.fillRect(btX + p * 4 + eyeOff2, btY + p * 3, p, p);
     // Rosy cheeks
     ctx.fillStyle = 'hsla(0, 60%, 65%, 0.4)';
     ctx.fillRect(btX + p, btY + p * 4, p, p);
@@ -2091,21 +2113,26 @@ export class AudioVisualizerEngine {
     ctx.fillRect(btX + p * 2, btY + p * 5, p * 4, p);
     ctx.fillStyle = '#fff';
     ctx.fillRect(btX + p * 3, btY + p * 5, p * 2, p);
-    // Body/apron
-    ctx.fillStyle = '#eee';
-    ctx.fillRect(btX - p, btY + p * 7, p * 10, p * 11);
-    ctx.fillStyle = '#ddd';
-    ctx.fillRect(btX + p * 3, btY + p * 8, p * 2, p * 8);
-    // Arms
-    const armBob = hasAudio ? Math.floor(Math.sin(t * 10) * 2) * p : 0;
+    // Arms (carrying beer)
+    const armBob2 = Math.floor(Math.sin(t * 9) * 1.5) * p;
     ctx.fillStyle = '#e8c090';
-    ctx.fillRect(btX - p * 3, btY + p * 8 + armBob, p * 2, p * 5);
-    ctx.fillRect(btX + p * 9, btY + p * 8 - armBob, p * 2, p * 5);
-    // Beer glass in hand
-    ctx.fillStyle = 'hsla(45, 80%, 55%, 0.7)';
-    ctx.fillRect(btX + p * 9, btY + p * 6 - armBob, p * 3, p * 3);
+    ctx.fillRect(btX + (btDir2 > 0 ? -p * 2 : p * 8), btY + p * 8 + armBob2, p * 2, p * 5);
+    const beerArmX2 = btX + (btDir2 > 0 ? p * 8 : -p * 2);
+    ctx.fillRect(beerArmX2, btY + p * 5 - armBob2, p * 2, p * 4);
+    // Beer glass held high
+    ctx.fillStyle = 'hsla(45, 80%, 55%, 0.8)';
+    ctx.fillRect(beerArmX2 - p, btY + p * 3 - armBob2, p * 4, p * 3);
     ctx.fillStyle = '#fff';
-    ctx.fillRect(btX + p * 9, btY + p * 5 - armBob, p * 3, p);
+    ctx.fillRect(beerArmX2 - p, btY + p * 2 - armBob2, p * 4, p); // foam
+    // Beer splash on beat
+    if (hasAudio && bass > 0.45) {
+      ctx.fillStyle = 'hsla(45, 90%, 60%, 0.5)';
+      for (let sp = 0; sp < 4; sp++) {
+        const spx = beerArmX2 + ((t * 22 + sp * 9) % 8 - 4) * p;
+        const spy = btY + p - armBob2 + ((t * 17 + sp * 13) % 5) * p;
+        ctx.fillRect(Math.floor(spx / p) * p, Math.floor(spy / p) * p, p, p);
+      }
+    }
 
     // === DJ BOOTH (right side) ===
     const djX = w * 0.68;
