@@ -36,7 +36,11 @@ export type VisualizerPreset =
   | 'retro-grid-5'
   | 'dna-helix'
   | 'starburst'
-  | 'glitch-wave';
+  | 'glitch-wave'
+  | 'pixel-matrix'
+  | 'pixel-matrix-idle'
+  | 'retro-arcade'
+  | 'retro-arcade-idle';
 
 export type AudioInputSource = 'microphone' | 'system-audio' | 'audio-interface';
 
