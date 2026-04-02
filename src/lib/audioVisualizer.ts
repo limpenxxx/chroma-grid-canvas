@@ -1698,8 +1698,8 @@ export class AudioVisualizerEngine {
 
     // === BARTENDER (bald, happy, running around serving beer) ===
     // Bartender moves along the bar, audio-reactive speed
-    const btSpeed = hasAudio ? 1 + bass * 2 : 0.5;
-    const btCycle = (t * btSpeed * 0.3) % 2; // 0-1 going right, 1-2 going left
+    const btSpeed = hasAudio ? 0.4 + bass * 0.8 : 0.2;
+    const btCycle = (t * btSpeed * 0.15) % 2; // 0-1 going right, 1-2 going left
     const btDir = btCycle < 1 ? 1 : -1;
     const btProgress = btCycle < 1 ? btCycle : 2 - btCycle;
     const btMinX = w * 0.15;
