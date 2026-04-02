@@ -40,7 +40,9 @@ export type VisualizerPreset =
   | 'pixel-matrix'
   | 'pixel-matrix-idle'
   | 'retro-arcade'
-  | 'retro-arcade-idle';
+  | 'retro-arcade-idle'
+  | 'timebar-arcade'
+  | 'timebar-arcade-2';
 
 export type AudioInputSource = 'microphone' | 'system-audio' | 'audio-interface';
 
