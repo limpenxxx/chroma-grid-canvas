@@ -471,7 +471,67 @@ export function EqTriggerWidget({
                     </div>
                   )}
 
-                  {/* Color zone */}
+                  {/* Color Flash params (idle → trigger) */}
+                  {(zone.action === 'color-flash' || zone.action === 'color') && (
+                    <div className="space-y-1.5 border-t border-border/20 pt-1">
+                      <span className="text-[7px] text-muted-foreground uppercase font-semibold">🎨 Idle → Trigger Colors</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[7px] text-muted-foreground uppercase">Idle (BG)</span>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <input type="color"
+                              value={`#${(zone.idleColor?.r ?? 0).toString(16).padStart(2,'0')}${(zone.idleColor?.g ?? 0).toString(16).padStart(2,'0')}${(zone.idleColor?.b ?? 0).toString(16).padStart(2,'0')}`}
+                              onChange={e => {
+                                const hex = e.target.value;
+                                updateZone(zone.id, { idleColor: { r: parseInt(hex.slice(1,3),16), g: parseInt(hex.slice(3,5),16), b: parseInt(hex.slice(5,7),16) } });
+                              }}
+                              onClick={e => e.stopPropagation()}
+                              className="w-8 h-5 rounded border border-border/30 cursor-pointer bg-transparent" />
+                            <span className="text-[7px] font-mono text-muted-foreground">
+                              {zone.idleColor ? `${zone.idleColor.r},${zone.idleColor.g},${zone.idleColor.b}` : '0,0,0'}
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-[7px] text-muted-foreground uppercase">Trigger</span>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <input type="color"
+                              value={`#${(zone.triggerColor?.r ?? 255).toString(16).padStart(2,'0')}${(zone.triggerColor?.g ?? 255).toString(16).padStart(2,'0')}${(zone.triggerColor?.b ?? 255).toString(16).padStart(2,'0')}`}
+                              onChange={e => {
+                                const hex = e.target.value;
+                                updateZone(zone.id, { triggerColor: { r: parseInt(hex.slice(1,3),16), g: parseInt(hex.slice(3,5),16), b: parseInt(hex.slice(5,7),16) } });
+                              }}
+                              onClick={e => e.stopPropagation()}
+                              className="w-8 h-5 rounded border border-border/30 cursor-pointer bg-transparent" />
+                            <span className="text-[7px] font-mono text-muted-foreground">
+                              {zone.triggerColor ? `${zone.triggerColor.r},${zone.triggerColor.g},${zone.triggerColor.b}` : '255,255,255'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Fade mode */}
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[7px] text-muted-foreground uppercase">Release</span>
+                        <select value={zone.fadeMode || 'fade'}
+                          onChange={e => updateZone(zone.id, { fadeMode: e.target.value as 'instant' | 'fade' })}
+                          onClick={e => e.stopPropagation()}
+                          className="h-5 rounded bg-muted/20 border border-border/20 text-[8px] px-1 text-foreground">
+                          <option value="instant">⚡ Instant (static)</option>
+                          <option value="fade">🌊 Fade out</option>
+                        </select>
+                      </div>
+
+                      {(zone.fadeMode || 'fade') === 'fade' && (
+                        <div>
+                          <span className="text-[7px] text-muted-foreground uppercase">Fade time {zone.fadeTimeMs ?? 500}ms</span>
+                          <Slider value={[zone.fadeTimeMs ?? 500]} onValueChange={([v]) => updateZone(zone.id, { fadeTimeMs: v })}
+                            min={50} max={3000} step={50} className="mt-0.5" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-1">
                     <span className="text-[7px] text-muted-foreground uppercase">Zone Color</span>
                     <div className="flex gap-0.5">
