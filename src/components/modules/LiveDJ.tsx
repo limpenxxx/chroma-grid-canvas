@@ -222,6 +222,8 @@ interface DJWidget {
   wledFixtureActivePresetId?: number;
   // Audio Reactive widget
   audioReactive?: AudioReactiveConfig;
+  // EQ Trigger widget
+  eqTriggerZones?: EqTriggerZone[];
 }
 
 type ColorProgramMode = 'static' | 'switch' | 'fade';
