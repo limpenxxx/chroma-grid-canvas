@@ -36,7 +36,11 @@ export type VisualizerPreset =
   | 'retro-grid-5'
   | 'dna-helix'
   | 'starburst'
-  | 'glitch-wave';
+  | 'glitch-wave'
+  | 'pixel-matrix'
+  | 'pixel-matrix-idle'
+  | 'retro-arcade'
+  | 'retro-arcade-idle';
 
 export type AudioInputSource = 'microphone' | 'system-audio' | 'audio-interface';
 
@@ -74,6 +78,10 @@ export const PRESET_LABELS: Record<VisualizerPreset, string> = {
   'dna-helix': '🧬 DNA Helix',
   'starburst': '⭐ Starburst',
   'glitch-wave': '📺 Glitch Wave',
+  'pixel-matrix': '🟩 Pixel Matrix',
+  'pixel-matrix-idle': '🟩 Pixel Matrix (Idle)',
+  'retro-arcade': '👾 Retro Arcade',
+  'retro-arcade-idle': '👾 Retro Arcade (Idle)',
 };
 
 export const INPUT_LABELS: Record<AudioInputSource, string> = {
@@ -192,8 +200,20 @@ export class AudioVisualizerEngine {
     return Math.min(1, (sum / count / 255) * this._sensitivity * 1.3);
   }
 
+  // Idle presets that render without audio
+  private static IDLE_PRESETS: Set<VisualizerPreset> = new Set(['pixel-matrix-idle', 'retro-arcade-idle']);
+
   render(ctx: CanvasRenderingContext2D, w: number, h: number): void {
     if (!this._isRunning || !this.analyser) {
+      // Idle presets render their own animation without audio
+      if (AudioVisualizerEngine.IDLE_PRESETS.has(this._preset)) {
+        const t = Date.now() / 1000;
+        switch (this._preset) {
+          case 'pixel-matrix-idle': this.renderPixelMatrix(ctx, w, h, 0, 0, 0, 0, t); break;
+          case 'retro-arcade-idle': this.renderRetroArcade(ctx, w, h, 0, 0, 0, 0, t); break;
+        }
+        return;
+      }
       const t = Date.now() / 3000;
       ctx.fillStyle = '#080808';
       ctx.fillRect(0, 0, w, h);
@@ -251,6 +271,10 @@ export class AudioVisualizerEngine {
       case 'dna-helix': this.renderDNA(ctx, w, h, energy, bass, treble, t); break;
       case 'starburst': this.renderStarburst(ctx, w, h, energy, bass, treble, t); break;
       case 'glitch-wave': this.renderGlitch(ctx, w, h, energy, bass, treble, t); break;
+      case 'pixel-matrix':
+      case 'pixel-matrix-idle': this.renderPixelMatrix(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'retro-arcade':
+      case 'retro-arcade-idle': this.renderRetroArcade(ctx, w, h, energy, bass, mid, treble, t); break;
     }
   }
 
@@ -1369,10 +1393,242 @@ export class AudioVisualizerEngine {
     }
   }
 
+  // ── Pixel Matrix VFX ──
+  private pixelGrid: number[] = [];
+  private renderPixelMatrix(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    const cellSize = 12;
+    const cols = Math.floor(w / cellSize);
+    const rows = Math.floor(h / cellSize);
+    const total = cols * rows;
+
+    // Initialize grid
+    if (this.pixelGrid.length !== total) {
+      this.pixelGrid = new Array(total).fill(0);
+    }
+
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+    ctx.fillRect(0, 0, w, h);
+
+    const hasAudio = energy > 0.01;
+
+    // Update grid cells
+    for (let i = 0; i < total; i++) {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const nx = col / cols;
+      const ny = row / rows;
+
+      if (hasAudio) {
+        // Audio reactive: map frequency bands to pixel brightness
+        const freqIdx = Math.floor(nx * this.freqData.length * 0.5);
+        const freqVal = (this.freqData[freqIdx] || 0) / 255 * this._sensitivity;
+        const heightMap = 1 - ny;
+        const target = freqVal > heightMap ? freqVal : 0;
+        this.pixelGrid[i] += (target - this.pixelGrid[i]) * 0.3;
+      } else {
+        // Idle: organic wave patterns
+        const wave1 = Math.sin(nx * 6 + t * 1.5) * Math.cos(ny * 4 + t * 0.8);
+        const wave2 = Math.sin((nx + ny) * 4 - t * 1.2) * 0.5;
+        const pulse = (Math.sin(t * 0.5) * 0.3 + 0.5);
+        const target = Math.max(0, (wave1 + wave2) * pulse * 0.6 + 0.1);
+        this.pixelGrid[i] += (target - this.pixelGrid[i]) * 0.08;
+      }
+    }
+
+    // Render pixels
+    for (let i = 0; i < total; i++) {
+      const val = this.pixelGrid[i];
+      if (val < 0.02) continue;
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const hue = hasAudio
+        ? (col / cols * 120 + 90 + bass * 60 + this._colorShift) % 360
+        : (col / cols * 80 + row / rows * 40 + t * 20 + this._colorShift) % 360;
+      const lightness = 20 + val * 50;
+      const alpha = Math.min(1, val * 1.5);
+
+      ctx.fillStyle = `hsla(${hue}, 90%, ${lightness}%, ${alpha})`;
+      ctx.fillRect(col * cellSize + 1, row * cellSize + 1, cellSize - 2, cellSize - 2);
+
+      // Glow on bright pixels
+      if (val > 0.5) {
+        ctx.shadowColor = `hsl(${hue}, 90%, 60%)`;
+        ctx.shadowBlur = val * 8;
+        ctx.fillRect(col * cellSize + 1, row * cellSize + 1, cellSize - 2, cellSize - 2);
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    // Scanline overlay
+    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    for (let y = 0; y < h; y += 2) {
+      ctx.fillRect(0, y, w, 1);
+    }
+  }
+
+  // ── Retro 8-bit Arcade VFX ──
+  private arcadeSprites: { x: number; y: number; type: number; frame: number; dir: number; speed: number }[] = [];
+  private arcadeStars: { x: number; y: number; speed: number; bright: number }[] = [];
+
+  private renderRetroArcade(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    // Black background
+    ctx.fillStyle = '#000008';
+    ctx.fillRect(0, 0, w, h);
+
+    const hasAudio = energy > 0.01;
+    const pixel = 4; // 8-bit pixel scale
+
+    // Initialize stars
+    if (this.arcadeStars.length === 0) {
+      for (let i = 0; i < 60; i++) {
+        this.arcadeStars.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          speed: 0.5 + Math.random() * 2,
+          bright: 0.3 + Math.random() * 0.7,
+        });
+      }
+    }
+
+    // Draw scrolling starfield
+    this.arcadeStars.forEach(star => {
+      star.y += star.speed * (hasAudio ? (1 + energy * 3) : 1);
+      if (star.y > h) { star.y = 0; star.x = Math.random() * w; }
+      const flicker = hasAudio ? (0.5 + bass * 0.5) : (0.6 + Math.sin(t * 3 + star.x) * 0.3);
+      ctx.fillStyle = `rgba(255,255,255,${star.bright * flicker})`;
+      ctx.fillRect(Math.floor(star.x / pixel) * pixel, Math.floor(star.y / pixel) * pixel, pixel, pixel);
+    });
+
+    // Draw pixelated score text
+    ctx.font = `bold ${pixel * 4}px monospace`;
+    ctx.fillStyle = `hsla(${hasAudio ? (t * 60 % 360) : 60}, 100%, 70%, 0.8)`;
+    ctx.textAlign = 'center';
+    const score = hasAudio ? Math.floor(energy * 99999) : Math.floor((Math.sin(t * 0.3) * 0.5 + 0.5) * 9999);
+    ctx.fillText(`SCORE: ${score.toString().padStart(5, '0')}`, w / 2, pixel * 6);
+
+    // Ground line
+    const groundY = h * 0.85;
+    ctx.fillStyle = hasAudio ? `hsl(${120 + bass * 60}, 90%, 40%)` : 'hsl(120, 80%, 30%)';
+    ctx.fillRect(0, groundY, w, pixel * 2);
+
+    // Spawn sprites on beat or periodically
+    const shouldSpawn = hasAudio ? (bass > 0.4 && Math.random() > 0.6) : (Math.sin(t * 2) > 0.95);
+    if (shouldSpawn && this.arcadeSprites.length < 20) {
+      this.arcadeSprites.push({
+        x: Math.random() > 0.5 ? -20 : w + 20,
+        y: groundY - pixel * 6 - Math.random() * (h * 0.4),
+        type: Math.floor(Math.random() * 4),
+        frame: 0,
+        dir: 0,
+        speed: 1 + Math.random() * 2,
+      });
+      const s = this.arcadeSprites[this.arcadeSprites.length - 1];
+      s.dir = s.x < 0 ? 1 : -1;
+    }
+
+    // Update and draw sprites (8-bit style)
+    this.arcadeSprites = this.arcadeSprites.filter(s => s.x > -40 && s.x < w + 40);
+    this.arcadeSprites.forEach(s => {
+      s.x += s.dir * s.speed * (hasAudio ? (1 + mid * 2) : 1);
+      s.frame += 0.1;
+      const f = Math.floor(s.frame) % 2;
+
+      // Draw pixelated sprite based on type
+      const colors = ['#ff0044', '#00ff88', '#ffcc00', '#00ccff'];
+      const color = colors[s.type % colors.length];
+      ctx.fillStyle = color;
+
+      const sx = Math.floor(s.x / pixel) * pixel;
+      const sy = Math.floor(s.y / pixel) * pixel;
+      const size = pixel * 3;
+
+      // Simple 8-bit character shapes
+      if (s.type === 0) {
+        // Ghost (pac-man style)
+        ctx.fillRect(sx + pixel, sy, pixel, pixel); // top
+        ctx.fillRect(sx, sy + pixel, size, pixel); // mid
+        ctx.fillRect(sx, sy + pixel * 2, size, pixel); // body
+        ctx.fillRect(sx, sy + size, pixel, pixel); // left foot
+        ctx.fillRect(sx + pixel * 2, sy + size, pixel, pixel); // right foot
+        // Eyes
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(sx + (f ? 0 : pixel), sy + pixel, pixel, pixel);
+        ctx.fillRect(sx + pixel * 2, sy + pixel, pixel, pixel);
+      } else if (s.type === 1) {
+        // Space invader
+        ctx.fillRect(sx + pixel, sy, pixel, pixel);
+        ctx.fillRect(sx, sy + pixel, size, pixel);
+        ctx.fillRect(sx + (f ? 0 : pixel * 2), sy + pixel * 2, pixel, pixel);
+        ctx.fillRect(sx + (f ? pixel * 2 : 0), sy + pixel * 2, pixel, pixel);
+        ctx.fillRect(sx + pixel, sy + pixel * 2, pixel, pixel);
+      } else if (s.type === 2) {
+        // Ship
+        ctx.fillRect(sx + pixel, sy, pixel, pixel);
+        ctx.fillRect(sx, sy + pixel, size, pixel);
+        ctx.fillRect(sx + pixel, sy + pixel * 2, pixel, pixel);
+        // Flame
+        ctx.fillStyle = f ? '#ff4400' : '#ffcc00';
+        ctx.fillRect(sx + pixel, sy + size, pixel, pixel);
+      } else {
+        // Coin / collectible
+        const blink = Math.sin(t * 6 + s.x * 0.1) > 0;
+        if (blink) {
+          ctx.fillRect(sx + pixel, sy, pixel, pixel);
+          ctx.fillRect(sx, sy + pixel, size, pixel);
+          ctx.fillRect(sx + pixel, sy + pixel * 2, pixel, pixel);
+        }
+      }
+    });
+
+    // Audio-reactive EQ bars at bottom (arcade style)
+    if (hasAudio) {
+      const barCount = 32;
+      const barW = Math.floor(w / barCount / pixel) * pixel;
+      for (let i = 0; i < barCount; i++) {
+        const freqIdx = Math.floor((i / barCount) * this.freqData.length * 0.5);
+        const val = (this.freqData[freqIdx] || 0) / 255 * this._sensitivity;
+        const barH = Math.floor(val * h * 0.3 / pixel) * pixel;
+        const hue = (i / barCount * 300 + this._colorShift) % 360;
+        ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+        for (let py = 0; py < barH; py += pixel) {
+          ctx.fillRect(i * barW, h - py - pixel, barW - pixel, pixel);
+        }
+      }
+    } else {
+      // Idle: pulsing bar pattern
+      const barCount = 16;
+      const barW = Math.floor(w / barCount / pixel) * pixel;
+      for (let i = 0; i < barCount; i++) {
+        const val = (Math.sin(t * 1.5 + i * 0.5) * 0.5 + 0.5) * 0.4;
+        const barH = Math.floor(val * h * 0.2 / pixel) * pixel;
+        const hue = (i / barCount * 300 + t * 30) % 360;
+        ctx.fillStyle = `hsla(${hue}, 100%, 50%, 0.6)`;
+        for (let py = 0; py < barH; py += pixel) {
+          ctx.fillRect(i * barW, h - py - pixel, barW - pixel, pixel);
+        }
+      }
+    }
+
+    // CRT scanlines
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    for (let y = 0; y < h; y += 3) {
+      ctx.fillRect(0, y, w, 1);
+    }
+
+    // Screen flicker on bass
+    if (hasAudio && bass > 0.6) {
+      ctx.fillStyle = `rgba(255,255,255,${(bass - 0.6) * 0.15})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
+
   destroy() {
     this.stop();
     this.particles = [];
     this.emojis = [];
     this.matrixDrops = [];
+    this.pixelGrid = [];
+    this.arcadeSprites = [];
+    this.arcadeStars = [];
   }
 }
