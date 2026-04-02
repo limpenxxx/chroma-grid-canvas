@@ -40,7 +40,9 @@ export type VisualizerPreset =
   | 'pixel-matrix'
   | 'pixel-matrix-idle'
   | 'retro-arcade'
-  | 'retro-arcade-idle';
+  | 'retro-arcade-idle'
+  | 'timebar-arcade'
+  | 'timebar-arcade-2';
 
 export type AudioInputSource = 'microphone' | 'system-audio' | 'audio-interface';
 
@@ -82,6 +84,8 @@ export const PRESET_LABELS: Record<VisualizerPreset, string> = {
   'pixel-matrix-idle': '🟩 Pixel Matrix (Idle)',
   'retro-arcade': '👾 Retro Arcade',
   'retro-arcade-idle': '👾 Retro Arcade (Idle)',
+  'timebar-arcade': '🍺 TIME BAR Arcade',
+  'timebar-arcade-2': '🍺 TIME BAR Arcade 2',
 };
 
 export const INPUT_LABELS: Record<AudioInputSource, string> = {
@@ -201,7 +205,7 @@ export class AudioVisualizerEngine {
   }
 
   // Idle presets that render without audio
-  private static IDLE_PRESETS: Set<VisualizerPreset> = new Set(['pixel-matrix-idle', 'retro-arcade-idle']);
+  private static IDLE_PRESETS: Set<VisualizerPreset> = new Set(['pixel-matrix-idle', 'retro-arcade-idle', 'timebar-arcade', 'timebar-arcade-2']);
 
   render(ctx: CanvasRenderingContext2D, w: number, h: number): void {
     if (!this._isRunning || !this.analyser) {
@@ -211,6 +215,8 @@ export class AudioVisualizerEngine {
         switch (this._preset) {
           case 'pixel-matrix-idle': this.renderPixelMatrix(ctx, w, h, 0, 0, 0, 0, t); break;
           case 'retro-arcade-idle': this.renderRetroArcade(ctx, w, h, 0, 0, 0, 0, t); break;
+          case 'timebar-arcade': this.renderTimeBarArcade(ctx, w, h, 0, 0, 0, 0, t); break;
+          case 'timebar-arcade-2': this.renderTimeBarArcade2(ctx, w, h, 0, 0, 0, 0, t); break;
         }
         return;
       }
@@ -275,6 +281,8 @@ export class AudioVisualizerEngine {
       case 'pixel-matrix-idle': this.renderPixelMatrix(ctx, w, h, energy, bass, mid, treble, t); break;
       case 'retro-arcade':
       case 'retro-arcade-idle': this.renderRetroArcade(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'timebar-arcade': this.renderTimeBarArcade(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'timebar-arcade-2': this.renderTimeBarArcade2(ctx, w, h, energy, bass, mid, treble, t); break;
     }
   }
 
@@ -1618,6 +1626,554 @@ export class AudioVisualizerEngine {
     // Screen flicker on bass
     if (hasAudio && bass > 0.6) {
       ctx.fillStyle = `rgba(255,255,255,${(bass - 0.6) * 0.15})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
+
+  // ── TIME BAR Arcade 1 ──
+  private renderTimeBarArcade(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    const p = 4; // pixel size
+    const hasAudio = energy > 0.01;
+
+    // Dark bar interior background
+    ctx.fillStyle = '#0a0806';
+    ctx.fillRect(0, 0, w, h);
+
+    // Brick wall background pattern
+    ctx.fillStyle = '#1a1210';
+    for (let by = 0; by < h * 0.75; by += p * 4) {
+      const offset = (Math.floor(by / (p * 4)) % 2) * p * 5;
+      for (let bx = offset; bx < w; bx += p * 10) {
+        ctx.fillRect(bx, by, p * 9, p * 3);
+      }
+    }
+
+    // === BEER TANKS on ceiling ===
+    const tankCount = 4;
+    const tankW = p * 12;
+    const tankH = p * 18;
+    for (let i = 0; i < tankCount; i++) {
+      const tx = w * 0.15 + i * (w * 0.2);
+      const ty = p * 2;
+      // Tank body (copper/gold)
+      const tankPulse = hasAudio ? bass * 0.15 : Math.sin(t + i) * 0.05;
+      ctx.fillStyle = `hsl(35, 70%, ${35 + tankPulse * 40}%)`;
+      ctx.fillRect(tx, ty, tankW, tankH);
+      // Tank highlight
+      ctx.fillStyle = `hsla(45, 80%, 60%, 0.3)`;
+      ctx.fillRect(tx + p * 2, ty + p * 2, p * 2, tankH - p * 4);
+      // Tank cap
+      ctx.fillStyle = '#888';
+      ctx.fillRect(tx - p, ty - p, tankW + p * 2, p * 2);
+      // Steel pipes going down
+      ctx.fillStyle = '#aaa';
+      ctx.fillRect(tx + p * 5, ty + tankH, p * 2, h * 0.5);
+      // Pipe joints
+      ctx.fillStyle = '#888';
+      for (let j = 0; j < 3; j++) {
+        const jy = ty + tankH + j * p * 10;
+        ctx.fillRect(tx + p * 4, jy, p * 4, p * 2);
+      }
+      // Bubbles in tank (audio reactive)
+      const bubbleCount = hasAudio ? Math.floor(bass * 6) + 1 : 2;
+      ctx.fillStyle = `hsla(45, 90%, 70%, ${hasAudio ? 0.5 + bass * 0.3 : 0.3})`;
+      for (let b = 0; b < bubbleCount; b++) {
+        const bx = tx + p * 2 + ((t * 3 + i * 7 + b * 13) % (tankW - p * 4));
+        const by2 = ty + p * 4 + ((t * 2 + b * 5) % (tankH - p * 6));
+        ctx.fillRect(Math.floor(bx / p) * p, Math.floor(by2 / p) * p, p, p);
+      }
+    }
+
+    // === BAR COUNTER ===
+    const barY = h * 0.72;
+    // Bar surface (dark wood)
+    ctx.fillStyle = '#2a1a0e';
+    ctx.fillRect(0, barY, w, p * 4);
+    // Bar front
+    ctx.fillStyle = '#1e120a';
+    ctx.fillRect(0, barY + p * 4, w, h * 0.12);
+    // Bar edge highlight
+    ctx.fillStyle = '#3a2a18';
+    ctx.fillRect(0, barY, w, p);
+
+    // === BARTENDER (bald, happy) ===
+    const btX = w * 0.5;
+    const btY = barY - p * 16;
+    // Head (bald, skin tone)
+    ctx.fillStyle = '#e8c090';
+    ctx.fillRect(btX, btY, p * 6, p * 6);
+    // Shiny bald top
+    ctx.fillStyle = '#f0d0a0';
+    ctx.fillRect(btX + p, btY, p * 4, p * 2);
+    // Eyes
+    ctx.fillStyle = '#222';
+    ctx.fillRect(btX + p, btY + p * 2, p, p);
+    ctx.fillRect(btX + p * 4, btY + p * 2, p, p);
+    // Big smile
+    ctx.fillStyle = '#c0392b';
+    ctx.fillRect(btX + p, btY + p * 4, p * 4, p);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(btX + p * 2, btY + p * 4, p * 2, p);
+    // Body (apron)
+    ctx.fillStyle = '#eee';
+    ctx.fillRect(btX - p, btY + p * 6, p * 8, p * 10);
+    // Arms (shaking drinks on beat)
+    const armOffset = hasAudio ? Math.floor(Math.sin(t * 8) * 2) * p : 0;
+    ctx.fillStyle = '#e8c090';
+    ctx.fillRect(btX - p * 3, btY + p * 7 + armOffset, p * 2, p * 4);
+    ctx.fillRect(btX + p * 7, btY + p * 7 - armOffset, p * 2, p * 4);
+    // Shaker in hand
+    ctx.fillStyle = '#aaa';
+    ctx.fillRect(btX + p * 7, btY + p * 5 - armOffset, p * 2, p * 3);
+
+    // === LARGE CLOCK on wall (center) ===
+    const clockCX = w * 0.5;
+    const clockCY = h * 0.32;
+    const clockR = p * 14;
+    // Clock face
+    ctx.fillStyle = '#1a1a2e';
+    ctx.strokeStyle = '#c0a050';
+    ctx.lineWidth = p;
+    ctx.beginPath();
+    ctx.arc(clockCX, clockCY, clockR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Clock rim glow
+    ctx.strokeStyle = `hsla(45, 80%, 50%, ${hasAudio ? 0.4 + bass * 0.4 : 0.3 + Math.sin(t) * 0.1})`;
+    ctx.lineWidth = p * 2;
+    ctx.beginPath();
+    ctx.arc(clockCX, clockCY, clockR + p, 0, Math.PI * 2);
+    ctx.stroke();
+    // Hour markers
+    ctx.fillStyle = '#c0a050';
+    for (let h2 = 0; h2 < 12; h2++) {
+      const a = (h2 / 12) * Math.PI * 2 - Math.PI / 2;
+      const mx = clockCX + Math.cos(a) * (clockR - p * 3);
+      const my = clockCY + Math.sin(a) * (clockR - p * 3);
+      ctx.fillRect(Math.floor(mx / p) * p, Math.floor(my / p) * p, p * 2, p * 2);
+    }
+    // Clock hands (animated)
+    const now = new Date();
+    const secAngle = ((now.getSeconds() + now.getMilliseconds() / 1000) / 60) * Math.PI * 2 - Math.PI / 2;
+    const minAngle = (now.getMinutes() / 60) * Math.PI * 2 - Math.PI / 2;
+    const hourAngle = ((now.getHours() % 12) / 12) * Math.PI * 2 - Math.PI / 2;
+    // Hour hand
+    ctx.strokeStyle = '#c0a050';
+    ctx.lineWidth = p * 2;
+    ctx.beginPath();
+    ctx.moveTo(clockCX, clockCY);
+    ctx.lineTo(clockCX + Math.cos(hourAngle) * clockR * 0.5, clockCY + Math.sin(hourAngle) * clockR * 0.5);
+    ctx.stroke();
+    // Minute hand
+    ctx.lineWidth = p;
+    ctx.beginPath();
+    ctx.moveTo(clockCX, clockCY);
+    ctx.lineTo(clockCX + Math.cos(minAngle) * clockR * 0.7, clockCY + Math.sin(minAngle) * clockR * 0.7);
+    ctx.stroke();
+    // Second hand
+    ctx.strokeStyle = '#ff3333';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(clockCX, clockCY);
+    ctx.lineTo(clockCX + Math.cos(secAngle) * clockR * 0.8, clockCY + Math.sin(secAngle) * clockR * 0.8);
+    ctx.stroke();
+
+    // === CLOCK GEARS (decorative, flanking) ===
+    for (const side of [-1, 1]) {
+      const gx = clockCX + side * (clockR + p * 12);
+      const gy = clockCY + p * 4;
+      const gearR = p * 6;
+      const teeth = 8;
+      const rot = t * (hasAudio ? 1 + bass * 2 : 0.3) * side;
+      ctx.strokeStyle = '#8a7040';
+      ctx.lineWidth = p;
+      ctx.beginPath();
+      for (let i2 = 0; i2 <= teeth * 2; i2++) {
+        const a = (i2 / (teeth * 2)) * Math.PI * 2 + rot;
+        const r = i2 % 2 === 0 ? gearR : gearR - p * 2;
+        const px = gx + Math.cos(a) * r;
+        const py = gy + Math.sin(a) * r;
+        i2 === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      // Gear center
+      ctx.fillStyle = '#6a5030';
+      ctx.beginPath();
+      ctx.arc(gx, gy, p * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // === DJ BOOTH (bottom right) ===
+    const djX = w * 0.7;
+    const djY = barY - p * 20;
+    const djW = w * 0.25;
+    const djH = p * 18;
+    // Booth body
+    ctx.fillStyle = '#151520';
+    ctx.fillRect(djX, djY, djW, djH);
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = p;
+    ctx.strokeRect(djX, djY, djW, djH);
+    // Turntables
+    for (let d = 0; d < 2; d++) {
+      const dx = djX + p * 4 + d * (djW * 0.45);
+      const dy = djY + p * 3;
+      ctx.fillStyle = '#222';
+      ctx.beginPath();
+      ctx.arc(dx + p * 5, dy + p * 5, p * 4, 0, Math.PI * 2);
+      ctx.fill();
+      // Spinning disc
+      ctx.strokeStyle = '#555';
+      ctx.lineWidth = 1;
+      const discRot = t * (hasAudio ? 3 + mid * 4 : 1);
+      ctx.beginPath();
+      ctx.moveTo(dx + p * 5, dy + p * 5);
+      ctx.lineTo(dx + p * 5 + Math.cos(discRot) * p * 3, dy + p * 5 + Math.sin(discRot) * p * 3);
+      ctx.stroke();
+    }
+    // PIXEL DISPLAY on front of DJ booth
+    const dispY = djY + djH;
+    const dispH = p * 8;
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(djX, dispY, djW, dispH);
+    // Scrolling pixel text "TIME BAR"
+    const textPixels = 'TIME BAR';
+    ctx.font = `bold ${p * 3}px monospace`;
+    const scrollX = ((t * 40) % (djW + 200)) - 100;
+    const textHue = hasAudio ? (t * 60 + bass * 120) % 360 : (t * 30) % 360;
+    ctx.fillStyle = `hsl(${textHue}, 100%, 60%)`;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(djX, dispY, djW, dispH);
+    ctx.clip();
+    ctx.fillText(textPixels, djX + djW - scrollX, dispY + p * 6);
+    ctx.restore();
+    // Pixel display dots
+    for (let px2 = djX; px2 < djX + djW; px2 += p * 2) {
+      for (let py2 = dispY; py2 < dispY + dispH; py2 += p * 2) {
+        ctx.fillStyle = `hsla(${textHue}, 80%, 40%, 0.08)`;
+        ctx.fillRect(px2, py2, p, p);
+      }
+    }
+
+    // === "TIME BAR" neon sign ===
+    ctx.font = `bold ${p * 6}px monospace`;
+    ctx.textAlign = 'center';
+    const neonGlow = hasAudio ? 0.7 + bass * 0.3 : 0.5 + Math.sin(t * 2) * 0.2;
+    ctx.shadowColor = `hsl(${(t * 20) % 360}, 100%, 60%)`;
+    ctx.shadowBlur = 15 * neonGlow;
+    ctx.fillStyle = `hsla(${(t * 20) % 360}, 100%, 70%, ${neonGlow})`;
+    ctx.fillText('TIME BAR', w * 0.22, p * 10);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'start';
+
+    // === Audio EQ bars along bar counter ===
+    if (hasAudio) {
+      const eqBars = 24;
+      const eqW = Math.floor(w / eqBars / p) * p;
+      for (let i = 0; i < eqBars; i++) {
+        const freqIdx = Math.floor((i / eqBars) * this.freqData.length * 0.4);
+        const val = (this.freqData[freqIdx] || 0) / 255 * this._sensitivity;
+        const barH2 = Math.floor(val * h * 0.15 / p) * p;
+        const hue = (i / eqBars * 60 + 20) % 360;
+        ctx.fillStyle = `hsla(${hue}, 80%, 50%, 0.7)`;
+        for (let py2 = 0; py2 < barH2; py2 += p) {
+          ctx.fillRect(i * eqW, barY - py2 - p * 2, eqW - p, p);
+        }
+      }
+    }
+
+    // Floor
+    ctx.fillStyle = '#0d0908';
+    ctx.fillRect(0, barY + p * 4 + h * 0.12, w, h);
+
+    // CRT scanlines
+    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    for (let y = 0; y < h; y += 2) ctx.fillRect(0, y, w, 1);
+  }
+
+  // ── TIME BAR Arcade 2 ── (wider view, more gears, neon clock)
+  private renderTimeBarArcade2(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    const p = 4;
+    const hasAudio = energy > 0.01;
+
+    // Dark industrial background
+    ctx.fillStyle = '#060810';
+    ctx.fillRect(0, 0, w, h);
+
+    // Steel beam ceiling
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(0, 0, w, p * 3);
+    for (let bx = 0; bx < w; bx += w / 6) {
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(bx, 0, p * 2, h * 0.5);
+      // Rivets
+      ctx.fillStyle = '#555';
+      for (let ry = p * 5; ry < h * 0.5; ry += p * 8) {
+        ctx.fillRect(bx, ry, p, p);
+        ctx.fillRect(bx + p, ry, p, p);
+      }
+    }
+
+    // === MASSIVE CLOCK MECHANISM (center wall piece) ===
+    const clockCX = w * 0.5;
+    const clockCY = h * 0.35;
+    const mainR = Math.min(w, h) * 0.18;
+
+    // Outer ring with Roman numerals feel
+    ctx.strokeStyle = `hsla(40, 70%, 45%, ${hasAudio ? 0.6 + bass * 0.4 : 0.5 + Math.sin(t * 0.5) * 0.15})`;
+    ctx.lineWidth = p * 3;
+    ctx.beginPath();
+    ctx.arc(clockCX, clockCY, mainR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner face
+    const grad = ctx.createRadialGradient(clockCX, clockCY, 0, clockCX, clockCY, mainR);
+    grad.addColorStop(0, '#12101a');
+    grad.addColorStop(1, '#0a0810');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(clockCX, clockCY, mainR - p * 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Multiple gear layers rotating
+    const gearConfigs = [
+      { cx: clockCX - mainR * 0.8, cy: clockCY - mainR * 0.3, r: mainR * 0.3, teeth: 10, speed: 0.5 },
+      { cx: clockCX + mainR * 0.85, cy: clockCY + mainR * 0.2, r: mainR * 0.25, teeth: 8, speed: -0.7 },
+      { cx: clockCX - mainR * 0.5, cy: clockCY + mainR * 0.7, r: mainR * 0.2, teeth: 6, speed: 1.0 },
+      { cx: clockCX + mainR * 0.4, cy: clockCY - mainR * 0.8, r: mainR * 0.22, teeth: 7, speed: -0.6 },
+      { cx: clockCX, cy: clockCY, r: mainR * 0.15, teeth: 12, speed: 0.2 },
+    ];
+
+    gearConfigs.forEach(gc => {
+      const rot = t * (hasAudio ? gc.speed * (1 + bass) : gc.speed * 0.3);
+      ctx.strokeStyle = `hsla(35, 60%, 40%, 0.7)`;
+      ctx.lineWidth = p;
+      ctx.beginPath();
+      const totalPts = gc.teeth * 2;
+      for (let i = 0; i <= totalPts; i++) {
+        const a = (i / totalPts) * Math.PI * 2 + rot;
+        const r = i % 2 === 0 ? gc.r : gc.r * 0.75;
+        const px2 = gc.cx + Math.cos(a) * r;
+        const py = gc.cy + Math.sin(a) * r;
+        i === 0 ? ctx.moveTo(px2, py) : ctx.lineTo(px2, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      // Center dot
+      ctx.fillStyle = '#6a5530';
+      ctx.beginPath();
+      ctx.arc(gc.cx, gc.cy, p * 2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Real-time clock hands on main face
+    const now = new Date();
+    const secA = ((now.getSeconds() + now.getMilliseconds() / 1000) / 60) * Math.PI * 2 - Math.PI / 2;
+    const minA = (now.getMinutes() / 60) * Math.PI * 2 - Math.PI / 2;
+    const hourA = ((now.getHours() % 12 + now.getMinutes() / 60) / 12) * Math.PI * 2 - Math.PI / 2;
+
+    ctx.strokeStyle = '#c0a050';
+    ctx.lineWidth = p * 2;
+    ctx.beginPath(); ctx.moveTo(clockCX, clockCY);
+    ctx.lineTo(clockCX + Math.cos(hourA) * mainR * 0.4, clockCY + Math.sin(hourA) * mainR * 0.4);
+    ctx.stroke();
+    ctx.lineWidth = p;
+    ctx.beginPath(); ctx.moveTo(clockCX, clockCY);
+    ctx.lineTo(clockCX + Math.cos(minA) * mainR * 0.65, clockCY + Math.sin(minA) * mainR * 0.65);
+    ctx.stroke();
+    ctx.strokeStyle = '#ff2222';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(clockCX, clockCY);
+    ctx.lineTo(clockCX + Math.cos(secA) * mainR * 0.75, clockCY + Math.sin(secA) * mainR * 0.75);
+    ctx.stroke();
+
+    // Hour markers (pixelated)
+    ctx.fillStyle = '#c0a050';
+    for (let h2 = 0; h2 < 12; h2++) {
+      const a = (h2 / 12) * Math.PI * 2 - Math.PI / 2;
+      const mx = clockCX + Math.cos(a) * (mainR - p * 5);
+      const my = clockCY + Math.sin(a) * (mainR - p * 5);
+      ctx.fillRect(Math.floor(mx / p) * p, Math.floor(my / p) * p, p * 2, p * 2);
+    }
+
+    // === BEER TANKS (3 large ones on ceiling) ===
+    for (let i = 0; i < 3; i++) {
+      const tx = w * 0.1 + i * (w * 0.35);
+      const tankW2 = p * 16;
+      const tankH = p * 22;
+      // Copper tank
+      ctx.fillStyle = `hsl(30, 65%, ${30 + (hasAudio ? bass * 15 : Math.sin(t * 0.5 + i) * 5)}%)`;
+      ctx.fillRect(tx, 0, tankW2, tankH);
+      // Rivet line
+      ctx.fillStyle = '#777';
+      ctx.fillRect(tx, tankH * 0.5, tankW2, p);
+      // Highlight
+      ctx.fillStyle = 'hsla(40, 80%, 60%, 0.2)';
+      ctx.fillRect(tx + p * 3, p * 2, p * 2, tankH - p * 4);
+      // Thick steel pipe down
+      ctx.fillStyle = '#999';
+      ctx.fillRect(tx + p * 6, tankH, p * 4, h * 0.45);
+      // Pipe fittings
+      ctx.fillStyle = '#777';
+      ctx.fillRect(tx + p * 5, tankH, p * 6, p * 2);
+      ctx.fillRect(tx + p * 5, tankH + h * 0.2, p * 6, p * 2);
+      ctx.fillRect(tx + p * 5, tankH + h * 0.4, p * 6, p * 2);
+      // Beer level indicator (glowing)
+      const level = hasAudio ? 0.3 + mid * 0.5 : 0.5 + Math.sin(t * 0.3 + i) * 0.15;
+      ctx.fillStyle = `hsla(45, 90%, 50%, ${0.4 + level * 0.3})`;
+      ctx.fillRect(tx + p, tankH - tankH * level, tankW2 - p * 2, tankH * level);
+    }
+
+    // === BAR COUNTER ===
+    const barY = h * 0.75;
+    ctx.fillStyle = '#2a1a0e';
+    ctx.fillRect(0, barY, w, p * 5);
+    ctx.fillStyle = '#1e120a';
+    ctx.fillRect(0, barY + p * 5, w, h * 0.1);
+    ctx.fillStyle = '#3a2815';
+    ctx.fillRect(0, barY, w, p);
+
+    // === BARTENDER (bald, smiling, bigger) ===
+    const btX = w * 0.42;
+    const btY = barY - p * 18;
+    // Head
+    ctx.fillStyle = '#e8c090';
+    ctx.fillRect(btX, btY, p * 8, p * 7);
+    // Bald shine
+    ctx.fillStyle = '#f5dab0';
+    ctx.fillRect(btX + p, btY, p * 6, p * 2);
+    ctx.fillStyle = '#fce5c0';
+    ctx.fillRect(btX + p * 2, btY - p, p * 4, p);
+    // Eyes (happy squint)
+    ctx.fillStyle = '#222';
+    ctx.fillRect(btX + p * 2, btY + p * 3, p, p);
+    ctx.fillRect(btX + p * 5, btY + p * 3, p, p);
+    // Rosy cheeks
+    ctx.fillStyle = 'hsla(0, 60%, 65%, 0.4)';
+    ctx.fillRect(btX + p, btY + p * 4, p, p);
+    ctx.fillRect(btX + p * 6, btY + p * 4, p, p);
+    // Big grin
+    ctx.fillStyle = '#c0392b';
+    ctx.fillRect(btX + p * 2, btY + p * 5, p * 4, p);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(btX + p * 3, btY + p * 5, p * 2, p);
+    // Body/apron
+    ctx.fillStyle = '#eee';
+    ctx.fillRect(btX - p, btY + p * 7, p * 10, p * 11);
+    ctx.fillStyle = '#ddd';
+    ctx.fillRect(btX + p * 3, btY + p * 8, p * 2, p * 8);
+    // Arms
+    const armBob = hasAudio ? Math.floor(Math.sin(t * 10) * 2) * p : 0;
+    ctx.fillStyle = '#e8c090';
+    ctx.fillRect(btX - p * 3, btY + p * 8 + armBob, p * 2, p * 5);
+    ctx.fillRect(btX + p * 9, btY + p * 8 - armBob, p * 2, p * 5);
+    // Beer glass in hand
+    ctx.fillStyle = 'hsla(45, 80%, 55%, 0.7)';
+    ctx.fillRect(btX + p * 9, btY + p * 6 - armBob, p * 3, p * 3);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(btX + p * 9, btY + p * 5 - armBob, p * 3, p);
+
+    // === DJ BOOTH (right side) ===
+    const djX = w * 0.68;
+    const djY2 = barY - p * 22;
+    const djW = w * 0.28;
+    const djH = p * 20;
+    ctx.fillStyle = '#111118';
+    ctx.fillRect(djX, djY2, djW, djH);
+    ctx.strokeStyle = '#2a2a3a';
+    ctx.lineWidth = p;
+    ctx.strokeRect(djX, djY2, djW, djH);
+    // DJ turntables
+    for (let d = 0; d < 2; d++) {
+      const dx = djX + p * 4 + d * (djW * 0.45);
+      const dy = djY2 + p * 3;
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath();
+      ctx.arc(dx + p * 6, dy + p * 6, p * 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#444';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(dx + p * 6, dy + p * 6, p * 5, 0, Math.PI * 2);
+      ctx.stroke();
+      const dRot = t * (hasAudio ? 4 + treble * 5 : 1.2);
+      ctx.strokeStyle = '#666';
+      ctx.beginPath();
+      ctx.moveTo(dx + p * 6, dy + p * 6);
+      ctx.lineTo(dx + p * 6 + Math.cos(dRot + d) * p * 4, dy + p * 6 + Math.sin(dRot + d) * p * 4);
+      ctx.stroke();
+    }
+    // PIXEL DISPLAY under DJ deck
+    const dispY = djY2 + djH;
+    const dispH = p * 10;
+    ctx.fillStyle = '#020208';
+    ctx.fillRect(djX, dispY, djW, dispH);
+    // Animated pixel marquee
+    const marqueeHue = hasAudio ? (t * 80 + bass * 200) % 360 : (t * 25) % 360;
+    ctx.font = `bold ${p * 4}px monospace`;
+    ctx.fillStyle = `hsl(${marqueeHue}, 100%, 55%)`;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(djX + p, dispY + p, djW - p * 2, dispH - p * 2);
+    ctx.clip();
+    const scroll2 = ((t * 50) % (djW + 300)) - 150;
+    ctx.fillText('⏰ TIME BAR ⏰', djX + djW - scroll2, dispY + p * 7);
+    ctx.restore();
+    // Pixel grid overlay on display
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    for (let gx = djX; gx < djX + djW; gx += p * 2) {
+      ctx.fillRect(gx, dispY, 1, dispH);
+    }
+    for (let gy = dispY; gy < dispY + dispH; gy += p * 2) {
+      ctx.fillRect(djX, gy, djW, 1);
+    }
+
+    // === "TIME BAR" large neon sign (left wall) ===
+    ctx.font = `bold ${p * 8}px monospace`;
+    ctx.textAlign = 'center';
+    const neonFlicker = hasAudio ? 0.8 + treble * 0.2 : 0.6 + Math.sin(t * 3) * 0.2 + (Math.random() > 0.98 ? -0.3 : 0);
+    ctx.shadowColor = '#ff4488';
+    ctx.shadowBlur = 20 * neonFlicker;
+    ctx.fillStyle = `hsla(340, 100%, 65%, ${neonFlicker})`;
+    ctx.fillText('TIME', w * 0.22, h * 0.25);
+    ctx.shadowColor = '#44aaff';
+    ctx.fillStyle = `hsla(200, 100%, 65%, ${neonFlicker})`;
+    ctx.fillText('BAR', w * 0.22, h * 0.25 + p * 10);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'start';
+
+    // === Audio-reactive floor tiles ===
+    const floorY = barY + p * 5 + h * 0.1;
+    if (hasAudio) {
+      const tileSize = p * 6;
+      const cols2 = Math.ceil(w / tileSize);
+      for (let i = 0; i < cols2; i++) {
+        const freqIdx = Math.floor((i / cols2) * this.freqData.length * 0.3);
+        const val = (this.freqData[freqIdx] || 0) / 255 * this._sensitivity;
+        if (val < 0.1) continue;
+        const hue = (i * 15 + t * 40) % 360;
+        ctx.fillStyle = `hsla(${hue}, 80%, 40%, ${val * 0.6})`;
+        ctx.fillRect(i * tileSize, floorY, tileSize - 1, h - floorY);
+      }
+    } else {
+      // Subtle pulsing floor lights
+      for (let i = 0; i < 8; i++) {
+        const pulse = Math.sin(t * 1.5 + i * 0.8) * 0.5 + 0.5;
+        const fx = (i / 8) * w;
+        ctx.fillStyle = `hsla(${i * 45}, 60%, 30%, ${pulse * 0.15})`;
+        ctx.fillRect(fx, floorY, w / 8, h - floorY);
+      }
+    }
+
+    // CRT scanlines
+    ctx.fillStyle = 'rgba(0,0,0,0.05)';
+    for (let y = 0; y < h; y += 2) ctx.fillRect(0, y, w, 1);
+
+    // Bass flash
+    if (hasAudio && bass > 0.65) {
+      ctx.fillStyle = `rgba(255,220,150,${(bass - 0.65) * 0.2})`;
       ctx.fillRect(0, 0, w, h);
     }
   }
