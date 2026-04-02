@@ -5135,6 +5135,78 @@ export function LiveDJ() {
                       </div>
                     );
                   })()}
+
+                  {/* EQ Trigger Widget Config */}
+                  {selectedWidgetData.type === 'eq-trigger' && (
+                    <div className="space-y-2">
+                      <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
+                        <Activity size={10} /> EQ Trigger Zones
+                      </label>
+                      <EqTriggerWidget
+                        zones={selectedWidgetData.eqTriggerZones || []}
+                        onZonesChange={(z) => updateWidget(selectedWidgetData.id, { eqTriggerZones: z })}
+                        analyserNode={(() => {
+                          if (audioConfig.source === 'browser-mic') return micBpmRef.current?.analyser || null;
+                          if (audioConfig.source === 'system-audio') return sysAudioRef.current?.analyser || null;
+                          return null;
+                        })()}
+                        sampleRate={(() => {
+                          if (audioConfig.source === 'browser-mic') return micBpmRef.current?.ctx?.sampleRate || 44100;
+                          if (audioConfig.source === 'system-audio') return sysAudioRef.current?.ctx?.sampleRate || 44100;
+                          return 44100;
+                        })()}
+                        width={240}
+                        height={400}
+                        fixtures={allFixturesWithDefs.map(f => ({
+                          id: f.inst.id,
+                          name: f.inst.name,
+                          icon: getFixtureTypeIcon(f.def.type),
+                        }))}
+                        onTrigger={(zone, energy) => {
+                          if (!zone.fixtureId) return;
+                          const fixture = allFixturesWithDefs.find(f => f.inst.id === zone.fixtureId);
+                          if (!fixture) return;
+                          const uni = fixture.inst.universe || 1;
+                          const startCh = fixture.inst.startChannel || 1;
+
+                          if (zone.action === 'dimmer') {
+                            const min = zone.dimmerMin ?? 0;
+                            const max = zone.dimmerMax ?? 255;
+                            const val = Math.round(min + energy * (max - min));
+                            const dimCh = fixture.def.channels.findIndex(c => c.type === 'dimmer');
+                            if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, val);
+                          } else if (zone.action === 'strobe') {
+                            const strobeCh = fixture.def.channels.findIndex(c => c.type === 'strobe');
+                            if (strobeCh >= 0) sendDmxChannel(uni, startCh + strobeCh, 255);
+                            setTimeout(() => {
+                              if (strobeCh >= 0) sendDmxChannel(uni, startCh + strobeCh, 0);
+                            }, 80);
+                          } else if (zone.action === 'mh-position') {
+                            const posA = zone.posA || { pan: 0, tilt: 0 };
+                            const posB = zone.posB || { pan: 128, tilt: 128 };
+                            const panCh = fixture.def.channels.findIndex(c => c.type === 'pan');
+                            const tiltCh = fixture.def.channels.findIndex(c => c.type === 'tilt');
+                            // Toggle between positions
+                            const useB = Math.random() > 0.5;
+                            const pos = useB ? posB : posA;
+                            if (panCh >= 0) sendDmxChannel(uni, startCh + panCh, pos.pan);
+                            if (tiltCh >= 0) sendDmxChannel(uni, startCh + tiltCh, pos.tilt);
+                          } else if (zone.action === 'on-off') {
+                            const dimCh = fixture.def.channels.findIndex(c => c.type === 'dimmer');
+                            if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, 255);
+                            setTimeout(() => {
+                              if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, 0);
+                            }, 150);
+                          }
+                        }}
+                        isConfig={true}
+                      />
+                      <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                        📊 Create frequency trigger zones on the EQ spectrum. Each zone monitors a frequency range and triggers a fixture action when the audio energy exceeds the threshold.
+                        Use for bass-triggered dimmers, mid-range strobes, or moving head position changes on specific frequencies.
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
