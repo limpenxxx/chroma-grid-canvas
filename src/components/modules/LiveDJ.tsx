@@ -320,6 +320,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'dmx-reset', label: 'DMX Reset', icon: Square, w: 120, h: 80 },
   { type: 'audio-reactive', label: 'Audio Reactive', icon: Radio, w: 260, h: 320 },
   { type: 'tap-bpm', label: 'Tap / Audio In', icon: Activity, w: 220, h: 200 },
+  { type: 'eq-trigger', label: 'EQ Trigger', icon: Activity, w: 320, h: 280 },
 ];
 
 // ── Color distance helper (Euclidean in RGB space) ──
