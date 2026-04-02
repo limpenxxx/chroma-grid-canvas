@@ -2745,6 +2745,7 @@ export function LiveDJ() {
       wledFixtureColor: type === 'wled-fixture' ? { r: 255, g: 0, b: 0 } : undefined,
       wledFixtureBrightness: type === 'wled-fixture' ? 128 : undefined,
       audioReactive: type === 'audio-reactive' ? { running: false, effects: [], globalDecay: 180, sensitivity: 160 } : undefined,
+      eqTriggerZones: type === 'eq-trigger' ? [] : undefined,
     }]);
   };
 
