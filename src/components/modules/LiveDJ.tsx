@@ -8,6 +8,7 @@ import {
   Bookmark, Settings2, CircleDot, Maximize2, Minimize2, Film, Copy, Grid3X3
 } from 'lucide-react';
 import { AudioVisualizerEngine, PRESET_LABELS, type VisualizerPreset } from '@/lib/audioVisualizer';
+import { DmxMixer } from './DmxMixer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
