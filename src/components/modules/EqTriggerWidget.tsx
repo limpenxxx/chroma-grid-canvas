@@ -21,14 +21,18 @@ export interface EqTriggerZone {
   // Dimmer params
   dimmerMin?: number;
   dimmerMax?: number;
-  // Color params
+  // Color: idle (background) + trigger (on hit)
+  idleColor?: { r: number; g: number; b: number };
   triggerColor?: { r: number; g: number; b: number };
+  // Fade mode
+  fadeMode?: 'instant' | 'fade';
+  fadeTimeMs?: number; // fade-out duration in ms (default 500)
   // state
   active: boolean;
   energy: number; // current 0-1
 }
 
-export type EqTriggerAction = 'dimmer' | 'strobe' | 'color' | 'mh-position' | 'on-off';
+export type EqTriggerAction = 'dimmer' | 'strobe' | 'color' | 'mh-position' | 'on-off' | 'color-flash';
 
 const ACTION_OPTIONS: { value: EqTriggerAction; label: string }[] = [
   { value: 'dimmer', label: '💡 Dimmer' },
