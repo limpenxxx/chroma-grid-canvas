@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { AudioVisualizerEngine, PRESET_LABELS, type VisualizerPreset } from '@/lib/audioVisualizer';
 import { DmxMixer } from './DmxMixer';
+import { EqTriggerWidget, type EqTriggerZone } from './EqTriggerWidget';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
@@ -32,7 +33,7 @@ interface FixtureAssignment {
   mode: ControlMode;
 }
 
-type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset' | 'audio-reactive' | 'tap-bpm';
+type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset' | 'audio-reactive' | 'tap-bpm' | 'eq-trigger';
 
 // ── Audio Reactive Effect Types ──
 type AudioReactiveEffectType =
@@ -221,6 +222,8 @@ interface DJWidget {
   wledFixtureActivePresetId?: number;
   // Audio Reactive widget
   audioReactive?: AudioReactiveConfig;
+  // EQ Trigger widget
+  eqTriggerZones?: EqTriggerZone[];
 }
 
 type ColorProgramMode = 'static' | 'switch' | 'fade';
@@ -317,6 +320,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'dmx-reset', label: 'DMX Reset', icon: Square, w: 120, h: 80 },
   { type: 'audio-reactive', label: 'Audio Reactive', icon: Radio, w: 260, h: 320 },
   { type: 'tap-bpm', label: 'Tap / Audio In', icon: Activity, w: 220, h: 200 },
+  { type: 'eq-trigger', label: 'EQ Trigger', icon: Activity, w: 320, h: 280 },
 ];
 
 // ── Color distance helper (Euclidean in RGB space) ──
@@ -525,6 +529,7 @@ type DragMode = 'none' | 'move' | 'resize-br' | 'resize-bl' | 'resize-tr' | 'res
 function ControlWidget({
   widget, isSelected, onSelect, onUpdate, onPress, onRelease, allWidgets, fixtureData, isFullscreen = false, bpm = 120,
   bpmState: bpmStateProp, audioConfig: audioConfigProp, handleTap: handleTapProp, setBpmState: setBpmStateProp, setAudioConfig: setAudioConfigProp,
+  analyserNode, sampleRate: sampleRateProp,
 }: {
   widget: DJWidget;
   isSelected: boolean;
@@ -541,6 +546,8 @@ function ControlWidget({
   handleTap?: () => void;
   setBpmState?: React.Dispatch<React.SetStateAction<BPMState>>;
   setAudioConfig?: React.Dispatch<React.SetStateAction<AudioConfig>>;
+  analyserNode?: AnalyserNode | null;
+  sampleRate?: number;
 }) {
   const dragRef = useRef<{
     mode: DragMode;
@@ -1899,6 +1906,40 @@ function ControlWidget({
           </div>
         );
       })()}
+
+      {/* EQ TRIGGER WIDGET */}
+      {widget.type === 'eq-trigger' && (() => {
+        const zones = widget.eqTriggerZones || [];
+        const fixtureList = fixtureData.map(f => ({
+          id: f.inst.id,
+          name: f.inst.name,
+          icon: getFixtureTypeIcon(f.def.type),
+        }));
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col overflow-hidden"
+            style={bgStyle}
+            onClick={onSelect}>
+            <div className="px-2 py-1 flex items-center gap-1.5 border-b border-border/20 shrink-0" style={{ background: 'rgba(0,229,255,0.06)' }}>
+              <Activity size={10} className="text-stokio-cyan" />
+              <span className="text-[9px] font-semibold truncate flex-1 text-stokio-cyan">{widget.label}</span>
+              <span className="text-[7px] font-mono text-muted-foreground/50">{zones.length} zones</span>
+            </div>
+            <div className="flex-1 p-1 overflow-hidden">
+              <EqTriggerWidget
+                zones={zones}
+                onZonesChange={(z) => onUpdate({ eqTriggerZones: z })}
+                analyserNode={analyserNode || null}
+                sampleRate={sampleRateProp || 44100}
+                width={widget.width - 10}
+                height={widget.height - 36}
+                fixtures={fixtureList}
+                onTrigger={() => {}}
+              />
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -2704,6 +2745,7 @@ export function LiveDJ() {
       wledFixtureColor: type === 'wled-fixture' ? { r: 255, g: 0, b: 0 } : undefined,
       wledFixtureBrightness: type === 'wled-fixture' ? 128 : undefined,
       audioReactive: type === 'audio-reactive' ? { running: false, effects: [], globalDecay: 180, sensitivity: 160 } : undefined,
+      eqTriggerZones: type === 'eq-trigger' ? [] : undefined,
     }]);
   };
 
@@ -3597,6 +3639,16 @@ export function LiveDJ() {
                   handleTap={handleTap}
                   setBpmState={setBpmState}
                   setAudioConfig={setAudioConfig}
+                  analyserNode={(() => {
+                    if (audioConfig.source === 'browser-mic') return micBpmRef.current?.analyser || null;
+                    if (audioConfig.source === 'system-audio') return sysAudioRef.current?.analyser || null;
+                    return null;
+                  })()}
+                  sampleRate={(() => {
+                    if (audioConfig.source === 'browser-mic') return micBpmRef.current?.ctx?.sampleRate || 44100;
+                    if (audioConfig.source === 'system-audio') return sysAudioRef.current?.ctx?.sampleRate || 44100;
+                    return 44100;
+                  })()}
                 />
               ))}
 
@@ -5083,6 +5135,79 @@ export function LiveDJ() {
                       </div>
                     );
                   })()}
+
+                  {/* EQ Trigger Widget Config */}
+                  {selectedWidgetData.type === 'eq-trigger' && (
+                    <div className="space-y-2">
+                      <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
+                        <Activity size={10} /> EQ Trigger Zones
+                      </label>
+                      <EqTriggerWidget
+                        zones={selectedWidgetData.eqTriggerZones || []}
+                        onZonesChange={(z) => updateWidget(selectedWidgetData.id, { eqTriggerZones: z })}
+                        analyserNode={(() => {
+                          if (audioConfig.source === 'browser-mic') return micBpmRef.current?.analyser || null;
+                          if (audioConfig.source === 'system-audio') return sysAudioRef.current?.analyser || null;
+                          return null;
+                        })()}
+                        sampleRate={(() => {
+                          if (audioConfig.source === 'browser-mic') return micBpmRef.current?.ctx?.sampleRate || 44100;
+                          if (audioConfig.source === 'system-audio') return sysAudioRef.current?.ctx?.sampleRate || 44100;
+                          return 44100;
+                        })()}
+                        width={240}
+                        height={400}
+                        fixtures={allFixturesWithDefs.map(f => ({
+                          id: f.inst.id,
+                          name: f.inst.name,
+                          icon: getFixtureTypeIcon(f.def.type),
+                        }))}
+                        onTrigger={(zone, energy) => {
+                          if (!zone.fixtureId) return;
+                          const fixture = allFixturesWithDefs.find(f => f.inst.id === zone.fixtureId);
+                          if (!fixture) return;
+                          const uni = fixture.inst.universe || 1;
+                          const startCh = fixture.inst.dmxAddress || 1;
+                          const mode = fixture.def.modes.find(m => m.id === fixture.inst.modeId) || fixture.def.modes[0];
+                          const chs = mode?.channels || [];
+
+                          if (zone.action === 'dimmer') {
+                            const min = zone.dimmerMin ?? 0;
+                            const max = zone.dimmerMax ?? 255;
+                            const val = Math.round(min + energy * (max - min));
+                            const dimCh = chs.findIndex(c => c.function === 'dimmer');
+                            if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, val);
+                          } else if (zone.action === 'strobe') {
+                            const strobeCh = chs.findIndex(c => c.function === 'strobe');
+                            if (strobeCh >= 0) sendDmxChannel(uni, startCh + strobeCh, 255);
+                            setTimeout(() => {
+                              if (strobeCh >= 0) sendDmxChannel(uni, startCh + strobeCh, 0);
+                            }, 80);
+                          } else if (zone.action === 'mh-position') {
+                            const posA = zone.posA || { pan: 0, tilt: 0 };
+                            const posB = zone.posB || { pan: 128, tilt: 128 };
+                            const panCh = chs.findIndex(c => c.function === 'pan');
+                            const tiltCh = chs.findIndex(c => c.function === 'tilt');
+                            const useB = Math.random() > 0.5;
+                            const pos = useB ? posB : posA;
+                            if (panCh >= 0) sendDmxChannel(uni, startCh + panCh, pos.pan);
+                            if (tiltCh >= 0) sendDmxChannel(uni, startCh + tiltCh, pos.tilt);
+                          } else if (zone.action === 'on-off') {
+                            const dimCh = chs.findIndex(c => c.function === 'dimmer');
+                            if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, 255);
+                            setTimeout(() => {
+                              if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, 0);
+                            }, 150);
+                          }
+                        }}
+                        isConfig={true}
+                      />
+                      <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                        📊 Create frequency trigger zones on the EQ spectrum. Each zone monitors a frequency range and triggers a fixture action when the audio energy exceeds the threshold.
+                        Use for bass-triggered dimmers, mid-range strobes, or moving head position changes on specific frequencies.
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
