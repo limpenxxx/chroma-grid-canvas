@@ -215,6 +215,8 @@ export class AudioVisualizerEngine {
         switch (this._preset) {
           case 'pixel-matrix-idle': this.renderPixelMatrix(ctx, w, h, 0, 0, 0, 0, t); break;
           case 'retro-arcade-idle': this.renderRetroArcade(ctx, w, h, 0, 0, 0, 0, t); break;
+          case 'timebar-arcade': this.renderTimeBarArcade(ctx, w, h, 0, 0, 0, 0, t); break;
+          case 'timebar-arcade-2': this.renderTimeBarArcade2(ctx, w, h, 0, 0, 0, 0, t); break;
         }
         return;
       }
