@@ -2197,8 +2197,8 @@ export class AudioVisualizerEngine {
     ctx.fillRect(0, barY, w, p);
 
     // === BARTENDER (bald, smiling, running around serving beer) ===
-    const btSpeed2 = hasAudio ? 1 + bass * 2.5 : 0.4;
-    const btCycle2 = (t * btSpeed2 * 0.25) % 2;
+    const btSpeed2 = hasAudio ? 0.4 + bass * 1.0 : 0.2;
+    const btCycle2 = (t * btSpeed2 * 0.12) % 2;
     const btDir2 = btCycle2 < 1 ? 1 : -1;
     const btProg2 = btCycle2 < 1 ? btCycle2 : 2 - btCycle2;
     const btMinX2 = w * 0.08;
