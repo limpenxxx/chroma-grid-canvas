@@ -37,7 +37,8 @@ export type EqTriggerAction = 'dimmer' | 'strobe' | 'color' | 'mh-position' | 'o
 const ACTION_OPTIONS: { value: EqTriggerAction; label: string }[] = [
   { value: 'dimmer', label: '💡 Dimmer' },
   { value: 'strobe', label: '⚡ Strobe' },
-  { value: 'color', label: '🎨 Color' },
+  { value: 'color-flash', label: '🎨 Color (Idle→Trigger)' },
+  { value: 'color', label: '🎨 Color (legacy)' },
   { value: 'mh-position', label: '🔄 MH Position' },
   { value: 'on-off', label: '🔘 On/Off' },
 ];
