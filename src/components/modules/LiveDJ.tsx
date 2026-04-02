@@ -300,7 +300,7 @@ interface SavedLayout {
   audioConfig: AudioConfig;
 }
 
-type Tab = 'controller' | 'assignments' | 'scripts' | 'groups';
+type Tab = 'controller' | 'assignments' | 'scripts' | 'groups' | 'mixer';
 
 const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: number; h: number }[] = [
   { type: 'button', label: 'Flash Button', icon: Zap, w: 100, h: 100 },
