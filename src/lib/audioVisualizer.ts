@@ -1836,58 +1836,174 @@ export class AudioVisualizerEngine {
       ctx.fill();
     }
 
-    // === DJ BOOTH (bottom right) ===
-    const djX = w * 0.7;
-    const djY = barY - p * 20;
-    const djW = w * 0.25;
-    const djH = p * 18;
+    // === NEON TUBES on walls ===
+    const neonAlpha = hasAudio ? 0.5 + bass * 0.5 : 0.3 + Math.sin(t * 2) * 0.15;
+    // Horizontal neon tubes
+    for (let nt = 0; nt < 3; nt++) {
+      const ny = h * 0.12 + nt * h * 0.18;
+      const neonHue = [340, 180, 50][nt];
+      ctx.shadowColor = `hsl(${neonHue}, 100%, 60%)`;
+      ctx.shadowBlur = 12 * neonAlpha;
+      ctx.strokeStyle = `hsla(${neonHue}, 100%, 65%, ${neonAlpha})`;
+      ctx.lineWidth = p;
+      ctx.beginPath();
+      ctx.moveTo(p * 4, ny);
+      ctx.lineTo(w * 0.35, ny);
+      ctx.stroke();
+      // Tube end caps
+      ctx.fillStyle = '#444';
+      ctx.fillRect(p * 2, ny - p, p * 2, p * 3);
+      ctx.fillRect(w * 0.35, ny - p, p * 2, p * 3);
+    }
+    ctx.shadowBlur = 0;
+
+    // === DJ BOOTH with Pioneer CDJ-3000 x2 + A9 Mixer ===
+    const djX = w * 0.65;
+    const djY = barY - p * 22;
+    const djW = w * 0.32;
+    const djH = p * 20;
     // Booth body
-    ctx.fillStyle = '#151520';
+    ctx.fillStyle = '#0e0e18';
     ctx.fillRect(djX, djY, djW, djH);
-    ctx.strokeStyle = '#333';
+    ctx.strokeStyle = '#222';
     ctx.lineWidth = p;
     ctx.strokeRect(djX, djY, djW, djH);
-    // Turntables
-    for (let d = 0; d < 2; d++) {
-      const dx = djX + p * 4 + d * (djW * 0.45);
-      const dy = djY + p * 3;
-      ctx.fillStyle = '#222';
-      ctx.beginPath();
-      ctx.arc(dx + p * 5, dy + p * 5, p * 4, 0, Math.PI * 2);
-      ctx.fill();
-      // Spinning disc
-      ctx.strokeStyle = '#555';
-      ctx.lineWidth = 1;
-      const discRot = t * (hasAudio ? 3 + mid * 4 : 1);
-      ctx.beginPath();
-      ctx.moveTo(dx + p * 5, dy + p * 5);
-      ctx.lineTo(dx + p * 5 + Math.cos(discRot) * p * 3, dy + p * 5 + Math.sin(discRot) * p * 3);
-      ctx.stroke();
+
+    // === NEON ARCH around DJ booth ===
+    const archCX = djX + djW / 2;
+    const archCY = djY + p * 2;
+    const archR = djW * 0.55;
+    const archHue = hasAudio ? (t * 40 + bass * 100) % 360 : (t * 15) % 360;
+    ctx.shadowColor = `hsl(${archHue}, 100%, 60%)`;
+    ctx.shadowBlur = 18 * neonAlpha;
+    ctx.strokeStyle = `hsla(${archHue}, 100%, 65%, ${neonAlpha * 0.9})`;
+    ctx.lineWidth = p * 2;
+    ctx.beginPath();
+    ctx.arc(archCX, archCY, archR, Math.PI, 0);
+    ctx.stroke();
+    // Second inner arch (different color)
+    ctx.strokeStyle = `hsla(${(archHue + 120) % 360}, 100%, 60%, ${neonAlpha * 0.6})`;
+    ctx.shadowColor = `hsl(${(archHue + 120) % 360}, 100%, 60%)`;
+    ctx.lineWidth = p;
+    ctx.beginPath();
+    ctx.arc(archCX, archCY, archR - p * 3, Math.PI, 0);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // === CDJ-3000 Left ===
+    const cdj1X = djX + p * 2;
+    const cdjY = djY + p * 3;
+    const cdjW = p * 14;
+    const cdjH = p * 12;
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(cdj1X, cdjY, cdjW, cdjH);
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(cdj1X, cdjY, cdjW, cdjH);
+    // Jog wheel
+    const jogR = p * 4;
+    const jogCX1 = cdj1X + cdjW / 2;
+    const jogCY = cdjY + cdjH * 0.55;
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(jogCX1, jogCY, jogR, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#444';
+    ctx.beginPath(); ctx.arc(jogCX1, jogCY, jogR, 0, Math.PI * 2); ctx.stroke();
+    // Spinning indicator
+    const jogRot1 = t * (hasAudio ? 3 + mid * 5 : 1);
+    ctx.strokeStyle = `hsla(200, 90%, 60%, 0.8)`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(jogCX1, jogCY);
+    ctx.lineTo(jogCX1 + Math.cos(jogRot1) * jogR * 0.8, jogCY + Math.sin(jogRot1) * jogR * 0.8);
+    ctx.stroke();
+    // Screen (small display)
+    ctx.fillStyle = '#001122';
+    ctx.fillRect(cdj1X + p, cdjY + p, cdjW - p * 2, p * 3);
+    ctx.fillStyle = `hsla(200, 100%, 55%, ${hasAudio ? 0.7 + treble * 0.3 : 0.5})`;
+    ctx.font = `${p * 2}px monospace`;
+    ctx.fillText('CDJ', cdj1X + p * 2, cdjY + p * 3);
+    // Play button LED
+    ctx.fillStyle = hasAudio ? '#00ff44' : '#004400';
+    ctx.fillRect(cdj1X + p * 2, cdjY + cdjH - p * 2, p, p);
+    // Pioneer label
+    ctx.fillStyle = '#555';
+    ctx.font = `${p}px monospace`;
+    ctx.fillText('3000', cdj1X + p * 5, cdjY + cdjH - p);
+
+    // === CDJ-3000 Right ===
+    const cdj2X = djX + djW - cdjW - p * 2;
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(cdj2X, cdjY, cdjW, cdjH);
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(cdj2X, cdjY, cdjW, cdjH);
+    const jogCX2 = cdj2X + cdjW / 2;
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(jogCX2, jogCY, jogR, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#444';
+    ctx.beginPath(); ctx.arc(jogCX2, jogCY, jogR, 0, Math.PI * 2); ctx.stroke();
+    const jogRot2 = t * (hasAudio ? 3 + treble * 5 : 1) + 1;
+    ctx.strokeStyle = `hsla(200, 90%, 60%, 0.8)`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(jogCX2, jogCY);
+    ctx.lineTo(jogCX2 + Math.cos(jogRot2) * jogR * 0.8, jogCY + Math.sin(jogRot2) * jogR * 0.8);
+    ctx.stroke();
+    ctx.fillStyle = '#001122';
+    ctx.fillRect(cdj2X + p, cdjY + p, cdjW - p * 2, p * 3);
+    ctx.fillStyle = `hsla(200, 100%, 55%, ${hasAudio ? 0.7 + treble * 0.3 : 0.5})`;
+    ctx.font = `${p * 2}px monospace`;
+    ctx.fillText('CDJ', cdj2X + p * 2, cdjY + p * 3);
+    ctx.fillStyle = hasAudio ? '#00ff44' : '#004400';
+    ctx.fillRect(cdj2X + p * 2, cdjY + cdjH - p * 2, p, p);
+    ctx.fillStyle = '#555';
+    ctx.font = `${p}px monospace`;
+    ctx.fillText('3000', cdj2X + p * 5, cdjY + cdjH - p);
+
+    // === A9 Mixer (center between CDJs) ===
+    const mixX = cdj1X + cdjW + p;
+    const mixW = cdj2X - cdj1X - cdjW - p * 2;
+    const mixH = cdjH + p * 2;
+    ctx.fillStyle = '#151518';
+    ctx.fillRect(mixX, cdjY - p, mixW, mixH);
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(mixX, cdjY - p, mixW, mixH);
+    // Channel faders (4 channels)
+    const faderCount = 4;
+    const faderW = Math.floor((mixW - p * 2) / faderCount);
+    for (let f = 0; f < faderCount; f++) {
+      const fx = mixX + p + f * faderW;
+      const faderVal = hasAudio
+        ? (this.freqData[Math.floor(f / faderCount * this.freqData.length * 0.3)] || 0) / 255
+        : 0.3 + Math.sin(t + f) * 0.2;
+      const faderH = faderVal * (mixH - p * 6);
+      // Fader track
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(fx + p, cdjY + p * 2, p * 2, mixH - p * 6);
+      // Fader position
+      ctx.fillStyle = `hsla(${f * 90}, 80%, 50%, 0.8)`;
+      ctx.fillRect(fx + p, cdjY + p * 2 + (mixH - p * 6 - faderH), p * 2, faderH);
+      // Fader knob
+      ctx.fillStyle = '#ddd';
+      ctx.fillRect(fx, cdjY + p * 2 + (mixH - p * 6 - faderH) - p, p * 4, p * 2);
     }
+    // A9 label
+    ctx.fillStyle = '#666';
+    ctx.font = `bold ${p * 2}px monospace`;
+    ctx.fillText('A9', mixX + mixW / 2 - p * 2, cdjY + mixH - p * 2);
+
     // PIXEL DISPLAY on front of DJ booth
     const dispY = djY + djH;
     const dispH = p * 8;
     ctx.fillStyle = '#050510';
     ctx.fillRect(djX, dispY, djW, dispH);
-    // Scrolling pixel text "TIME BAR"
-    const textPixels = 'TIME BAR';
-    ctx.font = `bold ${p * 3}px monospace`;
-    const scrollX = ((t * 40) % (djW + 200)) - 100;
     const textHue = hasAudio ? (t * 60 + bass * 120) % 360 : (t * 30) % 360;
     ctx.fillStyle = `hsl(${textHue}, 100%, 60%)`;
+    ctx.font = `bold ${p * 3}px monospace`;
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(djX, dispY, djW, dispH);
-    ctx.clip();
-    ctx.fillText(textPixels, djX + djW - scrollX, dispY + p * 6);
+    ctx.beginPath(); ctx.rect(djX, dispY, djW, dispH); ctx.clip();
+    const scrollX = ((t * 40) % (djW + 200)) - 100;
+    ctx.fillText('TIME BAR', djX + djW - scrollX, dispY + p * 6);
     ctx.restore();
-    // Pixel display dots
-    for (let px2 = djX; px2 < djX + djW; px2 += p * 2) {
-      for (let py2 = dispY; py2 < dispY + dispH; py2 += p * 2) {
-        ctx.fillStyle = `hsla(${textHue}, 80%, 40%, 0.08)`;
-        ctx.fillRect(px2, py2, p, p);
-      }
-    }
 
     // === "TIME BAR" neon sign ===
     ctx.font = `bold ${p * 6}px monospace`;
@@ -1919,6 +2035,19 @@ export class AudioVisualizerEngine {
     // Floor
     ctx.fillStyle = '#0d0908';
     ctx.fillRect(0, barY + p * 4 + h * 0.12, w, h);
+
+    // Vertical neon accent tubes on walls
+    for (const nx of [w * 0.02, w * 0.38, w * 0.62]) {
+      const nHue = (nx / w * 300 + t * 30) % 360;
+      ctx.shadowColor = `hsl(${nHue}, 100%, 60%)`;
+      ctx.shadowBlur = 10 * neonAlpha;
+      ctx.fillStyle = `hsla(${nHue}, 100%, 65%, ${neonAlpha * 0.7})`;
+      ctx.fillRect(nx, h * 0.05, p, h * 0.6);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#444';
+      ctx.fillRect(nx - p, h * 0.05, p * 3, p * 2);
+      ctx.fillRect(nx - p, h * 0.05 + h * 0.6 - p * 2, p * 3, p * 2);
+    }
 
     // CRT scanlines
     ctx.fillStyle = 'rgba(0,0,0,0.06)';
@@ -2134,60 +2263,166 @@ export class AudioVisualizerEngine {
       }
     }
 
-    // === DJ BOOTH (right side) ===
-    const djX = w * 0.68;
-    const djY2 = barY - p * 22;
-    const djW = w * 0.28;
-    const djH = p * 20;
-    ctx.fillStyle = '#111118';
+    // === NEON TUBES on walls and ceiling ===
+    const neonAlpha2 = hasAudio ? 0.5 + treble * 0.5 : 0.3 + Math.sin(t * 1.8) * 0.15;
+    // Horizontal neon tubes along ceiling beams
+    for (let nt = 0; nt < 4; nt++) {
+      const neonHue2 = [320, 200, 50, 280][nt];
+      const ny2 = p * 3;
+      const nxStart = nt * (w / 4) + p * 4;
+      const nxEnd = (nt + 1) * (w / 4) - p * 4;
+      ctx.shadowColor = `hsl(${neonHue2}, 100%, 60%)`;
+      ctx.shadowBlur = 10 * neonAlpha2;
+      ctx.strokeStyle = `hsla(${neonHue2}, 100%, 65%, ${neonAlpha2})`;
+      ctx.lineWidth = p;
+      ctx.beginPath(); ctx.moveTo(nxStart, ny2); ctx.lineTo(nxEnd, ny2); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    // Vertical neon accents
+    for (const vnx of [w * 0.02, w * 0.35]) {
+      const vHue = (vnx / w * 200 + t * 25) % 360;
+      ctx.shadowColor = `hsl(${vHue}, 100%, 60%)`;
+      ctx.shadowBlur = 10 * neonAlpha2;
+      ctx.fillStyle = `hsla(${vHue}, 100%, 65%, ${neonAlpha2 * 0.7})`;
+      ctx.fillRect(vnx, h * 0.08, p, h * 0.55);
+      ctx.shadowBlur = 0;
+    }
+
+    // === DJ BOOTH with Pioneer CDJ-3000 x2 + A9 Mixer ===
+    const djX = w * 0.65;
+    const djY2 = barY - p * 24;
+    const djW = w * 0.32;
+    const djH = p * 22;
+    ctx.fillStyle = '#0e0e18';
     ctx.fillRect(djX, djY2, djW, djH);
-    ctx.strokeStyle = '#2a2a3a';
+    ctx.strokeStyle = '#222';
     ctx.lineWidth = p;
     ctx.strokeRect(djX, djY2, djW, djH);
-    // DJ turntables
-    for (let d = 0; d < 2; d++) {
-      const dx = djX + p * 4 + d * (djW * 0.45);
-      const dy = djY2 + p * 3;
-      ctx.fillStyle = '#1a1a1a';
-      ctx.beginPath();
-      ctx.arc(dx + p * 6, dy + p * 6, p * 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#444';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(dx + p * 6, dy + p * 6, p * 5, 0, Math.PI * 2);
-      ctx.stroke();
-      const dRot = t * (hasAudio ? 4 + treble * 5 : 1.2);
-      ctx.strokeStyle = '#666';
-      ctx.beginPath();
-      ctx.moveTo(dx + p * 6, dy + p * 6);
-      ctx.lineTo(dx + p * 6 + Math.cos(dRot + d) * p * 4, dy + p * 6 + Math.sin(dRot + d) * p * 4);
-      ctx.stroke();
+
+    // === NEON ARCH around DJ booth ===
+    const archCX2 = djX + djW / 2;
+    const archCY2 = djY2 + p;
+    const archR2 = djW * 0.56;
+    const archHue2 = hasAudio ? (t * 35 + bass * 120) % 360 : (t * 12) % 360;
+    ctx.shadowColor = `hsl(${archHue2}, 100%, 60%)`;
+    ctx.shadowBlur = 20 * neonAlpha2;
+    ctx.strokeStyle = `hsla(${archHue2}, 100%, 65%, ${neonAlpha2 * 0.9})`;
+    ctx.lineWidth = p * 2;
+    ctx.beginPath(); ctx.arc(archCX2, archCY2, archR2, Math.PI, 0); ctx.stroke();
+    ctx.strokeStyle = `hsla(${(archHue2 + 150) % 360}, 100%, 60%, ${neonAlpha2 * 0.5})`;
+    ctx.lineWidth = p;
+    ctx.beginPath(); ctx.arc(archCX2, archCY2, archR2 - p * 4, Math.PI, 0); ctx.stroke();
+    // Side neon tubes framing booth
+    for (const sx of [djX - p * 2, djX + djW + p]) {
+      ctx.fillStyle = `hsla(${archHue2}, 100%, 65%, ${neonAlpha2 * 0.8})`;
+      ctx.fillRect(sx, djY2, p, djH + p * 12);
     }
+    ctx.shadowBlur = 0;
+
+    // === CDJ-3000 Left ===
+    const cdj1X2 = djX + p * 2;
+    const cdjY2 = djY2 + p * 3;
+    const cdjW2 = p * 16;
+    const cdjH2 = p * 14;
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(cdj1X2, cdjY2, cdjW2, cdjH2);
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(cdj1X2, cdjY2, cdjW2, cdjH2);
+    // Jog wheel
+    const jogR2 = p * 5;
+    const jogCX1b = cdj1X2 + cdjW2 / 2;
+    const jogCYb = cdjY2 + cdjH2 * 0.55;
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(jogCX1b, jogCYb, jogR2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#444';
+    ctx.beginPath(); ctx.arc(jogCX1b, jogCYb, jogR2, 0, Math.PI * 2); ctx.stroke();
+    const jogRot1b = t * (hasAudio ? 3.5 + mid * 6 : 1);
+    ctx.strokeStyle = `hsla(200, 90%, 60%, 0.8)`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(jogCX1b, jogCYb);
+    ctx.lineTo(jogCX1b + Math.cos(jogRot1b) * jogR2 * 0.8, jogCYb + Math.sin(jogRot1b) * jogR2 * 0.8);
+    ctx.stroke();
+    // Screen
+    ctx.fillStyle = '#001122';
+    ctx.fillRect(cdj1X2 + p, cdjY2 + p, cdjW2 - p * 2, p * 3);
+    ctx.fillStyle = `hsla(200, 100%, 55%, ${hasAudio ? 0.7 + treble * 0.3 : 0.5})`;
+    ctx.font = `${p * 2}px monospace`;
+    ctx.fillText('CDJ-3000', cdj1X2 + p * 2, cdjY2 + p * 3);
+    ctx.fillStyle = hasAudio ? '#00ff44' : '#004400';
+    ctx.fillRect(cdj1X2 + p * 2, cdjY2 + cdjH2 - p * 2, p, p);
+
+    // === CDJ-3000 Right ===
+    const cdj2X2 = djX + djW - cdjW2 - p * 2;
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(cdj2X2, cdjY2, cdjW2, cdjH2);
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(cdj2X2, cdjY2, cdjW2, cdjH2);
+    const jogCX2b = cdj2X2 + cdjW2 / 2;
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(jogCX2b, jogCYb, jogR2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#444';
+    ctx.beginPath(); ctx.arc(jogCX2b, jogCYb, jogR2, 0, Math.PI * 2); ctx.stroke();
+    const jogRot2b = t * (hasAudio ? 3.5 + treble * 6 : 1) + 1.5;
+    ctx.strokeStyle = `hsla(200, 90%, 60%, 0.8)`;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(jogCX2b, jogCYb);
+    ctx.lineTo(jogCX2b + Math.cos(jogRot2b) * jogR2 * 0.8, jogCYb + Math.sin(jogRot2b) * jogR2 * 0.8);
+    ctx.stroke();
+    ctx.fillStyle = '#001122';
+    ctx.fillRect(cdj2X2 + p, cdjY2 + p, cdjW2 - p * 2, p * 3);
+    ctx.fillStyle = `hsla(200, 100%, 55%, ${hasAudio ? 0.7 + treble * 0.3 : 0.5})`;
+    ctx.font = `${p * 2}px monospace`;
+    ctx.fillText('CDJ-3000', cdj2X2 + p * 2, cdjY2 + p * 3);
+    ctx.fillStyle = hasAudio ? '#00ff44' : '#004400';
+    ctx.fillRect(cdj2X2 + p * 2, cdjY2 + cdjH2 - p * 2, p, p);
+
+    // === A9 Mixer (center) ===
+    const mixX2 = cdj1X2 + cdjW2 + p;
+    const mixW2 = cdj2X2 - cdj1X2 - cdjW2 - p * 2;
+    const mixH2 = cdjH2 + p * 2;
+    ctx.fillStyle = '#151518';
+    ctx.fillRect(mixX2, cdjY2 - p, mixW2, mixH2);
+    ctx.strokeStyle = '#2a2a2a';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(mixX2, cdjY2 - p, mixW2, mixH2);
+    const faderCount2 = 4;
+    const faderW2 = Math.floor((mixW2 - p * 2) / faderCount2);
+    for (let f = 0; f < faderCount2; f++) {
+      const fx2 = mixX2 + p + f * faderW2;
+      const fv = hasAudio
+        ? (this.freqData[Math.floor(f / faderCount2 * this.freqData.length * 0.3)] || 0) / 255
+        : 0.3 + Math.sin(t * 0.8 + f * 1.2) * 0.2;
+      const faderH2 = fv * (mixH2 - p * 6);
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(fx2 + p, cdjY2 + p * 2, p * 2, mixH2 - p * 6);
+      ctx.fillStyle = `hsla(${f * 90}, 80%, 50%, 0.8)`;
+      ctx.fillRect(fx2 + p, cdjY2 + p * 2 + (mixH2 - p * 6 - faderH2), p * 2, faderH2);
+      ctx.fillStyle = '#ddd';
+      ctx.fillRect(fx2, cdjY2 + p * 2 + (mixH2 - p * 6 - faderH2) - p, p * 4, p * 2);
+    }
+    ctx.fillStyle = '#666';
+    ctx.font = `bold ${p * 2}px monospace`;
+    ctx.fillText('A9', mixX2 + mixW2 / 2 - p * 2, cdjY2 + mixH2 - p * 2);
+
     // PIXEL DISPLAY under DJ deck
     const dispY = djY2 + djH;
     const dispH = p * 10;
     ctx.fillStyle = '#020208';
     ctx.fillRect(djX, dispY, djW, dispH);
-    // Animated pixel marquee
     const marqueeHue = hasAudio ? (t * 80 + bass * 200) % 360 : (t * 25) % 360;
     ctx.font = `bold ${p * 4}px monospace`;
     ctx.fillStyle = `hsl(${marqueeHue}, 100%, 55%)`;
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(djX + p, dispY + p, djW - p * 2, dispH - p * 2);
-    ctx.clip();
+    ctx.beginPath(); ctx.rect(djX + p, dispY + p, djW - p * 2, dispH - p * 2); ctx.clip();
     const scroll2 = ((t * 50) % (djW + 300)) - 150;
     ctx.fillText('⏰ TIME BAR ⏰', djX + djW - scroll2, dispY + p * 7);
     ctx.restore();
-    // Pixel grid overlay on display
+    // Pixel grid overlay
     ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    for (let gx = djX; gx < djX + djW; gx += p * 2) {
-      ctx.fillRect(gx, dispY, 1, dispH);
-    }
-    for (let gy = dispY; gy < dispY + dispH; gy += p * 2) {
-      ctx.fillRect(djX, gy, djW, 1);
-    }
+    for (let gx2 = djX; gx2 < djX + djW; gx2 += p * 2) ctx.fillRect(gx2, dispY, 1, dispH);
+    for (let gy2 = dispY; gy2 < dispY + dispH; gy2 += p * 2) ctx.fillRect(djX, gy2, djW, 1);
 
     // === "TIME BAR" large neon sign (left wall) ===
     ctx.font = `bold ${p * 8}px monospace`;
@@ -2217,12 +2452,11 @@ export class AudioVisualizerEngine {
         ctx.fillRect(i * tileSize, floorY, tileSize - 1, h - floorY);
       }
     } else {
-      // Subtle pulsing floor lights
       for (let i = 0; i < 8; i++) {
         const pulse = Math.sin(t * 1.5 + i * 0.8) * 0.5 + 0.5;
-        const fx = (i / 8) * w;
+        const fx3 = (i / 8) * w;
         ctx.fillStyle = `hsla(${i * 45}, 60%, 30%, ${pulse * 0.15})`;
-        ctx.fillRect(fx, floorY, w / 8, h - floorY);
+        ctx.fillRect(fx3, floorY, w / 8, h - floorY);
       }
     }
 
