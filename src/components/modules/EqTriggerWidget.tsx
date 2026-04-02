@@ -259,25 +259,62 @@ export function EqTriggerWidget({
   height,
   fixtures,
   onTrigger,
+  onColorOutput,
   isConfig = false,
 }: EqTriggerWidgetProps) {
   const [expandedZone, setExpandedZone] = useState<string | null>(null);
   const prevActiveRef = useRef<Record<string, boolean>>({});
+  const fadeRef = useRef<Record<string, { progress: number; lastTrigger: number }>>({});
 
   const specH = isConfig ? Math.min(120, height * 0.35) : Math.max(60, height - 40);
   const specW = width - 8;
 
   const handleZoneEnergies = useCallback((energies: Record<string, number>) => {
     const prev = prevActiveRef.current;
+    const now = performance.now();
+    const colorOutputs: EqColorOutput[] = [];
+
     zones.forEach(zone => {
       const e = energies[zone.id] || 0;
       const isActive = e > zone.threshold / 255;
+
+      // Init fade state
+      if (!fadeRef.current[zone.id]) {
+        fadeRef.current[zone.id] = { progress: 0, lastTrigger: 0 };
+      }
+      const fade = fadeRef.current[zone.id];
+
+      if (isActive) {
+        // Triggered — go to full
+        fade.progress = zone.fadeMode === 'instant' ? 1 : Math.min(1, fade.progress + 0.15);
+        fade.lastTrigger = now;
+      } else {
+        // Release
+        if (zone.fadeMode === 'instant') {
+          fade.progress = 0;
+        } else {
+          const fadeTime = zone.fadeTimeMs || 500;
+          const elapsed = now - fade.lastTrigger;
+          fade.progress = Math.max(0, 1 - elapsed / fadeTime);
+        }
+      }
+
+      // Fire original trigger on rising edge
       if (isActive && !prev[zone.id]) {
         onTrigger(zone, e);
       }
       prev[zone.id] = isActive;
+
+      // Collect color output for color-flash zones
+      if (zone.action === 'color-flash' || zone.action === 'color') {
+        colorOutputs.push({ zone, fadeProgress: fade.progress });
+      }
     });
-  }, [zones, onTrigger]);
+
+    if (onColorOutput && colorOutputs.length > 0) {
+      onColorOutput(colorOutputs);
+    }
+  }, [zones, onTrigger, onColorOutput]);
 
   const addZone = () => {
     const id = `eq-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`;
