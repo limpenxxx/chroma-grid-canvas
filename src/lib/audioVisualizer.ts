@@ -78,6 +78,10 @@ export const PRESET_LABELS: Record<VisualizerPreset, string> = {
   'dna-helix': '🧬 DNA Helix',
   'starburst': '⭐ Starburst',
   'glitch-wave': '📺 Glitch Wave',
+  'pixel-matrix': '🟩 Pixel Matrix',
+  'pixel-matrix-idle': '🟩 Pixel Matrix (Idle)',
+  'retro-arcade': '👾 Retro Arcade',
+  'retro-arcade-idle': '👾 Retro Arcade (Idle)',
 };
 
 export const INPUT_LABELS: Record<AudioInputSource, string> = {
