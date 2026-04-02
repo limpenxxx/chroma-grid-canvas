@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { AudioVisualizerEngine, PRESET_LABELS, type VisualizerPreset } from '@/lib/audioVisualizer';
 import { DmxMixer } from './DmxMixer';
-import { EqTriggerWidget, type EqTriggerZone } from './EqTriggerWidget';
+import { EqTriggerWidget, type EqTriggerZone, type EqColorOutput } from './EqTriggerWidget';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
