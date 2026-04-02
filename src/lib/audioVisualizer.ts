@@ -200,8 +200,20 @@ export class AudioVisualizerEngine {
     return Math.min(1, (sum / count / 255) * this._sensitivity * 1.3);
   }
 
+  // Idle presets that render without audio
+  private static IDLE_PRESETS: Set<VisualizerPreset> = new Set(['pixel-matrix-idle', 'retro-arcade-idle']);
+
   render(ctx: CanvasRenderingContext2D, w: number, h: number): void {
     if (!this._isRunning || !this.analyser) {
+      // Idle presets render their own animation without audio
+      if (AudioVisualizerEngine.IDLE_PRESETS.has(this._preset)) {
+        const t = Date.now() / 1000;
+        switch (this._preset) {
+          case 'pixel-matrix-idle': this.renderPixelMatrix(ctx, w, h, 0, 0, 0, 0, t); break;
+          case 'retro-arcade-idle': this.renderRetroArcade(ctx, w, h, 0, 0, 0, 0, t); break;
+        }
+        return;
+      }
       const t = Date.now() / 3000;
       ctx.fillStyle = '#080808';
       ctx.fillRect(0, 0, w, h);
