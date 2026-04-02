@@ -205,7 +205,7 @@ export class AudioVisualizerEngine {
   }
 
   // Idle presets that render without audio
-  private static IDLE_PRESETS: Set<VisualizerPreset> = new Set(['pixel-matrix-idle', 'retro-arcade-idle']);
+  private static IDLE_PRESETS: Set<VisualizerPreset> = new Set(['pixel-matrix-idle', 'retro-arcade-idle', 'timebar-arcade', 'timebar-arcade-2']);
 
   render(ctx: CanvasRenderingContext2D, w: number, h: number): void {
     if (!this._isRunning || !this.analyser) {
