@@ -271,6 +271,10 @@ export class AudioVisualizerEngine {
       case 'dna-helix': this.renderDNA(ctx, w, h, energy, bass, treble, t); break;
       case 'starburst': this.renderStarburst(ctx, w, h, energy, bass, treble, t); break;
       case 'glitch-wave': this.renderGlitch(ctx, w, h, energy, bass, treble, t); break;
+      case 'pixel-matrix':
+      case 'pixel-matrix-idle': this.renderPixelMatrix(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'retro-arcade':
+      case 'retro-arcade-idle': this.renderRetroArcade(ctx, w, h, energy, bass, mid, treble, t); break;
     }
   }
 
