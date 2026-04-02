@@ -1906,6 +1906,40 @@ function ControlWidget({
           </div>
         );
       })()}
+
+      {/* EQ TRIGGER WIDGET */}
+      {widget.type === 'eq-trigger' && (() => {
+        const zones = widget.eqTriggerZones || [];
+        const fixtureList = fixtureData.map(f => ({
+          id: f.inst.id,
+          name: f.inst.name,
+          icon: getFixtureTypeIcon(f.def.type),
+        }));
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col overflow-hidden"
+            style={bgStyle}
+            onClick={onSelect}>
+            <div className="px-2 py-1 flex items-center gap-1.5 border-b border-border/20 shrink-0" style={{ background: 'rgba(0,229,255,0.06)' }}>
+              <Activity size={10} className="text-stokio-cyan" />
+              <span className="text-[9px] font-semibold truncate flex-1 text-stokio-cyan">{widget.label}</span>
+              <span className="text-[7px] font-mono text-muted-foreground/50">{zones.length} zones</span>
+            </div>
+            <div className="flex-1 p-1 overflow-hidden">
+              <EqTriggerWidget
+                zones={zones}
+                onZonesChange={(z) => onUpdate({ eqTriggerZones: z })}
+                analyserNode={analyserNode || null}
+                sampleRate={sampleRateProp || 44100}
+                width={widget.width - 10}
+                height={widget.height - 36}
+                fixtures={fixtureList}
+                onTrigger={() => {}}
+              />
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
