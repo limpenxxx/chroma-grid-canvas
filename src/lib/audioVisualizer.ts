@@ -84,6 +84,8 @@ export const PRESET_LABELS: Record<VisualizerPreset, string> = {
   'pixel-matrix-idle': '🟩 Pixel Matrix (Idle)',
   'retro-arcade': '👾 Retro Arcade',
   'retro-arcade-idle': '👾 Retro Arcade (Idle)',
+  'timebar-arcade': '🍺 TIME BAR Arcade',
+  'timebar-arcade-2': '🍺 TIME BAR Arcade 2',
 };
 
 export const INPUT_LABELS: Record<AudioInputSource, string> = {
