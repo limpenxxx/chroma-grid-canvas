@@ -45,6 +45,11 @@ const ACTION_OPTIONS: { value: EqTriggerAction; label: string }[] = [
 
 const ZONE_COLORS = ['#ff2d78', '#00e5ff', '#ffaa00', '#00ff66', '#aa44ff', '#ff6600', '#4488ff', '#ff4444'];
 
+export interface EqColorOutput {
+  zone: EqTriggerZone;
+  fadeProgress: number; // 0 = idle, 1 = full trigger
+}
+
 interface EqTriggerWidgetProps {
   zones: EqTriggerZone[];
   onZonesChange: (zones: EqTriggerZone[]) => void;
@@ -54,6 +59,7 @@ interface EqTriggerWidgetProps {
   height: number;
   fixtures: { id: string; name: string; icon: string }[];
   onTrigger: (zone: EqTriggerZone, energy: number) => void;
+  onColorOutput?: (outputs: EqColorOutput[]) => void;
   isConfig?: boolean; // show config panel
 }
 
