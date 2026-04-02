@@ -86,7 +86,7 @@ function ChannelFader({
             ? 'border-red-500/50 bg-red-950/30' 
             : 'border-border/30 bg-muted/20'
         }`}
-        style={{ height: 80 }}
+        style={{ height: 120 }}
         onMouseDown={handleMouseDown}
       >
         {/* Fill */}
