@@ -3302,6 +3302,7 @@ export function LiveDJ() {
           <div className="flex gap-1">
             {([
               { id: 'controller' as Tab, label: '🎛 Controller' },
+              { id: 'mixer' as Tab, label: '🎚️ DMX Mixer' },
               { id: 'assignments' as Tab, label: '📡 Assign' },
               { id: 'groups' as Tab, label: '👥 Groups' },
               { id: 'scripts' as Tab, label: '📜 Scripts' },
