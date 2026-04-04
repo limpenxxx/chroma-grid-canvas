@@ -1478,7 +1478,13 @@ function ControlWidget({
                 onClick={(e) => {
                   e.stopPropagation();
                   const io = useIOStore.getState().vfxOutput;
-                  openVfxOutputWindow(widget.vfxPreset || 'plasma-wave', io.resolution, io.display, io.fullscreen);
+                  sendRawMessage({
+                    type: 'vfx-window-open',
+                    preset: widget.vfxPreset || 'plasma-wave',
+                    resolution: io.resolution,
+                    display: io.display,
+                    fullscreen: io.fullscreen,
+                  });
                 }}
                 className="w-6 h-6 rounded-full flex items-center justify-center bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all"
                 title="Öppna VFX Output-fönster (HDMI)"
