@@ -19,6 +19,19 @@ export interface FixtureChannel {
   defaultValue: number;
   min: number;
   max: number;
+  // Per-channel capability ranges (gobo slots, color wheel ranges, etc.)
+  capabilities?: ChannelCapability[];
+}
+
+/** A capability range on a channel — maps DMX value ranges to named functions/gobos/colors */
+export interface ChannelCapability {
+  id: string;
+  dmxMin: number;
+  dmxMax: number;
+  label: string;
+  icon?: string;   // emoji or gobo icon
+  color?: string;  // hex color (for color-wheel type)
+  type?: 'open' | 'gobo' | 'color' | 'macro' | 'rotation' | 'speed' | 'custom';
 }
 
 export interface FixtureMode {
