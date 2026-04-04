@@ -309,17 +309,95 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
   const videoRefs = useRef<Record<string, HTMLVideoElement>>({});
   const lastBeatRef = useRef(0);
   const beatCountRef = useRef(0);
+  const tapTimesRef = useRef<number[]>([]);
+  const [localBpm, setLocalBpm] = useState(0);
+  const [tapFlash, setTapFlash] = useState(false);
+  const localBeatTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Effective BPM: parent or local tap
+  const effectiveBpm = bpm > 0 ? bpm : localBpm;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selected = shapes.find(s => s.id === selectedId) || null;
 
-  // ── BPM phase tracking ──
+  // ── Tap tempo handler ──
+  const handleTap = useCallback(() => {
+    const now = performance.now();
+    const taps = tapTimesRef.current;
+    // Reset if gap > 3s
+    if (taps.length > 0 && now - taps[taps.length - 1] > 3000) {
+      tapTimesRef.current = [];
+    }
+    taps.push(now);
+    if (taps.length > 8) taps.shift();
+
+    if (taps.length >= 2) {
+      const intervals = [];
+      for (let i = 1; i < taps.length; i++) intervals.push(taps[i] - taps[i - 1]);
+      const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const detectedBpm = Math.round(60000 / avg * 10) / 10;
+      setLocalBpm(detectedBpm);
+
+      // Start auto-beat loop
+      if (localBeatTimer.current) clearInterval(localBeatTimer.current);
+      localBeatTimer.current = setInterval(() => {
+        lastBeatRef.current = performance.now();
+        beatCountRef.current += 1;
+        setTapFlash(true);
+        setTimeout(() => setTapFlash(false), 80);
+
+        // Restart videos on local beat
+        setShapes(prev => {
+          prev.forEach(s => {
+            if (!s.videoBpmRestart || !s.videoSrc) return;
+            const vid = videoRefs.current[s.id];
+            if (!vid) return;
+            if (beatCountRef.current % s.videoBpmRestartDiv === 0) {
+              vid.currentTime = 0;
+              vid.play().catch(() => {});
+            }
+          });
+          return prev;
+        });
+      }, avg);
+    }
+
+    // Immediate beat trigger
+    lastBeatRef.current = now;
+    beatCountRef.current += 1;
+    setTapFlash(true);
+    setTimeout(() => setTapFlash(false), 80);
+
+    shapes.forEach(s => {
+      if (!s.videoBpmRestart || !s.videoSrc) return;
+      const vid = videoRefs.current[s.id];
+      if (!vid) return;
+      if (beatCountRef.current % s.videoBpmRestartDiv === 0) {
+        vid.currentTime = 0;
+        vid.play().catch(() => {});
+      }
+    });
+  }, [shapes]);
+
+  // Cleanup local beat timer
+  useEffect(() => {
+    return () => { if (localBeatTimer.current) clearInterval(localBeatTimer.current); };
+  }, []);
+
+  // Clear local timer when parent BPM takes over
+  useEffect(() => {
+    if (bpm > 0 && localBeatTimer.current) {
+      clearInterval(localBeatTimer.current);
+      localBeatTimer.current = null;
+    }
+  }, [bpm]);
+
+  // ── BPM phase tracking (parent beat) ──
   useEffect(() => {
     if (beatFlash) {
       lastBeatRef.current = performance.now();
       beatCountRef.current += 1;
 
-      // Restart videos on beat
       shapes.forEach(s => {
         if (!s.videoBpmRestart || !s.videoSrc) return;
         const vid = videoRefs.current[s.id];
@@ -360,7 +438,7 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
     }
 
     const now = performance.now();
-    const beatInterval = bpm > 0 ? 60000 / bpm : 1000;
+    const beatInterval = effectiveBpm > 0 ? 60000 / effectiveBpm : 1000;
     const beatPhase = ((now - lastBeatRef.current) % beatInterval) / beatInterval;
 
     const sorted = [...shapes].sort((a, b) => a.zIndex - b.zIndex);
@@ -377,7 +455,7 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
       let scale = 1;
       let rot = shape.rotation;
 
-      if (shape.bpmSync && bpm > 0) {
+      if (shape.bpmSync && effectiveBpm > 0) {
         const intensity = shape.bpmIntensity / 100;
         const pulse = Math.max(0, 1 - beatPhase * 3);
 
@@ -538,7 +616,7 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
 
       ctx.restore();
     }
-  }, [shapes, selectedId, bpm]);
+  }, [shapes, selectedId, effectiveBpm]);
 
   // ── Canvas render loop ──
   useEffect(() => {
@@ -707,13 +785,13 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
     shapes.forEach(s => {
       const vid = videoRefs.current[s.id];
       if (!vid) return;
-      if (s.videoBpmSync && bpm > 0) {
-        vid.playbackRate = Math.max(0.25, Math.min(4, bpm / 120));
+      if (s.videoBpmSync && effectiveBpm > 0) {
+        vid.playbackRate = Math.max(0.25, Math.min(4, effectiveBpm / 120));
       } else {
         vid.playbackRate = s.videoPlaybackRate;
       }
     });
-  }, [shapes, bpm]);
+  }, [shapes, effectiveBpm]);
 
   return (
     <div className="flex flex-col h-full gap-2">
@@ -725,6 +803,22 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
             <sp.icon size={12} /> {sp.label}
           </Button>
         ))}
+        {/* Tap Tempo */}
+        <Button
+          variant={tapFlash ? 'default' : 'outline'}
+          size="sm"
+          className={`h-7 text-[9px] gap-1 min-w-[80px] transition-colors ${tapFlash ? 'bg-primary text-primary-foreground' : ''}`}
+          onClick={handleTap}
+        >
+          🥁 TAP {effectiveBpm > 0 ? `${effectiveBpm.toFixed(1)}` : '—'}
+        </Button>
+        {localBpm > 0 && bpm <= 0 && (
+          <Button variant="ghost" size="sm" className="h-7 text-[9px] px-1.5 text-destructive" onClick={() => {
+            setLocalBpm(0);
+            tapTimesRef.current = [];
+            if (localBeatTimer.current) { clearInterval(localBeatTimer.current); localBeatTimer.current = null; }
+          }}>✕</Button>
+        )}
         <div className="flex-1" />
         {selected && (
           <>
@@ -752,11 +846,11 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseUp}
           />
-          {bpm > 0 && (
+          {effectiveBpm > 0 && (
             <div className={`absolute top-2 right-2 px-2 py-0.5 rounded text-[9px] font-mono transition-colors ${
-              beatFlash ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-muted-foreground'
+              (beatFlash || tapFlash) ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-muted-foreground'
             }`}>
-              {bpm.toFixed(1)} BPM
+              {effectiveBpm.toFixed(1)} BPM {bpm <= 0 && localBpm > 0 ? '(tap)' : ''}
             </div>
           )}
         </div>
