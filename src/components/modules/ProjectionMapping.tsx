@@ -438,7 +438,7 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
     }
 
     const now = performance.now();
-    const beatInterval = bpm > 0 ? 60000 / bpm : 1000;
+    const beatInterval = effectiveBpm > 0 ? 60000 / effectiveBpm : 1000;
     const beatPhase = ((now - lastBeatRef.current) % beatInterval) / beatInterval;
 
     const sorted = [...shapes].sort((a, b) => a.zIndex - b.zIndex);
