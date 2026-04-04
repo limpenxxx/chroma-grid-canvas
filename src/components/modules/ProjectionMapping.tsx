@@ -230,31 +230,36 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
         ctx.scale(shape.scaleX * scale, shape.scaleY * scale);
         ctx.translate(-shape.width / 2, -shape.height / 2);
 
-        // Draw shape
-        if (shape.type === 'quad') {
-          // Quad warp — draw as distorted quadrilateral using corners
-          const pts = shape.corners.map(c => ({
-            x: c.x * shape.width,
-            y: c.y * shape.height,
-          }));
+        // Draw shape — all shapes use corner warp points
+        const pts = shape.corners.map(c => ({
+          x: c.x * shape.width,
+          y: c.y * shape.height,
+        }));
+
+        if (shape.type === 'circle') {
+          // Ellipse warped into the quad defined by corners
+          const centerX = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
+          const centerY = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
+          const rx = Math.max(10, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) / 2);
+          const ry = Math.max(10, Math.hypot(pts[3].y - pts[0].y, pts[3].x - pts[0].x) / 2);
+          const angle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
+          ctx.beginPath();
+          ctx.ellipse(centerX, centerY, rx, ry, angle, 0, Math.PI * 2);
+        } else if (shape.type === 'triangle') {
+          // Triangle using first 3 corners
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          ctx.lineTo(pts[1].x, pts[1].y);
+          ctx.lineTo(pts[3].x, pts[3].y);
+          ctx.closePath();
+        } else {
+          // Rect & Quad — draw as quadrilateral using all 4 corners
           ctx.beginPath();
           ctx.moveTo(pts[0].x, pts[0].y);
           ctx.lineTo(pts[1].x, pts[1].y);
           ctx.lineTo(pts[2].x, pts[2].y);
           ctx.lineTo(pts[3].x, pts[3].y);
           ctx.closePath();
-        } else if (shape.type === 'circle') {
-          ctx.beginPath();
-          ctx.ellipse(shape.width / 2, shape.height / 2, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
-        } else if (shape.type === 'triangle') {
-          ctx.beginPath();
-          ctx.moveTo(shape.width / 2, 0);
-          ctx.lineTo(shape.width, shape.height);
-          ctx.lineTo(0, shape.height);
-          ctx.closePath();
-        } else {
-          ctx.beginPath();
-          ctx.rect(0, 0, shape.width, shape.height);
         }
 
         // Video fill
