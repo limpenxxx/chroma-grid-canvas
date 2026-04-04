@@ -361,6 +361,7 @@ export const useFixtureStore = create<FixtureStore>()(
     (set, get) => ({
       definitions: [...BUILT_IN_FIXTURES],
       instances: [...DEFAULT_INSTANCES],
+      savedModes: [] as SavedMode[],
       addDefinition: (def) => set(s => ({ definitions: [...s.definitions, def] })),
       removeDefinition: (id) => set(s => ({ definitions: s.definitions.filter(d => d.id !== id) })),
       updateDefinition: (id, updates) => set(s => ({
@@ -371,9 +372,11 @@ export const useFixtureStore = create<FixtureStore>()(
       updateInstance: (id, updates) => set(s => ({
         instances: s.instances.map(i => i.id === id ? { ...i, ...updates } : i),
       })),
+      addSavedMode: (mode) => set(s => ({ savedModes: [...s.savedModes, mode] })),
+      removeSavedMode: (id) => set(s => ({ savedModes: s.savedModes.filter(m => m.id !== id) })),
       exportLibrary: () => {
-        const { definitions } = get();
-        return JSON.stringify({ stokioFixtureLibrary: true, version: 1, definitions }, null, 2);
+        const { definitions, savedModes } = get();
+        return JSON.stringify({ stokioFixtureLibrary: true, version: 1, definitions, savedModes }, null, 2);
       },
       importLibrary: (json) => {
         try {
@@ -384,6 +387,12 @@ export const useFixtureStore = create<FixtureStore>()(
                 ...s.definitions,
                 ...data.definitions.filter((d: FixtureDefinition) => !s.definitions.some(e => e.id === d.id)),
               ],
+              ...(Array.isArray(data.savedModes) ? {
+                savedModes: [
+                  ...s.savedModes,
+                  ...data.savedModes.filter((m: SavedMode) => !s.savedModes.some(e => e.id === m.id)),
+                ],
+              } : {}),
             }));
           }
         } catch { /* invalid JSON */ }
