@@ -320,13 +320,84 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
 
   const selected = shapes.find(s => s.id === selectedId) || null;
 
-  // ── BPM phase tracking ──
+  // ── Tap tempo handler ──
+  const handleTap = useCallback(() => {
+    const now = performance.now();
+    const taps = tapTimesRef.current;
+    // Reset if gap > 3s
+    if (taps.length > 0 && now - taps[taps.length - 1] > 3000) {
+      tapTimesRef.current = [];
+    }
+    taps.push(now);
+    if (taps.length > 8) taps.shift();
+
+    if (taps.length >= 2) {
+      const intervals = [];
+      for (let i = 1; i < taps.length; i++) intervals.push(taps[i] - taps[i - 1]);
+      const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const detectedBpm = Math.round(60000 / avg * 10) / 10;
+      setLocalBpm(detectedBpm);
+
+      // Start auto-beat loop
+      if (localBeatTimer.current) clearInterval(localBeatTimer.current);
+      localBeatTimer.current = setInterval(() => {
+        lastBeatRef.current = performance.now();
+        beatCountRef.current += 1;
+        setTapFlash(true);
+        setTimeout(() => setTapFlash(false), 80);
+
+        // Restart videos on local beat
+        setShapes(prev => {
+          prev.forEach(s => {
+            if (!s.videoBpmRestart || !s.videoSrc) return;
+            const vid = videoRefs.current[s.id];
+            if (!vid) return;
+            if (beatCountRef.current % s.videoBpmRestartDiv === 0) {
+              vid.currentTime = 0;
+              vid.play().catch(() => {});
+            }
+          });
+          return prev;
+        });
+      }, avg);
+    }
+
+    // Immediate beat trigger
+    lastBeatRef.current = now;
+    beatCountRef.current += 1;
+    setTapFlash(true);
+    setTimeout(() => setTapFlash(false), 80);
+
+    shapes.forEach(s => {
+      if (!s.videoBpmRestart || !s.videoSrc) return;
+      const vid = videoRefs.current[s.id];
+      if (!vid) return;
+      if (beatCountRef.current % s.videoBpmRestartDiv === 0) {
+        vid.currentTime = 0;
+        vid.play().catch(() => {});
+      }
+    });
+  }, [shapes]);
+
+  // Cleanup local beat timer
+  useEffect(() => {
+    return () => { if (localBeatTimer.current) clearInterval(localBeatTimer.current); };
+  }, []);
+
+  // Clear local timer when parent BPM takes over
+  useEffect(() => {
+    if (bpm > 0 && localBeatTimer.current) {
+      clearInterval(localBeatTimer.current);
+      localBeatTimer.current = null;
+    }
+  }, [bpm]);
+
+  // ── BPM phase tracking (parent beat) ──
   useEffect(() => {
     if (beatFlash) {
       lastBeatRef.current = performance.now();
       beatCountRef.current += 1;
 
-      // Restart videos on beat
       shapes.forEach(s => {
         if (!s.videoBpmRestart || !s.videoSrc) return;
         const vid = videoRefs.current[s.id];
