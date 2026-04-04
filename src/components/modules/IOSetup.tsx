@@ -21,7 +21,7 @@ export interface NetworkInterface {
 
 export type OutputProtocol = 'artnet' | 'sacn' | 'usb-dmx' | 'ddp';
 export type OutputDirection = 'output' | 'input' | 'input+output';
-export type UsbAdapterType = 'enttec-open' | 'enttec-pro' | 'udmx' | 'dmxking';
+export type UsbAdapterType = 'enttec-open' | 'enttec-pro' | 'udmx' | 'dmxking' | 'eurolite-dmx' | 'ch340-dmx';
 
 export interface IOOutput {
   id: string;
