@@ -403,6 +403,7 @@ export const useFixtureStore = create<FixtureStore>()(
       partialize: (state) => ({
         definitions: state.definitions,
         instances: state.instances,
+        savedModes: state.savedModes,
       }),
     }
   )
