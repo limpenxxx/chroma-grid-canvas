@@ -803,6 +803,22 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
             <sp.icon size={12} /> {sp.label}
           </Button>
         ))}
+        {/* Tap Tempo */}
+        <Button
+          variant={tapFlash ? 'default' : 'outline'}
+          size="sm"
+          className={`h-7 text-[9px] gap-1 min-w-[80px] transition-colors ${tapFlash ? 'bg-primary text-primary-foreground' : ''}`}
+          onClick={handleTap}
+        >
+          🥁 TAP {effectiveBpm > 0 ? `${effectiveBpm.toFixed(1)}` : '—'}
+        </Button>
+        {localBpm > 0 && bpm <= 0 && (
+          <Button variant="ghost" size="sm" className="h-7 text-[9px] px-1.5 text-destructive" onClick={() => {
+            setLocalBpm(0);
+            tapTimesRef.current = [];
+            if (localBeatTimer.current) { clearInterval(localBeatTimer.current); localBeatTimer.current = null; }
+          }}>✕</Button>
+        )}
         <div className="flex-1" />
         {selected && (
           <>
