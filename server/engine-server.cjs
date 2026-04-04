@@ -23,6 +23,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 
 const PORT = parseInt(process.env.PORT || '9100', 10);
 const STATE_FILE = path.join(__dirname, '.engine-state.json');
