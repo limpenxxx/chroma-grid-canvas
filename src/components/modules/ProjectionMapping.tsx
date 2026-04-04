@@ -302,15 +302,19 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
           ctx.strokeRect(-4, -4, shape.width + 8, shape.height + 8);
           ctx.setLineDash([]);
 
-          // Corner handles for quad warp
-          if (shape.type === 'quad') {
-            shape.corners.forEach((c, i) => {
-              const px = c.x * shape.width;
-              const py = c.y * shape.height;
-              ctx.fillStyle = i === 0 ? '#ff0' : '#0ff';
-              ctx.fillRect(px - 5, py - 5, 10, 10);
-            });
-          }
+          // Corner handles for ALL shapes
+          shape.corners.forEach((c, i) => {
+            if (shape.type === 'triangle' && i === 2) return; // skip unused corner for triangle
+            const px = c.x * shape.width;
+            const py = c.y * shape.height;
+            ctx.fillStyle = i === 0 ? '#ff0' : '#0ff';
+            ctx.beginPath();
+            ctx.arc(px, py, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          });
 
           // Resize handle
           ctx.fillStyle = '#00ff88';
