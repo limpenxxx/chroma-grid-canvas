@@ -24,30 +24,7 @@ import { FixtureEditor } from './FixtureEditor';
 
 type Tab = 'instances' | 'library' | 'editor' | 'wled' | 'hue' | 'magichome' | 'io' | 'mixer';
 
-const FIXTURE_TYPES: FixtureDefinition['type'][] = [
-  'moving-head', 'par', 'strip', 'wash', 'spot', 'beam', 'strobe', 'laser', 'effect', 'dimmer', 'other',
-];
-
-const COLOR_SYSTEMS: { value: ColorSystem; label: string }[] = [
-  { value: 'rgb', label: 'RGB' },
-  { value: 'rgbw', label: 'RGBW' },
-  { value: 'rgbww', label: 'RGBWW (Warm+Cool White)' },
-  { value: 'rgbwc', label: 'RGBWC (White+Color)' },
-  { value: 'color-wheel', label: 'Fixed Color Wheel' },
-];
-
-const DEFAULT_COLOR_WHEEL_SLOTS: ColorWheelSlot[] = [
-  { id: 'cw1', name: 'Open/White', color: '#ffffff', dmxValue: 0 },
-  { id: 'cw2', name: 'Red', color: '#ff0000', dmxValue: 18 },
-  { id: 'cw3', name: 'Blue', color: '#0000ff', dmxValue: 36 },
-  { id: 'cw4', name: 'Green', color: '#00ff00', dmxValue: 54 },
-  { id: 'cw5', name: 'Yellow', color: '#ffff00', dmxValue: 72 },
-  { id: 'cw6', name: 'Orange', color: '#ff8800', dmxValue: 90 },
-  { id: 'cw7', name: 'Purple', color: '#8800ff', dmxValue: 108 },
-  { id: 'cw8', name: 'Magenta', color: '#ff00ff', dmxValue: 126 },
-];
-
-const ALL_FUNCTIONS: ChannelFunction[] = Object.keys(CHANNEL_FUNCTION_LABELS) as ChannelFunction[];
+// Constants moved to FixtureEditor.tsx
 
 export function Devices() {
   const store = useFixtureStore();
