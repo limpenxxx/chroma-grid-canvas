@@ -378,12 +378,14 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
         return;
       }
 
-      // Quad corner warp
-      if (shape.type === 'quad' && shape.id === selectedId) {
-        for (let i = 0; i < 4; i++) {
+      // Corner warp for ALL shapes
+      if (shape.id === selectedId) {
+        const cornerCount = shape.type === 'triangle' ? 3 : 4;
+        const cornerIndices = shape.type === 'triangle' ? [0, 1, 3] : [0, 1, 2, 3];
+        for (const i of cornerIndices) {
           const cpx = shape.x + shape.corners[i].x * shape.width;
           const cpy = shape.y + shape.corners[i].y * shape.height;
-          if (Math.abs(pos.x - cpx) < 12 && Math.abs(pos.y - cpy) < 12) {
+          if (Math.abs(pos.x - cpx) < 14 && Math.abs(pos.y - cpy) < 14) {
             setDragState({
               type: 'corner', shapeId: shape.id,
               startX: pos.x, startY: pos.y,
