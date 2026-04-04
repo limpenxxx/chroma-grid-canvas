@@ -19,6 +19,19 @@ export interface FixtureChannel {
   defaultValue: number;
   min: number;
   max: number;
+  // Per-channel capability ranges (gobo slots, color wheel ranges, etc.)
+  capabilities?: ChannelCapability[];
+}
+
+/** A capability range on a channel — maps DMX value ranges to named functions/gobos/colors */
+export interface ChannelCapability {
+  id: string;
+  dmxMin: number;
+  dmxMax: number;
+  label: string;
+  icon?: string;   // emoji or gobo icon
+  color?: string;  // hex color (for color-wheel type)
+  type?: 'open' | 'gobo' | 'color' | 'macro' | 'rotation' | 'speed' | 'custom';
 }
 
 export interface FixtureMode {
@@ -292,14 +305,27 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
 interface FixtureStore {
   definitions: FixtureDefinition[];
   instances: FixtureInstance[];
+  savedModes: SavedMode[]; // reusable mode templates
   addDefinition: (def: FixtureDefinition) => void;
   removeDefinition: (id: string) => void;
   updateDefinition: (id: string, updates: Partial<FixtureDefinition>) => void;
   addInstance: (inst: FixtureInstance) => void;
   removeInstance: (id: string) => void;
   updateInstance: (id: string, updates: Partial<FixtureInstance>) => void;
+  addSavedMode: (mode: SavedMode) => void;
+  removeSavedMode: (id: string) => void;
   exportLibrary: () => string;
   importLibrary: (json: string) => void;
+}
+
+/** A saved/reusable channel mode template */
+export interface SavedMode {
+  id: string;
+  name: string;
+  description?: string;
+  fixtureType?: string; // e.g. 'moving-head', 'par'
+  mode: FixtureMode;
+  createdAt: number;
 }
 
 const DEFAULT_INSTANCES: FixtureInstance[] = [
@@ -335,6 +361,7 @@ export const useFixtureStore = create<FixtureStore>()(
     (set, get) => ({
       definitions: [...BUILT_IN_FIXTURES],
       instances: [...DEFAULT_INSTANCES],
+      savedModes: [] as SavedMode[],
       addDefinition: (def) => set(s => ({ definitions: [...s.definitions, def] })),
       removeDefinition: (id) => set(s => ({ definitions: s.definitions.filter(d => d.id !== id) })),
       updateDefinition: (id, updates) => set(s => ({
@@ -345,9 +372,11 @@ export const useFixtureStore = create<FixtureStore>()(
       updateInstance: (id, updates) => set(s => ({
         instances: s.instances.map(i => i.id === id ? { ...i, ...updates } : i),
       })),
+      addSavedMode: (mode) => set(s => ({ savedModes: [...s.savedModes, mode] })),
+      removeSavedMode: (id) => set(s => ({ savedModes: s.savedModes.filter(m => m.id !== id) })),
       exportLibrary: () => {
-        const { definitions } = get();
-        return JSON.stringify({ stokioFixtureLibrary: true, version: 1, definitions }, null, 2);
+        const { definitions, savedModes } = get();
+        return JSON.stringify({ stokioFixtureLibrary: true, version: 1, definitions, savedModes }, null, 2);
       },
       importLibrary: (json) => {
         try {
@@ -358,6 +387,12 @@ export const useFixtureStore = create<FixtureStore>()(
                 ...s.definitions,
                 ...data.definitions.filter((d: FixtureDefinition) => !s.definitions.some(e => e.id === d.id)),
               ],
+              ...(Array.isArray(data.savedModes) ? {
+                savedModes: [
+                  ...s.savedModes,
+                  ...data.savedModes.filter((m: SavedMode) => !s.savedModes.some(e => e.id === m.id)),
+                ],
+              } : {}),
             }));
           }
         } catch { /* invalid JSON */ }
@@ -368,6 +403,7 @@ export const useFixtureStore = create<FixtureStore>()(
       partialize: (state) => ({
         definitions: state.definitions,
         instances: state.instances,
+        savedModes: state.savedModes,
       }),
     }
   )

@@ -6,8 +6,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  useFixtureStore, type FixtureDefinition, type FixtureInstance, type FixtureMode,
-  type FixtureChannel, type ChannelFunction, type ColorSystem, type ColorWheelSlot,
+  useFixtureStore, type FixtureDefinition, type FixtureInstance,
+  type ChannelFunction, type ColorSystem, type ColorWheelSlot,
   CHANNEL_FUNCTION_LABELS, getChannelColor, getFixtureTypeIcon,
   FIXTURE_ICON_OPTIONS, getFixtureIconEmoji, type FixtureIcon,
 } from '@/store/fixtureStore';
@@ -20,33 +20,11 @@ import { HuePanel } from './HuePanel';
 import { MagicHomePanel } from './MagicHomePanel';
 import { DmxMixer } from './DmxMixer';
 import { IOSetup } from './IOSetup';
+import { FixtureEditor } from './FixtureEditor';
 
 type Tab = 'instances' | 'library' | 'editor' | 'wled' | 'hue' | 'magichome' | 'io' | 'mixer';
 
-const FIXTURE_TYPES: FixtureDefinition['type'][] = [
-  'moving-head', 'par', 'strip', 'wash', 'spot', 'beam', 'strobe', 'laser', 'effect', 'dimmer', 'other',
-];
-
-const COLOR_SYSTEMS: { value: ColorSystem; label: string }[] = [
-  { value: 'rgb', label: 'RGB' },
-  { value: 'rgbw', label: 'RGBW' },
-  { value: 'rgbww', label: 'RGBWW (Warm+Cool White)' },
-  { value: 'rgbwc', label: 'RGBWC (White+Color)' },
-  { value: 'color-wheel', label: 'Fixed Color Wheel' },
-];
-
-const DEFAULT_COLOR_WHEEL_SLOTS: ColorWheelSlot[] = [
-  { id: 'cw1', name: 'Open/White', color: '#ffffff', dmxValue: 0 },
-  { id: 'cw2', name: 'Red', color: '#ff0000', dmxValue: 18 },
-  { id: 'cw3', name: 'Blue', color: '#0000ff', dmxValue: 36 },
-  { id: 'cw4', name: 'Green', color: '#00ff00', dmxValue: 54 },
-  { id: 'cw5', name: 'Yellow', color: '#ffff00', dmxValue: 72 },
-  { id: 'cw6', name: 'Orange', color: '#ff8800', dmxValue: 90 },
-  { id: 'cw7', name: 'Purple', color: '#8800ff', dmxValue: 108 },
-  { id: 'cw8', name: 'Magenta', color: '#ff00ff', dmxValue: 126 },
-];
-
-const ALL_FUNCTIONS: ChannelFunction[] = Object.keys(CHANNEL_FUNCTION_LABELS) as ChannelFunction[];
+// Constants moved to FixtureEditor.tsx
 
 export function Devices() {
   const store = useFixtureStore();
@@ -148,66 +126,6 @@ export function Devices() {
     }
     setEditingDef(null);
     setTab('library');
-  };
-
-  const addModeToEditor = () => {
-    if (!editingDef) return;
-    setEditingDef({
-      ...editingDef,
-      modes: [...editingDef.modes, {
-        id: `mode-${Date.now()}`,
-        name: `Mode ${editingDef.modes.length + 1}`,
-        channelCount: 1,
-        channels: [{ id: `ch-${Date.now()}`, number: 1, name: 'Ch 1', function: 'dimmer', defaultValue: 0, min: 0, max: 255 }],
-      }],
-    });
-  };
-
-  const addChannelToMode = (modeId: string) => {
-    if (!editingDef) return;
-    setEditingDef({
-      ...editingDef,
-      modes: editingDef.modes.map(m => {
-        if (m.id !== modeId) return m;
-        const num = m.channels.length + 1;
-        return {
-          ...m,
-          channelCount: num,
-          channels: [...m.channels, {
-            id: `ch-${Date.now()}`, number: num, name: `Ch ${num}`,
-            function: 'custom' as ChannelFunction, defaultValue: 0, min: 0, max: 255,
-          }],
-        };
-      }),
-    });
-  };
-
-  const updateChannel = (modeId: string, chId: string, updates: Partial<FixtureChannel>) => {
-    if (!editingDef) return;
-    setEditingDef({
-      ...editingDef,
-      modes: editingDef.modes.map(m => {
-        if (m.id !== modeId) return m;
-        return { ...m, channels: m.channels.map(c => c.id === chId ? { ...c, ...updates } : c) };
-      }),
-    });
-  };
-
-  const removeChannel = (modeId: string, chId: string) => {
-    if (!editingDef) return;
-    setEditingDef({
-      ...editingDef,
-      modes: editingDef.modes.map(m => {
-        if (m.id !== modeId) return m;
-        const filtered = m.channels.filter(c => c.id !== chId).map((c, i) => ({ ...c, number: i + 1 }));
-        return { ...m, channelCount: filtered.length, channels: filtered };
-      }),
-    });
-  };
-
-  const removeMode = (modeId: string) => {
-    if (!editingDef || editingDef.modes.length <= 1) return;
-    setEditingDef({ ...editingDef, modes: editingDef.modes.filter(m => m.id !== modeId) });
   };
 
   const getInstanceDef = (inst: FixtureInstance) => store.definitions.find(d => d.id === inst.definitionId);
@@ -786,182 +704,13 @@ export function Devices() {
         </div>
       )}
 
-      {/* EDITOR TAB */}
       {tab === 'editor' && editingDef && (
-        <div className="flex-1 overflow-y-auto p-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-widest text-primary font-semibold">Fixture Definition Editor</span>
-            <div className="flex gap-1">
-              <Button size="sm" className="h-7 text-[10px] gap-1" onClick={saveDefinition}>
-                <Save size={12} /> Save
-              </Button>
-              <Button variant="ghost" size="sm" className="h-7 text-[10px]" onClick={() => { setEditingDef(null); setTab('library'); }}>
-                <X size={12} />
-              </Button>
-            </div>
-          </div>
-
-          {/* Basic info */}
-          <div className="glass-panel p-3 space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[8px] uppercase text-muted-foreground">Manufacturer</label>
-                <Input value={editingDef.manufacturer}
-                  onChange={e => setEditingDef({ ...editingDef, manufacturer: e.target.value })}
-                  placeholder="e.g. Chauvet" className="h-7 text-xs bg-muted/30 border-border/30" />
-              </div>
-              <div>
-                <label className="text-[8px] uppercase text-muted-foreground">Model</label>
-                <Input value={editingDef.model}
-                  onChange={e => setEditingDef({ ...editingDef, model: e.target.value })}
-                  placeholder="e.g. Intimidator Spot 360" className="h-7 text-xs bg-muted/30 border-border/30" />
-              </div>
-            </div>
-            <div>
-              <label className="text-[8px] uppercase text-muted-foreground">Type</label>
-              <select value={editingDef.type}
-                onChange={e => setEditingDef({ ...editingDef, type: e.target.value as FixtureDefinition['type'] })}
-                className="w-full h-7 rounded bg-muted/30 border border-border/30 text-xs px-2 text-foreground">
-                {FIXTURE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-[8px] uppercase text-muted-foreground">Color System</label>
-              <select value={editingDef.colorSystem}
-                onChange={e => {
-                  const cs = e.target.value as ColorSystem;
-                  setEditingDef({
-                    ...editingDef,
-                    colorSystem: cs,
-                    colorWheelSlots: cs === 'color-wheel' ? (editingDef.colorWheelSlots || [...DEFAULT_COLOR_WHEEL_SLOTS]) : undefined,
-                  });
-                }}
-                className="w-full h-7 rounded bg-muted/30 border border-border/30 text-xs px-2 text-foreground">
-                {COLOR_SYSTEMS.map(cs => <option key={cs.value} value={cs.value}>{cs.label}</option>)}
-              </select>
-            </div>
-          </div>
-
-          {/* Color Wheel Slots Editor */}
-          {editingDef.colorSystem === 'color-wheel' && (
-            <div className="glass-panel p-3 space-y-2 border-l-2 border-l-[hsl(var(--stokio-pink))]">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Fixed Color Wheel Slots</span>
-                <Button variant="ghost" size="sm" className="h-5 text-[9px] px-2" onClick={() => {
-                  const slots = editingDef.colorWheelSlots || [];
-                  setEditingDef({
-                    ...editingDef,
-                    colorWheelSlots: [...slots, {
-                      id: `cw-${Date.now()}`, name: `Color ${slots.length + 1}`,
-                      color: '#ffffff', dmxValue: slots.length > 0 ? Math.min(255, slots[slots.length - 1].dmxValue + 18) : 0,
-                    }],
-                  });
-                }}>
-                  <Plus size={10} /> Slot
-                </Button>
-              </div>
-              <div className="space-y-1">
-                <div className="grid grid-cols-[24px_1fr_70px_50px_20px] gap-1 text-[7px] uppercase text-muted-foreground/60 px-1">
-                  <span></span><span>Name</span><span>Color</span><span>DMX</span><span></span>
-                </div>
-                {(editingDef.colorWheelSlots || []).map(slot => (
-                  <div key={slot.id} className="grid grid-cols-[24px_1fr_70px_50px_20px] gap-1 items-center">
-                    <div className="w-5 h-5 rounded-full border border-border/30 mx-auto" style={{ backgroundColor: slot.color, boxShadow: `0 0 6px ${slot.color}40` }} />
-                    <Input value={slot.name}
-                      onChange={e => setEditingDef({
-                        ...editingDef,
-                        colorWheelSlots: editingDef.colorWheelSlots?.map(s => s.id === slot.id ? { ...s, name: e.target.value } : s),
-                      })}
-                      className="h-6 text-[10px] bg-muted/20 border-border/20 px-1" />
-                    <Input type="color" value={slot.color}
-                      onChange={e => setEditingDef({
-                        ...editingDef,
-                        colorWheelSlots: editingDef.colorWheelSlots?.map(s => s.id === slot.id ? { ...s, color: e.target.value } : s),
-                      })}
-                      className="h-6 p-0 bg-transparent border-border/20 cursor-pointer" />
-                    <Input type="number" min={0} max={255} value={slot.dmxValue}
-                      onChange={e => setEditingDef({
-                        ...editingDef,
-                        colorWheelSlots: editingDef.colorWheelSlots?.map(s => s.id === slot.id ? { ...s, dmxValue: Number(e.target.value) } : s),
-                      })}
-                      className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono px-1" />
-                    <button onClick={() => setEditingDef({
-                      ...editingDef,
-                      colorWheelSlots: editingDef.colorWheelSlots?.filter(s => s.id !== slot.id),
-                    })} className="text-muted-foreground hover:text-destructive flex items-center justify-center">
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-              {/* Preview strip */}
-              <div className="flex gap-0.5 mt-2">
-                {(editingDef.colorWheelSlots || []).map(slot => (
-                  <div key={slot.id} className="flex-1 h-4 rounded-sm" style={{ backgroundColor: slot.color }} title={`${slot.name} (DMX: ${slot.dmxValue})`} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {editingDef.modes.map((mode, mIdx) => (
-            <div key={mode.id} className="glass-panel p-3 space-y-2 border-l-2" style={{ borderLeftColor: mIdx === 0 ? '#00e5ff' : '#ff2d78' }}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Input value={mode.name}
-                    onChange={e => setEditingDef({
-                      ...editingDef,
-                      modes: editingDef.modes.map(m => m.id === mode.id ? { ...m, name: e.target.value } : m),
-                    })}
-                    className="h-6 text-[10px] bg-transparent border-0 p-0 font-semibold w-32" />
-                  <span className="text-[8px] text-muted-foreground">{mode.channelCount}ch</span>
-                </div>
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" className="h-5 text-[9px] px-2" onClick={() => addChannelToMode(mode.id)}>
-                    <Plus size={10} /> Ch
-                  </Button>
-                  {editingDef.modes.length > 1 && (
-                    <Button variant="ghost" size="sm" className="h-5 text-[9px] px-1 text-destructive" onClick={() => removeMode(mode.id)}>
-                      <Trash2 size={10} />
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Channel list */}
-              <div className="space-y-1">
-                <div className="grid grid-cols-[30px_1fr_1fr_40px_20px] gap-1 text-[7px] uppercase text-muted-foreground/60 px-1">
-                  <span>Ch</span><span>Name</span><span>Function</span><span>Def</span><span></span>
-                </div>
-                {mode.channels.map(ch => (
-                  <div key={ch.id} className="grid grid-cols-[30px_1fr_1fr_40px_20px] gap-1 items-center">
-                    <span className="text-[10px] font-mono text-muted-foreground text-center">{ch.number}</span>
-                    <Input value={ch.name}
-                      onChange={e => updateChannel(mode.id, ch.id, { name: e.target.value })}
-                      className="h-6 text-[10px] bg-muted/20 border-border/20 px-1" />
-                    <select value={ch.function}
-                      onChange={e => updateChannel(mode.id, ch.id, { function: e.target.value as ChannelFunction })}
-                      className="h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground">
-                      {ALL_FUNCTIONS.map(f => (
-                        <option key={f} value={f}>{CHANNEL_FUNCTION_LABELS[f]}</option>
-                      ))}
-                    </select>
-                    <Input type="number" min={0} max={255} value={ch.defaultValue}
-                      onChange={e => updateChannel(mode.id, ch.id, { defaultValue: Number(e.target.value) })}
-                      className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono px-1" />
-                    <button onClick={() => removeChannel(mode.id, ch.id)}
-                      className="text-muted-foreground hover:text-destructive flex items-center justify-center">
-                      <X size={10} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 w-full" onClick={addModeToEditor}>
-            <Plus size={12} /> Add Mode
-          </Button>
-        </div>
+        <FixtureEditor
+          editingDef={editingDef}
+          setEditingDef={setEditingDef}
+          onSave={saveDefinition}
+          onCancel={() => { setEditingDef(null); setTab('library'); }}
+        />
       )}
 
       {tab === 'editor' && !editingDef && (
