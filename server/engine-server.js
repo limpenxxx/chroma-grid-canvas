@@ -35,31 +35,26 @@ const SAVE_INTERVAL = 5000;  // persist state every 5s
 // ══════════════════════════════════════════════════════════════
 
 const state = {
-  // DMX universes: { "1": Uint8Array(512), "2": Uint8Array(512), ... }
   dmx: {},
-
-  // WLED output cache: { "192.168.1.100": { seg: [...] } }
   wled: {},
-
-  // Hue bridges: { bridgeId: { ip, apiKey, lights: { lightId: { on, bri, xy } } } }
   hue: {},
-
-  // MagicHome: { deviceId: { proxyUrl, address, on, r, g, b } }
   magic: {},
-
-  // App-level state synced from browser
   app: {},
   fixtures: {},
   media: {},
   stage: {},
   wledDevices: {},
-
-  // Master controls
   masterDimmer: 100,
   blackout: false,
+  pioneerDecks: {},
 
-  // Pioneer DJ (ProDJ Link)
-  pioneerDecks: {},  // { deviceNumber: { name, bpm, beat, playing, master, ip, lastSeen } }
+  // I/O config: which NIC to bind ArtNet/sACN, USB ports, etc.
+  ioConfig: {
+    outputs: [],        // Array of { id, universe, protocol, bindInterface, targetIp, usbPort, ... }
+    artnetBindAddress: '0.0.0.0',  // default: all interfaces
+    sacnBindAddress: '0.0.0.0',
+    usbPorts: [],       // Array of { universe, port, type }
+  },
 };
 
 // Last-sent cache to avoid redundant network calls
