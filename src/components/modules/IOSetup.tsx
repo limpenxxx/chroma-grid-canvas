@@ -499,7 +499,7 @@ function OutputRow({
 }: {
   output: IOOutput;
   nics: NetworkInterface[];
-  store: ReturnType<typeof useIOStore>;
+  store: IOState;
 }) {
   const color = PROTOCOL_COLORS[output.protocol];
   const isNetwork = output.protocol === 'artnet' || output.protocol === 'sacn' || output.protocol === 'ddp';
