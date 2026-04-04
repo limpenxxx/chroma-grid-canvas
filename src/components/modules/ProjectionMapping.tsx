@@ -846,11 +846,11 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseUp}
           />
-          {bpm > 0 && (
+          {effectiveBpm > 0 && (
             <div className={`absolute top-2 right-2 px-2 py-0.5 rounded text-[9px] font-mono transition-colors ${
-              beatFlash ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-muted-foreground'
+              (beatFlash || tapFlash) ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-muted-foreground'
             }`}>
-              {bpm.toFixed(1)} BPM
+              {effectiveBpm.toFixed(1)} BPM {bpm <= 0 && localBpm > 0 ? '(tap)' : ''}
             </div>
           )}
         </div>
