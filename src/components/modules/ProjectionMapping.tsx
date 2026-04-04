@@ -73,7 +73,9 @@ function createShape(type: ShapeType, x: number, y: number): ProjectionShape {
     rotation: 0,
     scaleX: 1,
     scaleY: 1,
-    corners: JSON.parse(JSON.stringify(DEFAULT_CORNERS)),
+    corners: type === 'triangle'
+      ? JSON.parse(JSON.stringify([{ x: 0.5, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 1 }]))
+      : JSON.parse(JSON.stringify(DEFAULT_CORNERS)),
     fillColor: '#00ccff',
     strokeColor: '#ffffff',
     strokeWidth: 2,
