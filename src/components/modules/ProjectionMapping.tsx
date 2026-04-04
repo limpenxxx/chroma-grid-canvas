@@ -993,6 +993,7 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
                             <option value={16}>Var 16:e</option>
                           </select>
                         </div>
+                      )}
                       <Button variant="ghost" size="sm" className="h-5 text-[8px] w-full text-destructive"
                         onClick={() => {
                           const vid = videoRefs.current[selectedId!];
