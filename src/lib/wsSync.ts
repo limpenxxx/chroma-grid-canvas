@@ -83,6 +83,14 @@ export function onPioneerData(listener: PioneerListener): () => void {
   };
 }
 
+/** Subscribe to all raw engine messages (for VFX status etc.) */
+export function onEngineMessage(listener: RawMessageListener): () => void {
+  rawMessageListeners.push(listener);
+  return () => {
+    rawMessageListeners = rawMessageListeners.filter((l) => l !== listener);
+  };
+}
+
 /** Broadcast a partial state update to other clients */
 export function broadcastState(storeKey: string, state: Record<string, unknown>) {
   if (isRemoteUpdate) return; // don't echo back
