@@ -139,7 +139,7 @@ interface DetectedUsbPort {
 const USB_TYPE_FROM_DETECTED: Record<string, UsbAdapterType> = {
   'enttec-open': 'enttec-open',
   'enttec-pro': 'enttec-pro',
-  'ftdi-generic': 'enttec-open',
+  'ftdi-generic': 'eurolite-dmx',
   'udmx': 'udmx',
   'dmxking': 'dmxking',
   'eurolite-dmx': 'eurolite-dmx',

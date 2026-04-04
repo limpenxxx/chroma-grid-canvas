@@ -445,7 +445,7 @@ wss.on('connection', (ws) => {
         } catch {}
         // Known USB-DMX vendors
         let adapterType = 'unknown';
-        if (vendor === '0403' && product === '6001') adapterType = 'enttec-open';
+        if (vendor === '0403' && product === '6001') adapterType = 'eurolite-dmx';
         else if (vendor === '0403' && product === '6010') adapterType = 'enttec-pro';
         else if (vendor === '0403' && product === '6014') adapterType = 'eurolite-dmx';
         else if (vendor === '0403') adapterType = 'ftdi-generic';
