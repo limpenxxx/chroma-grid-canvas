@@ -45,6 +45,8 @@ interface ProjectionShape {
   videoSrc: string | null;
   videoOpacity: number;
   videoBpmSync: boolean;
+  videoBpmRestart: boolean;
+  videoBpmRestartDiv: number; // restart every N beats (1=every beat, 2=every 2nd, 4=every bar, etc.)
   videoFilter: 'none' | 'invert' | 'hue-rotate' | 'saturate' | 'contrast' | 'grayscale' | 'sepia';
   videoFilterIntensity: number;
   videoPlaybackRate: number;
