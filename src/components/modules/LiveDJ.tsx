@@ -3363,6 +3363,7 @@ export function LiveDJ() {
               { id: 'assignments' as Tab, label: '📡 Assign' },
               { id: 'groups' as Tab, label: '👥 Groups' },
               { id: 'scripts' as Tab, label: '📜 Scripts' },
+              { id: 'projection' as Tab, label: '📐 Projection' },
             ]).map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className={`px-3 py-1.5 text-[10px] uppercase tracking-wider font-semibold rounded transition-colors ${
