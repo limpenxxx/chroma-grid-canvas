@@ -36,15 +36,29 @@
 
 ### 1. Installera Node.js (LTS)
 
+> **Viktigt:** Använd **inte** `sudo apt install npm` — det ger en föråldrad version.  
+> NodeSource-paketet inkluderar både `node` och `npm`.
+
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+# Ta bort eventuell gammal systemversion
+sudo apt-get remove -y nodejs npm 2>/dev/null
+
+# Installera Node.js 20 LTS via NodeSource
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs git build-essential
 ```
 
-Verifiera:
+Verifiera att **båda** finns:
 ```bash
-node -v   # Ska visa v18+ / v20+
-npm -v
+node -v   # Ska visa v20.x
+npm -v    # Ska visa v10.x
+```
+
+Om `npm` fortfarande saknas:
+```bash
+sudo apt-get install -y npm
+# Eller installera via corepack:
+sudo corepack enable
 ```
 
 ### 2. Klona projektet
