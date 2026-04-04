@@ -1,6 +1,6 @@
-# STOKIO FX — Setup Guide
+# Chroma Grid Canvas — Setup Guide
 
-Complete setup instructions for running STOKIO FX on your local machine.  
+Complete setup instructions for running Chroma Grid Canvas on your local machine.  
 The system has two parts:
 
 1. **Frontend (React GUI)** — The browser-based remote control  
@@ -49,10 +49,10 @@ npm install
 
 Open a **separate terminal**:
 ```powershell
-node server/engine-server.js
+node server/engine-server.cjs
 ```
 
-You should see the STOKIO FX banner with your local IP addresses.
+You should see the Chroma Grid Canvas banner with your local IP addresses.
 
 ### 5. Start the Frontend
 
@@ -68,11 +68,11 @@ Windows Firewall may block UDP traffic. Allow these ports:
 
 ```powershell
 # Run as Administrator
-netsh advfirewall firewall add rule name="STOKIO ArtNet" dir=in action=allow protocol=UDP localport=6454
-netsh advfirewall firewall add rule name="STOKIO sACN" dir=in action=allow protocol=UDP localport=5568
-netsh advfirewall firewall add rule name="STOKIO Engine WS" dir=in action=allow protocol=TCP localport=9100
-netsh advfirewall firewall add rule name="STOKIO Pioneer Keep" dir=in action=allow protocol=UDP localport=50000
-netsh advfirewall firewall add rule name="STOKIO Pioneer Beat" dir=in action=allow protocol=UDP localport=50001
+netsh advfirewall firewall add rule name="Chroma ArtNet" dir=in action=allow protocol=UDP localport=6454
+netsh advfirewall firewall add rule name="Chroma sACN" dir=in action=allow protocol=UDP localport=5568
+netsh advfirewall firewall add rule name="Chroma Engine WS" dir=in action=allow protocol=TCP localport=9100
+netsh advfirewall firewall add rule name="Chroma Pioneer Keep" dir=in action=allow protocol=UDP localport=50000
+netsh advfirewall firewall add rule name="Chroma Pioneer Beat" dir=in action=allow protocol=UDP localport=50001
 ```
 
 ### 7. Optional: USB-DMX (WebSerial)
@@ -84,7 +84,7 @@ WebSerial works out of the box in Chrome on Windows. Plug in your USB-DMX adapte
 Install `pm2` to keep the engine running:
 ```powershell
 npm install -g pm2
-pm2 start server/engine-server.js --name stokio-engine
+pm2 start server/engine-server.cjs --name chroma-engine
 pm2 save
 pm2 startup
 ```
@@ -118,7 +118,7 @@ npm install
 
 Open a **separate terminal**:
 ```bash
-node server/engine-server.js
+node server/engine-server.cjs
 ```
 
 ### 5. Start the Frontend
@@ -147,7 +147,7 @@ sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp $(which node)
 
 ```bash
 npm install -g pm2
-pm2 start server/engine-server.js --name stokio-engine
+pm2 start server/engine-server.cjs --name chroma-engine
 pm2 save
 pm2 startup
 ```
@@ -190,7 +190,7 @@ npm install
 ### 3. Start the Engine Server
 
 ```bash
-node server/engine-server.js
+node server/engine-server.cjs
 ```
 
 ### 4. Start the Frontend
@@ -230,17 +230,17 @@ sudo usermod -aG dialout $USER
 
 ### 7. Optional: Run as a systemd Service
 
-Create `/etc/systemd/system/stokio-engine.service`:
+Create `/etc/systemd/system/chroma-engine.service`:
 ```ini
 [Unit]
-Description=STOKIO FX Lighting Engine
+Description=Chroma Grid Canvas Lighting Engine
 After=network.target
 
 [Service]
 Type=simple
 User=YOUR_USERNAME
 WorkingDirectory=/path/to/YOUR_REPO
-ExecStart=/usr/bin/node server/engine-server.js
+ExecStart=/usr/bin/node server/engine-server.cjs
 Restart=always
 RestartSec=5
 
@@ -251,17 +251,17 @@ WantedBy=multi-user.target
 Then enable and start:
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable stokio-engine
-sudo systemctl start stokio-engine
+sudo systemctl enable chroma-engine
+sudo systemctl start chroma-engine
 
 # Check status
-sudo systemctl status stokio-engine
-journalctl -u stokio-engine -f
+sudo systemctl status chroma-engine
+journalctl -u chroma-engine -f
 ```
 
 ### 8. Headless / Raspberry Pi
 
-STOKIO FX engine runs great on a Raspberry Pi as a dedicated lighting controller:
+Chroma Grid Canvas engine runs great on a Raspberry Pi as a dedicated lighting controller:
 ```bash
 # On Raspberry Pi OS (Debian-based)
 curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
@@ -283,7 +283,7 @@ cd YOUR_REPO && npm install
 └──────────────────────┬──────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────┐
-│  Engine Server        node server/engine-server.js │
+│  Engine Server        node server/engine-server.cjs │
 │  ├── ArtNet OUT      ──► UDP :6454 broadcast    │
 │  ├── sACN OUT        ──► UDP :5568 multicast    │
 │  ├── WLED            ──► HTTP JSON API          │

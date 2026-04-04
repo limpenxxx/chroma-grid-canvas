@@ -1,32 +1,32 @@
 #!/bin/bash
 set -e
 
-# ── STOKIO FX — Ubuntu Autostart Installer ──
-STOKIO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-STOKIO_USER="$(whoami)"
+# ── Chroma Grid Canvas — Ubuntu Autostart Installer ──
+Chroma_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+Chroma_USER="$(whoami)"
 NODE_BIN="$(which node)"
 NPM_BIN="$(which npm)"
 
 echo "╔══════════════════════════════════════════╗"
-echo "║  STOKIO FX — Autostart Installer         ║"
+echo "║  Chroma Grid Canvas — Autostart Installer         ║"
 echo "╠══════════════════════════════════════════╣"
-echo "║  Projekt:    $STOKIO_DIR"
-echo "║  Användare:  $STOKIO_USER"
+echo "║  Projekt:    $Chroma_DIR"
+echo "║  Användare:  $Chroma_USER"
 echo "║  Node:       $NODE_BIN"
 echo "╚══════════════════════════════════════════╝"
 
 # ── Engine Service ──
-sudo tee /etc/systemd/system/stokio-engine.service > /dev/null << EOF
+sudo tee /etc/systemd/system/chroma-engine.service > /dev/null << EOF
 [Unit]
-Description=STOKIO FX Lighting Engine
+Description=Chroma Grid Canvas Lighting Engine
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=$STOKIO_USER
-WorkingDirectory=$STOKIO_DIR
-ExecStart=$NODE_BIN server/engine-server.js
+User=$Chroma_USER
+WorkingDirectory=$Chroma_DIR
+ExecStart=$NODE_BIN server/engine-server.cjs
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -39,16 +39,16 @@ WantedBy=multi-user.target
 EOF
 
 # ── Frontend Service ──
-sudo tee /etc/systemd/system/stokio-frontend.service > /dev/null << EOF
+sudo tee /etc/systemd/system/chroma-frontend.service > /dev/null << EOF
 [Unit]
-Description=STOKIO FX Frontend (Vite)
-After=stokio-engine.service
-Requires=stokio-engine.service
+Description=Chroma Grid Canvas Frontend (Vite)
+After=chroma-engine.service
+Requires=chroma-engine.service
 
 [Service]
 Type=simple
-User=$STOKIO_USER
-WorkingDirectory=$STOKIO_DIR
+User=$Chroma_USER
+WorkingDirectory=$Chroma_DIR
 ExecStart=$NPM_BIN run dev -- --host 0.0.0.0
 Restart=always
 RestartSec=10
@@ -61,20 +61,20 @@ EOF
 
 # ── Aktivera & starta ──
 sudo systemctl daemon-reload
-sudo systemctl enable stokio-engine.service
-sudo systemctl enable stokio-frontend.service
-sudo systemctl start stokio-engine.service
-sudo systemctl start stokio-frontend.service
+sudo systemctl enable chroma-engine.service
+sudo systemctl enable chroma-frontend.service
+sudo systemctl start chroma-engine.service
+sudo systemctl start chroma-frontend.service
 
 echo ""
-echo "✅ STOKIO FX tjänster installerade och startade!"
+echo "✅ Chroma Grid Canvas tjänster installerade och startade!"
 echo ""
-echo "  sudo systemctl status stokio-engine"
-echo "  sudo systemctl status stokio-frontend"
-echo "  journalctl -u stokio-engine -f"
-echo "  journalctl -u stokio-frontend -f"
+echo "  sudo systemctl status chroma-engine"
+echo "  sudo systemctl status chroma-frontend"
+echo "  journalctl -u chroma-engine -f"
+echo "  journalctl -u chroma-frontend -f"
 echo ""
 echo "Avinstallera:"
-echo "  sudo systemctl disable stokio-engine stokio-frontend"
+echo "  sudo systemctl disable chroma-engine chroma-frontend"
 echo "  sudo rm /etc/systemd/system/stokio-{engine,frontend}.service"
 echo "  sudo systemctl daemon-reload"

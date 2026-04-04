@@ -82,7 +82,7 @@ npm install
 
 Starta motorn i en terminal:
 ```bash
-node server/engine-server.js
+node server/engine-server.cjs
 ```
 
 Starta frontend i en annan:
@@ -204,7 +204,7 @@ Wants=network-online.target
 Type=simple
 User=chroma
 WorkingDirectory=/opt/chroma-grid-canvas
-ExecStart=/usr/bin/node server/engine-server.js
+ExecStart=/usr/bin/node server/engine-server.cjs
 Restart=always
 RestartSec=5
 StandardOutput=journal
