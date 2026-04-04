@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * STOKIO FX — Lighting Engine Server
+ * Chroma Grid Canvas — Lighting Engine Server
  * 
  * Persistent Node.js process that holds all lighting state and outputs to hardware.
  * The browser is just a remote control — all hardware output continues even when
  * no browser is connected.
  *
- * Run:  node server/engine-server.js
+ * Run:  node server/engine-server.cjs
  * Port: 9100 (override with PORT env var)
  *
  * Protocols supported:
@@ -326,7 +326,7 @@ function buildSacnPacket(universe, dmxData, priority = 100) {
   packet.writeUInt32BE(0x00000002, offset); offset += 4;
   // Source Name (64 bytes)
   const sourceName = Buffer.alloc(64);
-  sourceName.write('STOKIO FX Engine');
+  sourceName.write('Chroma Grid Canvas Engine');
   sourceName.copy(packet, offset); offset += 64;
   // Priority
   packet.writeUInt8(priority, offset); offset += 1;
@@ -866,7 +866,7 @@ const localIPs = Object.values(interfaces)
 
 console.log(`
 ╔═══════════════════════════════════════════════╗
-║   STOKIO FX — Lighting Engine                ║
+║   Chroma Grid Canvas — Lighting Engine                ║
 ║   ─────────────────────────────────────────   ║
 ║   WebSocket:  port ${String(PORT).padEnd(27)}║
 ║   ArtNet:     port 6454 (UDP broadcast)       ║

@@ -2,16 +2,16 @@
 set -e
 
 # ── Chroma Grid Canvas — Ubuntu Autostart Installer ──
-Chroma_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-Chroma_USER="$(whoami)"
+CHROMA_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+CHROMA_USER="$(whoami)"
 NODE_BIN="$(which node)"
 NPM_BIN="$(which npm)"
 
 echo "╔══════════════════════════════════════════╗"
 echo "║  Chroma Grid Canvas — Autostart Installer         ║"
 echo "╠══════════════════════════════════════════╣"
-echo "║  Projekt:    $Chroma_DIR"
-echo "║  Användare:  $Chroma_USER"
+echo "║  Projekt:    $CHROMA_DIR"
+echo "║  Användare:  $CHROMA_USER"
 echo "║  Node:       $NODE_BIN"
 echo "╚══════════════════════════════════════════╝"
 
@@ -24,8 +24,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=$Chroma_USER
-WorkingDirectory=$Chroma_DIR
+User=$CHROMA_USER
+WorkingDirectory=$CHROMA_DIR
 ExecStart=$NODE_BIN server/engine-server.cjs
 Restart=always
 RestartSec=5
@@ -47,8 +47,8 @@ Requires=chroma-engine.service
 
 [Service]
 Type=simple
-User=$Chroma_USER
-WorkingDirectory=$Chroma_DIR
+User=$CHROMA_USER
+WorkingDirectory=$CHROMA_DIR
 ExecStart=$NPM_BIN run dev -- --host 0.0.0.0
 Restart=always
 RestartSec=10
@@ -76,5 +76,5 @@ echo "  journalctl -u chroma-frontend -f"
 echo ""
 echo "Avinstallera:"
 echo "  sudo systemctl disable chroma-engine chroma-frontend"
-echo "  sudo rm /etc/systemd/system/stokio-{engine,frontend}.service"
+echo "  sudo rm /etc/systemd/system/chroma-{engine,frontend}.service"
 echo "  sudo systemctl daemon-reload"
