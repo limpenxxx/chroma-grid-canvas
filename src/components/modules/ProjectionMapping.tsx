@@ -309,6 +309,13 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
   const videoRefs = useRef<Record<string, HTMLVideoElement>>({});
   const lastBeatRef = useRef(0);
   const beatCountRef = useRef(0);
+  const tapTimesRef = useRef<number[]>([]);
+  const [localBpm, setLocalBpm] = useState(0);
+  const [tapFlash, setTapFlash] = useState(false);
+  const localBeatTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Effective BPM: parent or local tap
+  const effectiveBpm = bpm > 0 ? bpm : localBpm;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selected = shapes.find(s => s.id === selectedId) || null;
