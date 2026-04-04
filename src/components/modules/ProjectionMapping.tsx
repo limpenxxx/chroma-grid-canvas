@@ -73,7 +73,9 @@ function createShape(type: ShapeType, x: number, y: number): ProjectionShape {
     rotation: 0,
     scaleX: 1,
     scaleY: 1,
-    corners: JSON.parse(JSON.stringify(DEFAULT_CORNERS)),
+    corners: type === 'triangle'
+      ? JSON.parse(JSON.stringify([{ x: 0.5, y: 0 }, { x: 1, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 1 }]))
+      : JSON.parse(JSON.stringify(DEFAULT_CORNERS)),
     fillColor: '#00ccff',
     strokeColor: '#ffffff',
     strokeWidth: 2,
@@ -230,31 +232,36 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
         ctx.scale(shape.scaleX * scale, shape.scaleY * scale);
         ctx.translate(-shape.width / 2, -shape.height / 2);
 
-        // Draw shape
-        if (shape.type === 'quad') {
-          // Quad warp — draw as distorted quadrilateral using corners
-          const pts = shape.corners.map(c => ({
-            x: c.x * shape.width,
-            y: c.y * shape.height,
-          }));
+        // Draw shape — all shapes use corner warp points
+        const pts = shape.corners.map(c => ({
+          x: c.x * shape.width,
+          y: c.y * shape.height,
+        }));
+
+        if (shape.type === 'circle') {
+          // Ellipse warped into the quad defined by corners
+          const centerX = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
+          const centerY = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
+          const rx = Math.max(10, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) / 2);
+          const ry = Math.max(10, Math.hypot(pts[3].y - pts[0].y, pts[3].x - pts[0].x) / 2);
+          const angle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
+          ctx.beginPath();
+          ctx.ellipse(centerX, centerY, rx, ry, angle, 0, Math.PI * 2);
+        } else if (shape.type === 'triangle') {
+          // Triangle using first 3 corners
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          ctx.lineTo(pts[1].x, pts[1].y);
+          ctx.lineTo(pts[3].x, pts[3].y);
+          ctx.closePath();
+        } else {
+          // Rect & Quad — draw as quadrilateral using all 4 corners
           ctx.beginPath();
           ctx.moveTo(pts[0].x, pts[0].y);
           ctx.lineTo(pts[1].x, pts[1].y);
           ctx.lineTo(pts[2].x, pts[2].y);
           ctx.lineTo(pts[3].x, pts[3].y);
           ctx.closePath();
-        } else if (shape.type === 'circle') {
-          ctx.beginPath();
-          ctx.ellipse(shape.width / 2, shape.height / 2, shape.width / 2, shape.height / 2, 0, 0, Math.PI * 2);
-        } else if (shape.type === 'triangle') {
-          ctx.beginPath();
-          ctx.moveTo(shape.width / 2, 0);
-          ctx.lineTo(shape.width, shape.height);
-          ctx.lineTo(0, shape.height);
-          ctx.closePath();
-        } else {
-          ctx.beginPath();
-          ctx.rect(0, 0, shape.width, shape.height);
         }
 
         // Video fill
@@ -297,15 +304,19 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
           ctx.strokeRect(-4, -4, shape.width + 8, shape.height + 8);
           ctx.setLineDash([]);
 
-          // Corner handles for quad warp
-          if (shape.type === 'quad') {
-            shape.corners.forEach((c, i) => {
-              const px = c.x * shape.width;
-              const py = c.y * shape.height;
-              ctx.fillStyle = i === 0 ? '#ff0' : '#0ff';
-              ctx.fillRect(px - 5, py - 5, 10, 10);
-            });
-          }
+          // Corner handles for ALL shapes
+          shape.corners.forEach((c, i) => {
+            if (shape.type === 'triangle' && i === 2) return; // skip unused corner for triangle
+            const px = c.x * shape.width;
+            const py = c.y * shape.height;
+            ctx.fillStyle = i === 0 ? '#ff0' : '#0ff';
+            ctx.beginPath();
+            ctx.arc(px, py, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+          });
 
           // Resize handle
           ctx.fillStyle = '#00ff88';
@@ -369,12 +380,14 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
         return;
       }
 
-      // Quad corner warp
-      if (shape.type === 'quad' && shape.id === selectedId) {
-        for (let i = 0; i < 4; i++) {
+      // Corner warp for ALL shapes
+      if (shape.id === selectedId) {
+        const cornerCount = shape.type === 'triangle' ? 3 : 4;
+        const cornerIndices = shape.type === 'triangle' ? [0, 1, 3] : [0, 1, 2, 3];
+        for (const i of cornerIndices) {
           const cpx = shape.x + shape.corners[i].x * shape.width;
           const cpy = shape.y + shape.corners[i].y * shape.height;
-          if (Math.abs(pos.x - cpx) < 12 && Math.abs(pos.y - cpy) < 12) {
+          if (Math.abs(pos.x - cpx) < 14 && Math.abs(pos.y - cpy) < 14) {
             setDragState({
               type: 'corner', shapeId: shape.id,
               startX: pos.x, startY: pos.y,
