@@ -315,7 +315,21 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
 
   // ── BPM phase tracking ──
   useEffect(() => {
-    if (beatFlash) lastBeatRef.current = performance.now();
+    if (beatFlash) {
+      lastBeatRef.current = performance.now();
+      beatCountRef.current += 1;
+
+      // Restart videos on beat
+      shapes.forEach(s => {
+        if (!s.videoBpmRestart || !s.videoSrc) return;
+        const vid = videoRefs.current[s.id];
+        if (!vid) return;
+        if (beatCountRef.current % s.videoBpmRestartDiv === 0) {
+          vid.currentTime = 0;
+          vid.play().catch(() => {});
+        }
+      });
+    }
   }, [beatFlash]);
 
   // ── Poll output window status ──
