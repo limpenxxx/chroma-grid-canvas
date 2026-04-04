@@ -278,8 +278,10 @@ function outputArtNet() {
     lastSent.dmx[uniStr] = hash;
 
     const packet = buildArtNetPacket(uni, outputBuf);
-    // Broadcast on port 6454
-    artnetSocket.send(packet, 0, packet.length, 6454, '255.255.255.255', () => {});
+    // Determine target: check io config for this universe
+    const ioOut = (state.ioConfig.outputs || []).find(o => o.protocol === 'artnet' && o.universe === uni && o.enabled !== false);
+    const targetIp = (ioOut && ioOut.targetIp && ioOut.targetIp !== 'broadcast') ? ioOut.targetIp : '255.255.255.255';
+    artnetSocket.send(packet, 0, packet.length, 6454, targetIp, () => {});
   }
 }
 
