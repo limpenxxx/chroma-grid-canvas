@@ -455,7 +455,7 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
       let scale = 1;
       let rot = shape.rotation;
 
-      if (shape.bpmSync && bpm > 0) {
+      if (shape.bpmSync && effectiveBpm > 0) {
         const intensity = shape.bpmIntensity / 100;
         const pulse = Math.max(0, 1 - beatPhase * 3);
 
