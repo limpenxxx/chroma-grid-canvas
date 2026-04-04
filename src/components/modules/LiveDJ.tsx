@@ -23,6 +23,8 @@ import { useWledStore, type WledDevice, type WledFixture } from '@/store/wledSto
 import { setWledPreset, setWledState } from '@/lib/wledApi';
 import { fetchWledPresets, isWledDeviceTargetId, wledDeviceToFixture } from '@/lib/wledUtils';
 import { sendDmxChannel, onPioneerData, type PioneerData } from '@/lib/wsSync';
+import { openVfxOutputWindow } from './VfxOutputWindow';
+import { useIOStore } from './IOSetup';
 
 // ── Types ──
 
