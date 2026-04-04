@@ -186,7 +186,7 @@ export function IOSetup() {
           Konfigurera nätverksutgångar för ArtNet/sACN och USB-DMX adaptrar.
           Bind ArtNet till ett dedikerat NIC för att separera DMX-trafik från TCP/IP.
           <br />
-          <strong>Ubuntu-tips:</strong> Kör <code className="bg-muted/30 px-1 rounded">engine-server.js</code> med root för USB-åtkomst.
+          <strong>Ubuntu-tips:</strong> Kör <code className="bg-muted/30 px-1 rounded">engine-server.cjs</code> med root för USB-åtkomst.
         </div>
       </div>
 

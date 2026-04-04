@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * STOKIO FX — LAN WebSocket Sync Server
+ * Chroma Grid Canvas — LAN WebSocket Sync Server
  * 
- * Run on your main PC:  node server/sync-server.js
+ * Run on your main PC:  node server/sync-server.cjs
  * All browser windows (PC, tablet, phone) will share the same state.
  * 
  * Default port: 9100  (override with PORT env variable)
@@ -54,7 +54,7 @@ wss.on('connection', (ws) => {
 
 console.log(`
 ╔══════════════════════════════════════════╗
-║   STOKIO FX — Sync Server running       ║
+║   Chroma Grid Canvas — Sync Server running       ║
 ║   Port: ${String(PORT).padEnd(33)}║
 ║                                          ║
 ║   Connect browsers to your PC's IP:      ║
