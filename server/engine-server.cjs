@@ -415,7 +415,7 @@ wss.on('connection', (ws) => {
   };
   ws.send(JSON.stringify({ type: 'sync', state: syncState }));
 
-  // Send engine status with NIC list
+  // Send engine status with NIC list + detected USB serial ports
   const os = require('os');
   const ifaces = os.networkInterfaces();
   const nicList = [];
@@ -427,6 +427,36 @@ wss.on('connection', (ws) => {
     }
   }
 
+  // Auto-detect USB serial ports (ttyUSB*, ttyACM*)
+  let usbSerialPorts = [];
+  try {
+    const devFiles = fs.readdirSync('/dev');
+    usbSerialPorts = devFiles
+      .filter(f => /^tty(USB|ACM)\d+$/.test(f))
+      .map(f => {
+        const devPath = '/dev/' + f;
+        let vendor = '', product = '', serial = '';
+        // Try to read sysfs info for better identification
+        try {
+          const sysBase = '/sys/class/tty/' + f + '/device/..';
+          if (fs.existsSync(sysBase + '/idVendor')) vendor = fs.readFileSync(sysBase + '/idVendor', 'utf8').trim();
+          if (fs.existsSync(sysBase + '/idProduct')) product = fs.readFileSync(sysBase + '/idProduct', 'utf8').trim();
+          if (fs.existsSync(sysBase + '/serial')) serial = fs.readFileSync(sysBase + '/serial', 'utf8').trim();
+        } catch {}
+        // Known USB-DMX vendors
+        let adapterType = 'unknown';
+        if (vendor === '0403' && product === '6001') adapterType = 'enttec-open';
+        else if (vendor === '0403' && product === '6010') adapterType = 'enttec-pro';
+        else if (vendor === '0403') adapterType = 'ftdi-generic';
+        else if (vendor === '10cf') adapterType = 'udmx';
+        else if (vendor === '16c0') adapterType = 'dmxking';
+        return { path: devPath, name: f, vendor, product, serial, adapterType };
+      });
+    if (usbSerialPorts.length > 0) {
+      console.log(`[ENGINE] Detected USB serial ports:`, usbSerialPorts.map(p => `${p.path} (${p.adapterType})`).join(', '));
+    }
+  } catch {}
+
   ws.send(JSON.stringify({
     type: 'engine-status',
     running: true,
@@ -436,6 +466,7 @@ wss.on('connection', (ws) => {
     magicDevices: Object.keys(state.magic).length,
     pioneerDecks: state.pioneerDecks,
     networkInterfaces: nicList,
+    usbSerialPorts: usbSerialPorts,
   }));
 
   // Send Pioneer deck state if any
