@@ -785,8 +785,8 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
     shapes.forEach(s => {
       const vid = videoRefs.current[s.id];
       if (!vid) return;
-      if (s.videoBpmSync && bpm > 0) {
-        vid.playbackRate = Math.max(0.25, Math.min(4, bpm / 120));
+      if (s.videoBpmSync && effectiveBpm > 0) {
+        vid.playbackRate = Math.max(0.25, Math.min(4, effectiveBpm / 120));
       } else {
         vid.playbackRate = s.videoPlaybackRate;
       }
