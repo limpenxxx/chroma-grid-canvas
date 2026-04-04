@@ -393,48 +393,128 @@ export function IOSetup() {
       {/* USB-DMX section */}
       <div className="glass-panel p-4 space-y-3">
         <div className="text-[9px] uppercase tracking-widest text-stokio-cyan font-semibold">🔌 USB-DMX Adaptrar</div>
-        <div className="text-[8px] text-muted-foreground/60 bg-muted/10 rounded p-2 space-y-1">
-          <p>
-            <strong>Enttec DMX USB Pro / Open DMX:</strong> Ansluts via engine-server med <code className="bg-muted/30 px-1 rounded">serialport</code>-modulen.
-          </p>
-          <p>
-            <strong>Ubuntu:</strong> Lägg till användaren i <code className="bg-muted/30 px-1 rounded">dialout</code>-gruppen:
-            <code className="bg-muted/30 px-1 rounded ml-1">sudo usermod -aG dialout $USER</code>
-          </p>
-          <p>
-            <strong>Enhet:</strong> Visas vanligtvis som <code className="bg-muted/30 px-1 rounded">/dev/ttyUSB0</code> eller <code className="bg-muted/30 px-1 rounded">/dev/ttyACM0</code>
-          </p>
-        </div>
-        {store.outputs
-          .filter((o) => o.protocol === 'usb-dmx')
-          .map((o) => (
-            <div
-              key={o.id}
-              className="flex items-center gap-3 p-2 rounded border border-stokio-cyan/20 bg-stokio-cyan/5"
-            >
-              <Usb size={14} className="text-stokio-cyan" />
-              <div className="flex-1 min-w-0">
-                <div className="text-[10px] font-semibold">{o.label}</div>
-                <div className="text-[8px] text-muted-foreground">
-                  {o.usbType ? USB_ADAPTER_LABELS[o.usbType] : 'USB-DMX'} · Universe {o.universe}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Input
-                  placeholder="/dev/ttyUSB0"
-                  value={o.usbPort || ''}
-                  onChange={(e) => store.updateOutput(o.id, { usbPort: e.target.value })}
-                  className="h-6 text-[9px] bg-muted/20 border-border/20 w-32 font-mono"
-                />
-                <div className={`w-2 h-2 rounded-full ${o.usbConnected ? 'bg-green-400 shadow-[0_0_6px_rgba(0,255,100,0.5)]' : 'bg-red-400'}`} />
-              </div>
+        
+        {/* Detected USB ports from engine */}
+        {detectedUsbPorts.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="text-[8px] uppercase tracking-widest text-green-400 font-semibold">
+              ✅ Detekterade USB-enheter
             </div>
-          ))}
-        {store.outputs.filter((o) => o.protocol === 'usb-dmx').length === 0 && (
-          <div className="text-[9px] text-muted-foreground/40 text-center py-2 italic">
-            Inga USB-DMX adaptrar konfigurerade. Lägg till via Output Routing ovan.
+            {detectedUsbPorts.map((port) => {
+              const alreadyAdded = store.outputs.some((o) => o.usbPort === port.path);
+              const detectedType = USB_TYPE_FROM_DETECTED[port.adapterType] || 'enttec-pro';
+              const typeName = port.adapterType === 'unknown' 
+                ? 'Okänd USB-seriell enhet' 
+                : (USB_ADAPTER_LABELS[detectedType] || port.adapterType);
+              return (
+                <div
+                  key={port.path}
+                  className={`flex items-center gap-3 p-2 rounded border ${
+                    alreadyAdded 
+                      ? 'border-green-500/30 bg-green-500/5' 
+                      : 'border-stokio-cyan/30 bg-stokio-cyan/5'
+                  }`}
+                >
+                  <Usb size={14} className={alreadyAdded ? 'text-green-400' : 'text-stokio-cyan'} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-semibold font-mono">{port.path}</div>
+                    <div className="text-[8px] text-muted-foreground">
+                      {typeName}
+                      {port.vendor && <span className="ml-1 text-muted-foreground/40">VID:{port.vendor} PID:{port.product}</span>}
+                      {port.serial && <span className="ml-1 text-muted-foreground/40">S/N:{port.serial}</span>}
+                    </div>
+                  </div>
+                  {alreadyAdded ? (
+                    <span className="text-[8px] text-green-400 font-semibold px-2">Tillagd ✓</span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      className="h-6 text-[9px] gap-1"
+                      onClick={() => {
+                        const nextUni = Math.max(1, ...store.outputs.map(o => o.universe)) + 1;
+                        store.addOutput({
+                          id: `usb-${Date.now()}`,
+                          universe: nextUni,
+                          protocol: 'usb-dmx',
+                          direction: 'output',
+                          enabled: true,
+                          usbType: detectedType,
+                          usbPort: port.path,
+                          label: `${USB_ADAPTER_LABELS[detectedType] || 'USB-DMX'} (${port.name})`,
+                        });
+                      }}
+                    >
+                      <Plus size={10} /> Lägg till
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
+
+        {detectedUsbPorts.length === 0 && engineStatus?.running && (
+          <div className="text-[9px] text-muted-foreground/50 bg-muted/10 rounded p-2 text-center italic">
+            Inga USB-serieportar detekterade. Koppla in din DMX-adapter och starta om engine.
+          </div>
+        )}
+        
+        {!engineStatus?.running && (
+          <div className="text-[8px] text-muted-foreground/60 bg-muted/10 rounded p-2 space-y-1">
+            <p>Starta <code className="bg-muted/30 px-1 rounded">engine-server.cjs</code> för att auto-detektera USB-DMX adaptrar.</p>
+            <p>
+              <strong>Ubuntu:</strong> Lägg till användaren i <code className="bg-muted/30 px-1 rounded">dialout</code>-gruppen:
+              <code className="bg-muted/30 px-1 rounded ml-1">sudo usermod -aG dialout $USER</code>
+            </p>
+          </div>
+        )}
+
+        {/* Already configured USB outputs */}
+        {store.outputs.filter((o) => o.protocol === 'usb-dmx').length > 0 && (
+          <div className="space-y-1.5 pt-2 border-t border-border/10">
+            <div className="text-[8px] uppercase tracking-widest text-muted-foreground font-semibold">
+              Konfigurerade USB-utgångar
+            </div>
+            {store.outputs
+              .filter((o) => o.protocol === 'usb-dmx')
+              .map((o) => (
+                <div
+                  key={o.id}
+                  className="flex items-center gap-3 p-2 rounded border border-stokio-cyan/20 bg-stokio-cyan/5"
+                >
+                  <Usb size={14} className="text-stokio-cyan" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-semibold">{o.label}</div>
+                    <div className="text-[8px] text-muted-foreground">
+                      {o.usbType ? USB_ADAPTER_LABELS[o.usbType] : 'USB-DMX'} · Universe {o.universe}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={o.usbPort || ''}
+                      onChange={(e) => store.updateOutput(o.id, { usbPort: e.target.value })}
+                      className="h-6 text-[9px] bg-muted/20 border border-border/20 rounded px-1 font-mono text-foreground"
+                    >
+                      <option value="">Välj port...</option>
+                      {detectedUsbPorts.map((p) => (
+                        <option key={p.path} value={p.path}>{p.path} ({p.adapterType})</option>
+                      ))}
+                      <option value="custom">Ange manuellt...</option>
+                    </select>
+                    {o.usbPort === 'custom' && (
+                      <Input
+                        placeholder="/dev/ttyUSB0"
+                        onChange={(e) => store.updateOutput(o.id, { usbPort: e.target.value })}
+                        className="h-6 text-[9px] bg-muted/20 border-border/20 w-28 font-mono"
+                      />
+                    )}
+                    <div className={`w-2 h-2 rounded-full ${o.usbConnected ? 'bg-green-400 shadow-[0_0_6px_rgba(0,255,100,0.5)]' : 'bg-red-400'}`} />
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
       </div>
 
       {/* VFX Output (HDMI) */}
