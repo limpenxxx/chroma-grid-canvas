@@ -116,6 +116,8 @@ const USB_ADAPTER_LABELS: Record<UsbAdapterType, string> = {
   'enttec-pro': 'Enttec DMX USB Pro',
   'udmx': 'uDMX (Anyma)',
   'dmxking': 'DMXking ultraDMX',
+  'eurolite-dmx': 'Eurolite USB-DMX512 PRO',
+  'ch340-dmx': 'CH340 USB-DMX',
 };
 
 const PROTOCOL_COLORS: Record<OutputProtocol, string> = {
@@ -140,6 +142,9 @@ const USB_TYPE_FROM_DETECTED: Record<string, UsbAdapterType> = {
   'ftdi-generic': 'enttec-open',
   'udmx': 'udmx',
   'dmxking': 'dmxking',
+  'eurolite-dmx': 'eurolite-dmx',
+  'ch340-dmx': 'ch340-dmx',
+  'ch340-generic': 'ch340-dmx',
 };
 
 export function IOSetup() {
