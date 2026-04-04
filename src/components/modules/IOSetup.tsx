@@ -477,6 +477,9 @@ export function IOSetup() {
         </div>
       </div>
 
+      {/* VFX Output Quick Control */}
+      <VfxOutputControl />
+
       {/* Tips */}
       <div className="glass-panel p-4 space-y-2 border-l-2 border-yellow-500/30">
         <div className="flex items-center gap-1.5 text-[9px] text-yellow-400 font-semibold">
