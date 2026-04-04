@@ -1477,8 +1477,6 @@ function ControlWidget({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  const { openVfxOutputWindow } = require('./VfxOutputWindow');
-                  const { useIOStore } = require('./IOSetup');
                   const io = useIOStore.getState().vfxOutput;
                   openVfxOutputWindow(widget.vfxPreset || 'plasma-wave', io.resolution, io.display, io.fullscreen);
                 }}
