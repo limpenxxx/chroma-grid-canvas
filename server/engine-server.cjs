@@ -671,19 +671,49 @@ function handleMessage(ws, msg) {
     // ── VFX Output Window (Chromium kiosk on local display) ──
     case 'vfx-window-open': {
       const preset = msg.preset || 'plasma-wave';
-      const resolution = msg.resolution || '1920x1080';
       const displayIndex = msg.display || 1;
       const appPort = msg.appPort || 5173;
       const enginePort = PORT;
 
       // Kill existing VFX window if any
       if (state._vfxProcess) {
+        try { process.kill(-state._vfxProcess.pid); } catch {}
         try { state._vfxProcess.kill(); } catch {}
         state._vfxProcess = null;
       }
 
       const url = `http://localhost:${appPort}/vfx-output?preset=${preset}&engine=localhost&port=${enginePort}`;
-      const display = `:0.${displayIndex}`;
+
+      // Use xrandr to find the geometry of the target display
+      const { execSync } = require('child_process');
+      let windowPos = '0,0';
+      let screenSize = '1920,1080';
+      try {
+        const xrandrOut = execSync('xrandr --query', { env: { ...process.env, DISPLAY: ':0' }, encoding: 'utf8' });
+        // Parse connected outputs with geometry: e.g. "HDMI-1 connected 1920x1080+1920+0"
+        const outputs = [];
+        const lines = xrandrOut.split('\n');
+        for (const line of lines) {
+          const m = line.match(/^(\S+)\s+connected\s+(?:primary\s+)?(\d+)x(\d+)\+(\d+)\+(\d+)/);
+          if (m) {
+            outputs.push({ name: m[1], w: parseInt(m[2]), h: parseInt(m[3]), x: parseInt(m[4]), y: parseInt(m[5]) });
+          }
+        }
+        console.log('[VFX] Detected displays:', outputs.map(o => `${o.name} ${o.w}x${o.h}+${o.x}+${o.y}`).join(', '));
+        // displayIndex 0 = first, 1 = second, etc.
+        if (outputs[displayIndex]) {
+          const o = outputs[displayIndex];
+          windowPos = `${o.x},${o.y}`;
+          screenSize = `${o.w},${o.h}`;
+        } else if (outputs.length > 1) {
+          // Fallback: pick non-primary (largest x offset)
+          const secondary = outputs.reduce((a, b) => a.x > b.x ? a : b);
+          windowPos = `${secondary.x},${secondary.y}`;
+          screenSize = `${secondary.w},${secondary.h}`;
+        }
+      } catch (e) {
+        console.warn('[VFX] xrandr failed, using default position:', e.message);
+      }
 
       // Try chromium-browser, then google-chrome, then chromium
       const browsers = ['chromium-browser', 'google-chrome', 'chromium'];
@@ -693,23 +723,26 @@ function handleMessage(ws, msg) {
         try {
           const proc = spawn(browser, [
             '--kiosk',
+            '--start-fullscreen',
             '--noerrdialogs',
             '--disable-infobars',
             '--disable-session-crashed-bubble',
             '--disable-restore-session-state',
             '--no-first-run',
             '--autoplay-policy=no-user-gesture-required',
-            `--window-size=${resolution.replace('x', ',')}`,
+            `--window-size=${screenSize}`,
+            `--window-position=${windowPos}`,
+            '--user-data-dir=/tmp/chroma-vfx-browser',
             `--app=${url}`,
           ], {
-            env: { ...process.env, DISPLAY: display },
+            env: { ...process.env, DISPLAY: ':0' },
             detached: true,
             stdio: 'ignore',
           });
           proc.unref();
           state._vfxProcess = proc;
           state._vfxDisplay = displayIndex;
-          console.log(`[VFX] Opened ${browser} kiosk on ${display} → ${url}`);
+          console.log(`[VFX] Opened ${browser} fullscreen on display ${displayIndex} (pos ${windowPos}, size ${screenSize}) → ${url}`);
           launched = true;
           broadcastToAll({ type: 'vfx-window-status', open: true, display: displayIndex });
           break;
