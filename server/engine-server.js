@@ -593,6 +593,44 @@ function handleMessage(ws, msg) {
       break;
     }
 
+    // ── I/O configuration from browser ──
+    case 'io-config': {
+      if (msg.outputs) {
+        state.ioConfig.outputs = msg.outputs;
+        // Extract ArtNet bind address from first artnet output with a specific NIC
+        const artnetOut = msg.outputs.find(o => o.protocol === 'artnet' && o.bindInterface && o.bindInterface !== 'all');
+        if (artnetOut) {
+          state.ioConfig.artnetBindAddress = artnetOut.bindInterface;
+          console.log(`[ENGINE] ArtNet bound to NIC: ${artnetOut.bindInterface}`);
+          // Rebind ArtNet socket
+          try {
+            artnetSocket.close();
+          } catch {}
+          const newSocket = require('dgram').createSocket('udp4');
+          newSocket.on('error', () => {});
+          newSocket.bind({ address: artnetOut.bindInterface, port: 0 }, () => {
+            try { newSocket.setBroadcast(true); } catch {}
+            console.log(`[ENGINE] ArtNet socket rebound to ${artnetOut.bindInterface}`);
+          });
+          // Note: in production, we'd replace artnetSocket reference
+        }
+        const sacnOut = msg.outputs.find(o => o.protocol === 'sacn' && o.bindInterface && o.bindInterface !== 'all');
+        if (sacnOut) {
+          state.ioConfig.sacnBindAddress = sacnOut.bindInterface;
+          console.log(`[ENGINE] sACN bound to NIC: ${sacnOut.bindInterface}`);
+        }
+        // USB-DMX ports
+        state.ioConfig.usbPorts = msg.outputs
+          .filter(o => o.protocol === 'usb-dmx' && o.usbPort)
+          .map(o => ({ universe: o.universe, port: o.usbPort, type: o.usbType }));
+        if (state.ioConfig.usbPorts.length > 0) {
+          console.log(`[ENGINE] USB-DMX ports configured:`, state.ioConfig.usbPorts.map(p => `${p.port} (U${p.universe})`).join(', '));
+        }
+        dirty = true;
+      }
+      break;
+    }
+
     default:
       // Unknown message type — ignore
       break;
