@@ -45,6 +45,8 @@ interface ProjectionShape {
   videoSrc: string | null;
   videoOpacity: number;
   videoBpmSync: boolean;
+  videoBpmRestart: boolean;
+  videoBpmRestartDiv: number; // restart every N beats (1=every beat, 2=every 2nd, 4=every bar, etc.)
   videoFilter: 'none' | 'invert' | 'hue-rotate' | 'saturate' | 'contrast' | 'grayscale' | 'sepia';
   videoFilterIntensity: number;
   videoPlaybackRate: number;
@@ -87,6 +89,8 @@ function createShape(type: ShapeType, x: number, y: number): ProjectionShape {
     videoSrc: null,
     videoOpacity: 100,
     videoBpmSync: false,
+    videoBpmRestart: false,
+    videoBpmRestartDiv: 1,
     videoFilter: 'none',
     videoFilterIntensity: 50,
     videoPlaybackRate: 1,
@@ -304,13 +308,28 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
   const animFrameRef = useRef<number>(0);
   const videoRefs = useRef<Record<string, HTMLVideoElement>>({});
   const lastBeatRef = useRef(0);
+  const beatCountRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selected = shapes.find(s => s.id === selectedId) || null;
 
   // ── BPM phase tracking ──
   useEffect(() => {
-    if (beatFlash) lastBeatRef.current = performance.now();
+    if (beatFlash) {
+      lastBeatRef.current = performance.now();
+      beatCountRef.current += 1;
+
+      // Restart videos on beat
+      shapes.forEach(s => {
+        if (!s.videoBpmRestart || !s.videoSrc) return;
+        const vid = videoRefs.current[s.id];
+        if (!vid) return;
+        if (beatCountRef.current % s.videoBpmRestartDiv === 0) {
+          vid.currentTime = 0;
+          vid.play().catch(() => {});
+        }
+      });
+    }
   }, [beatFlash]);
 
   // ── Poll output window status ──
@@ -950,6 +969,29 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
                           <Slider min={25} max={400} step={25} value={[selected.videoPlaybackRate * 100]}
                             onValueChange={([v]) => updateSelected({ videoPlaybackRate: v / 100 })} className="flex-1" />
                           <span className="w-8 text-right">{selected.videoPlaybackRate}x</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <label className="text-muted-foreground flex-1">Beat-restart</label>
+                        <button
+                          className={`w-8 h-4 rounded-full transition-colors ${selected.videoBpmRestart ? 'bg-primary' : 'bg-muted'}`}
+                          onClick={() => updateSelected({ videoBpmRestart: !selected.videoBpmRestart })}
+                        >
+                          <div className={`w-3 h-3 rounded-full bg-white transition-transform ${selected.videoBpmRestart ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+                      {selected.videoBpmRestart && (
+                        <div className="flex items-center gap-1">
+                          <label className="text-muted-foreground w-14">Var N:e</label>
+                          <select className="flex-1 bg-background/50 text-[9px] rounded px-1 h-5 border border-border/30"
+                            value={selected.videoBpmRestartDiv}
+                            onChange={e => updateSelected({ videoBpmRestartDiv: +e.target.value })}>
+                            <option value={1}>Varje beat</option>
+                            <option value={2}>Var 2:a beat</option>
+                            <option value={4}>Var 4:e (takt)</option>
+                            <option value={8}>Var 8:e</option>
+                            <option value={16}>Var 16:e</option>
+                          </select>
                         </div>
                       )}
                       <Button variant="ghost" size="sm" className="h-5 text-[8px] w-full text-destructive"
