@@ -305,14 +305,27 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
 interface FixtureStore {
   definitions: FixtureDefinition[];
   instances: FixtureInstance[];
+  savedModes: SavedMode[]; // reusable mode templates
   addDefinition: (def: FixtureDefinition) => void;
   removeDefinition: (id: string) => void;
   updateDefinition: (id: string, updates: Partial<FixtureDefinition>) => void;
   addInstance: (inst: FixtureInstance) => void;
   removeInstance: (id: string) => void;
   updateInstance: (id: string, updates: Partial<FixtureInstance>) => void;
+  addSavedMode: (mode: SavedMode) => void;
+  removeSavedMode: (id: string) => void;
   exportLibrary: () => string;
   importLibrary: (json: string) => void;
+}
+
+/** A saved/reusable channel mode template */
+export interface SavedMode {
+  id: string;
+  name: string;
+  description?: string;
+  fixtureType?: string; // e.g. 'moving-head', 'par'
+  mode: FixtureMode;
+  createdAt: number;
 }
 
 const DEFAULT_INSTANCES: FixtureInstance[] = [
