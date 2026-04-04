@@ -184,6 +184,10 @@ function connect() {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
+        // Dispatch to raw message listeners first
+        for (const listener of rawMessageListeners) {
+          listener(msg);
+        }
         if (msg.type === 'sync' && msg.state) {
           isRemoteUpdate = true;
           for (const listener of listeners) {
