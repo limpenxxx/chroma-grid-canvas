@@ -24,6 +24,7 @@ import { setWledPreset, setWledState } from '@/lib/wledApi';
 import { fetchWledPresets, isWledDeviceTargetId, wledDeviceToFixture } from '@/lib/wledUtils';
 import { sendDmxChannel, onPioneerData, type PioneerData } from '@/lib/wsSync';
 import { openVfxOutputWindow } from './VfxOutputWindow';
+import { ProjectionMapping } from './ProjectionMapping';
 import { useIOStore } from './IOSetup';
 
 // ── Types ──
