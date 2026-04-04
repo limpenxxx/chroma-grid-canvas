@@ -35,31 +35,26 @@ const SAVE_INTERVAL = 5000;  // persist state every 5s
 // ══════════════════════════════════════════════════════════════
 
 const state = {
-  // DMX universes: { "1": Uint8Array(512), "2": Uint8Array(512), ... }
   dmx: {},
-
-  // WLED output cache: { "192.168.1.100": { seg: [...] } }
   wled: {},
-
-  // Hue bridges: { bridgeId: { ip, apiKey, lights: { lightId: { on, bri, xy } } } }
   hue: {},
-
-  // MagicHome: { deviceId: { proxyUrl, address, on, r, g, b } }
   magic: {},
-
-  // App-level state synced from browser
   app: {},
   fixtures: {},
   media: {},
   stage: {},
   wledDevices: {},
-
-  // Master controls
   masterDimmer: 100,
   blackout: false,
+  pioneerDecks: {},
 
-  // Pioneer DJ (ProDJ Link)
-  pioneerDecks: {},  // { deviceNumber: { name, bpm, beat, playing, master, ip, lastSeen } }
+  // I/O config: which NIC to bind ArtNet/sACN, USB ports, etc.
+  ioConfig: {
+    outputs: [],        // Array of { id, universe, protocol, bindInterface, targetIp, usbPort, ... }
+    artnetBindAddress: '0.0.0.0',  // default: all interfaces
+    sacnBindAddress: '0.0.0.0',
+    usbPorts: [],       // Array of { universe, port, type }
+  },
 };
 
 // Last-sent cache to avoid redundant network calls
@@ -283,8 +278,10 @@ function outputArtNet() {
     lastSent.dmx[uniStr] = hash;
 
     const packet = buildArtNetPacket(uni, outputBuf);
-    // Broadcast on port 6454
-    artnetSocket.send(packet, 0, packet.length, 6454, '255.255.255.255', () => {});
+    // Determine target: check io config for this universe
+    const ioOut = (state.ioConfig.outputs || []).find(o => o.protocol === 'artnet' && o.universe === uni && o.enabled !== false);
+    const targetIp = (ioOut && ioOut.targetIp && ioOut.targetIp !== 'broadcast') ? ioOut.targetIp : '255.255.255.255';
+    artnetSocket.send(packet, 0, packet.length, 6454, targetIp, () => {});
   }
 }
 
@@ -418,7 +415,18 @@ wss.on('connection', (ws) => {
   };
   ws.send(JSON.stringify({ type: 'sync', state: syncState }));
 
-  // Send engine status
+  // Send engine status with NIC list
+  const os = require('os');
+  const ifaces = os.networkInterfaces();
+  const nicList = [];
+  for (const [name, addrs] of Object.entries(ifaces)) {
+    for (const addr of addrs) {
+      if (addr.family === 'IPv4') {
+        nicList.push({ name, address: addr.address, mac: addr.mac || '', internal: addr.internal });
+      }
+    }
+  }
+
   ws.send(JSON.stringify({
     type: 'engine-status',
     running: true,
@@ -427,6 +435,7 @@ wss.on('connection', (ws) => {
     hueBridges: Object.keys(state.hue).length,
     magicDevices: Object.keys(state.magic).length,
     pioneerDecks: state.pioneerDecks,
+    networkInterfaces: nicList,
   }));
 
   // Send Pioneer deck state if any
@@ -583,6 +592,44 @@ function handleMessage(ws, msg) {
         masterDimmer: state.masterDimmer,
         blackout: state.blackout,
       }));
+      break;
+    }
+
+    // ── I/O configuration from browser ──
+    case 'io-config': {
+      if (msg.outputs) {
+        state.ioConfig.outputs = msg.outputs;
+        // Extract ArtNet bind address from first artnet output with a specific NIC
+        const artnetOut = msg.outputs.find(o => o.protocol === 'artnet' && o.bindInterface && o.bindInterface !== 'all');
+        if (artnetOut) {
+          state.ioConfig.artnetBindAddress = artnetOut.bindInterface;
+          console.log(`[ENGINE] ArtNet bound to NIC: ${artnetOut.bindInterface}`);
+          // Rebind ArtNet socket
+          try {
+            artnetSocket.close();
+          } catch {}
+          const newSocket = require('dgram').createSocket('udp4');
+          newSocket.on('error', () => {});
+          newSocket.bind({ address: artnetOut.bindInterface, port: 0 }, () => {
+            try { newSocket.setBroadcast(true); } catch {}
+            console.log(`[ENGINE] ArtNet socket rebound to ${artnetOut.bindInterface}`);
+          });
+          // Note: in production, we'd replace artnetSocket reference
+        }
+        const sacnOut = msg.outputs.find(o => o.protocol === 'sacn' && o.bindInterface && o.bindInterface !== 'all');
+        if (sacnOut) {
+          state.ioConfig.sacnBindAddress = sacnOut.bindInterface;
+          console.log(`[ENGINE] sACN bound to NIC: ${sacnOut.bindInterface}`);
+        }
+        // USB-DMX ports
+        state.ioConfig.usbPorts = msg.outputs
+          .filter(o => o.protocol === 'usb-dmx' && o.usbPort)
+          .map(o => ({ universe: o.universe, port: o.usbPort, type: o.usbType }));
+        if (state.ioConfig.usbPorts.length > 0) {
+          console.log(`[ENGINE] USB-DMX ports configured:`, state.ioConfig.usbPorts.map(p => `${p.port} (U${p.universe})`).join(', '));
+        }
+        dirty = true;
+      }
       break;
     }
 

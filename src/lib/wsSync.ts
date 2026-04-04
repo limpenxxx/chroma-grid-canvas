@@ -89,6 +89,13 @@ export function broadcastState(storeKey: string, state: Record<string, unknown>)
   }
 }
 
+/** Send a raw typed message to the engine */
+export function sendRawMessage(msg: Record<string, unknown>) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
+  }
+}
+
 // ── Engine commands (hardware output routed through engine) ──
 
 /** Send a single DMX channel value to the engine */
