@@ -1,6 +1,6 @@
-# STOKIO FX — Ubuntu Installationsguide
+# Chroma Grid Canvas — Ubuntu Installationsguide
 
-> Komplett guide för att installera STOKIO FX som en **dedikerad ljusstyrningsenhet** på Ubuntu.  
+> Komplett guide för att installera Chroma Grid Canvas som en **dedikerad ljusstyrningsenhet** på Ubuntu.  
 > Systemet startar automatiskt vid ström, återhämtar sig från strömavbrott och kräver inget GUI.
 
 ---
@@ -65,12 +65,12 @@ sudo corepack enable
 
 ```bash
 cd /opt
-sudo git clone https://github.com/YOUR_USERNAME/stokio-fx.git
-sudo chown -R $USER:$USER /opt/stokio-fx
-cd /opt/stokio-fx
+sudo git clone https://github.com/YOUR_USERNAME/chroma-grid-canvas.git
+sudo chown -R $USER:$USER /opt/chroma-grid-canvas
+cd /opt/chroma-grid-canvas
 ```
 
-> **Tips:** Använd `/opt/stokio-fx` som standardsökväg — installationsskriptet anpassar sig automatiskt.
+> **Tips:** Använd `/opt/chroma-grid-canvas` som standardsökväg — installationsskriptet anpassar sig automatiskt.
 
 ### 3. Installera beroenden
 
@@ -104,7 +104,7 @@ Ingen extra konfiguration behövs — anslut till samma LAN som dina WLED/Hue/Ar
 
 Isolera ljusprotokolltrafik (WLED, ArtNet, sACN) från DJ-länktrafik (Pioneer ProDJ Link):
 
-Skapa `/etc/netplan/01-stokio.yaml`:
+Skapa `/etc/netplan/01-chroma.yaml`:
 ```yaml
 network:
   version: 2
@@ -140,7 +140,7 @@ sudo netplan apply
 
 ```bash
 # Engine WebSocket
-sudo ufw allow 9100/tcp comment 'STOKIO Engine WS'
+sudo ufw allow 9100/tcp comment 'Chroma Engine WS'
 
 # Ljusprotokoll
 sudo ufw allow 6454/udp comment 'ArtNet DMX'
@@ -157,7 +157,7 @@ sudo ufw allow 11988/udp comment 'WLED Sound Sync'
 sudo ufw allow 5353/udp comment 'mDNS'
 
 # Frontend (dev-server)
-sudo ufw allow 5173/tcp comment 'STOKIO Frontend'
+sudo ufw allow 5173/tcp comment 'Chroma Frontend'
 
 # Aktivera brandvägg
 sudo ufw enable
@@ -180,30 +180,30 @@ sudo setcap 'cap_net_bind_service,cap_net_broadcast,cap_net_raw+ep' $(which node
 Kör det medföljande installationsskriptet:
 
 ```bash
-chmod +x scripts/install-stokio-service.sh
-./scripts/install-stokio-service.sh
+chmod +x scripts/install-chroma-service.sh
+./scripts/install-chroma-service.sh
 ```
 
 Detta skapar och aktiverar två systemd-tjänster:
-- **stokio-engine** — Ljusmotorn (port 9100)
-- **stokio-frontend** — Vite dev-server (port 5173)
+- **chroma-engine** — Ljusmotorn (port 9100)
+- **chroma-frontend** — Vite dev-server (port 5173)
 
 ### Manuellt
 
 <details>
 <summary>Klicka för manuell konfiguration</summary>
 
-Skapa `/etc/systemd/system/stokio-engine.service`:
+Skapa `/etc/systemd/system/chroma-engine.service`:
 ```ini
 [Unit]
-Description=STOKIO FX Lighting Engine
+Description=Chroma Grid Canvas Lighting Engine
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-User=stokio
-WorkingDirectory=/opt/stokio-fx
+User=chroma
+WorkingDirectory=/opt/chroma-grid-canvas
 ExecStart=/usr/bin/node server/engine-server.js
 Restart=always
 RestartSec=5
@@ -216,17 +216,17 @@ AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_BROADCAST CAP_NET_RAW
 WantedBy=multi-user.target
 ```
 
-Skapa `/etc/systemd/system/stokio-frontend.service`:
+Skapa `/etc/systemd/system/chroma-frontend.service`:
 ```ini
 [Unit]
-Description=STOKIO FX Frontend (Vite)
-After=stokio-engine.service
-Requires=stokio-engine.service
+Description=Chroma Grid Canvas Frontend (Vite)
+After=chroma-engine.service
+Requires=chroma-engine.service
 
 [Service]
 Type=simple
-User=stokio
-WorkingDirectory=/opt/stokio-fx
+User=chroma
+WorkingDirectory=/opt/chroma-grid-canvas
 ExecStart=/usr/bin/npm run dev -- --host 0.0.0.0
 Restart=always
 RestartSec=10
@@ -240,7 +240,7 @@ WantedBy=multi-user.target
 Aktivera:
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now stokio-engine stokio-frontend
+sudo systemctl enable --now chroma-engine chroma-frontend
 ```
 
 </details>
@@ -268,20 +268,20 @@ Om maskinen kör utan skärm, aktivera autoinloggning för att säkerställa att
 
 ```bash
 # Skapa en dedikerad användare (om du inte redan har en)
-sudo adduser --system --group --shell /bin/bash stokio
-sudo usermod -aG dialout stokio  # USB-DMX åtkomst
+sudo adduser --system --group --shell /bin/bash chroma
+sudo usermod -aG dialout chroma  # USB-DMX åtkomst
 
 # Ge ägandeskap till projektet
-sudo chown -R stokio:stokio /opt/stokio-fx
+sudo chown -R chroma:chroma /opt/chroma-grid-canvas
 ```
 
-> **Notera:** systemd-tjänster med `User=stokio` startar automatiskt — ingen GUI-inloggning behövs.
+> **Notera:** systemd-tjänster med `User=chroma` startar automatiskt — ingen GUI-inloggning behövs.
 
 ### Steg 3: Verifiera att tjänsterna är aktiverade
 
 ```bash
-sudo systemctl is-enabled stokio-engine    # Ska visa "enabled"
-sudo systemctl is-enabled stokio-frontend  # Ska visa "enabled"
+sudo systemctl is-enabled chroma-engine    # Ska visa "enabled"
+sudo systemctl is-enabled chroma-frontend  # Ska visa "enabled"
 ```
 
 ### Testa strömbortfall
@@ -291,12 +291,12 @@ sudo systemctl is-enabled stokio-frontend  # Ska visa "enabled"
 sudo reboot
 
 # Vänta tills maskinen startar, kontrollera sedan:
-sudo systemctl status stokio-engine
-sudo systemctl status stokio-frontend
+sudo systemctl status chroma-engine
+sudo systemctl status chroma-frontend
 
 # Se loggar i realtid
-journalctl -u stokio-engine -f
-journalctl -u stokio-frontend -f
+journalctl -u chroma-engine -f
+journalctl -u chroma-frontend -f
 ```
 
 ### Watchdog (extra säkerhet)
@@ -332,10 +332,10 @@ groups  # Ska visa "dialout"
 ls -la /dev/ttyUSB*  # Ska visa din adapter
 ```
 
-Om du kör som systemtjänst med `stokio`-användaren:
+Om du kör som systemtjänst med `chroma`-användaren:
 ```bash
-sudo usermod -aG dialout stokio
-sudo systemctl restart stokio-engine
+sudo usermod -aG dialout chroma
+sudo systemctl restart chroma-engine
 ```
 
 ---
@@ -346,35 +346,35 @@ sudo systemctl restart stokio-engine
 
 ```bash
 # Status
-sudo systemctl status stokio-engine
-sudo systemctl status stokio-frontend
+sudo systemctl status chroma-engine
+sudo systemctl status chroma-frontend
 
 # Starta om
-sudo systemctl restart stokio-engine
-sudo systemctl restart stokio-frontend
+sudo systemctl restart chroma-engine
+sudo systemctl restart chroma-frontend
 
 # Loggar (senaste 100 rader)
-journalctl -u stokio-engine -n 100
-journalctl -u stokio-frontend -n 100
+journalctl -u chroma-engine -n 100
+journalctl -u chroma-frontend -n 100
 
 # Realtidsloggar
-journalctl -u stokio-engine -f
+journalctl -u chroma-engine -f
 ```
 
-### Uppdatera STOKIO FX
+### Uppdatera Chroma Grid Canvas
 
 ```bash
-cd /opt/stokio-fx
+cd /opt/chroma-grid-canvas
 git pull
 npm install
-sudo systemctl restart stokio-engine stokio-frontend
+sudo systemctl restart chroma-engine chroma-frontend
 ```
 
 ### Felsökning
 
 | Problem | Lösning |
 |---------|---------|
-| Engine startar inte | `node -v` — behöver v18+. Kolla `journalctl -u stokio-engine -n 50` |
+| Engine startar inte | `node -v` — behöver v18+. Kolla `journalctl -u chroma-engine -n 50` |
 | "Address already in use" | `lsof -i :9100` — döda processen eller vänta |
 | Ser inte WLED-enheter | Kontrollera att enheter är på samma subnät, kolla brandvägg |
 | ArtNet tas inte emot | Kontrollera UDP 6454 i brandvägg, verifiera broadcast |
@@ -400,14 +400,14 @@ sudo systemctl restart stokio-engine stokio-frontend
 
 ```bash
 # Stoppa och ta bort tjänster
-sudo systemctl stop stokio-engine stokio-frontend
-sudo systemctl disable stokio-engine stokio-frontend
-sudo rm /etc/systemd/system/stokio-{engine,frontend}.service
+sudo systemctl stop chroma-engine chroma-frontend
+sudo systemctl disable chroma-engine chroma-frontend
+sudo rm /etc/systemd/system/chroma-{engine,frontend}.service
 sudo systemctl daemon-reload
 
 # Ta bort projektet (valfritt)
-sudo rm -rf /opt/stokio-fx
+sudo rm -rf /opt/chroma-grid-canvas
 
 # Ta bort användaren (valfritt)
-sudo deluser --remove-home stokio
+sudo deluser --remove-home chroma
 ```
