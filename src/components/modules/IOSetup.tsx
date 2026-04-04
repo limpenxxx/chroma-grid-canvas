@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Plus, Trash2, RefreshCw, Wifi, Usb, Monitor, Save, AlertTriangle, Check, X
+  Plus, Trash2, RefreshCw, Wifi, Usb, Monitor, Save, AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
