@@ -97,6 +97,8 @@ useIOStore.subscribe((state) => {
       outputs: state.outputs,
       vfxOutput: state.vfxOutput,
     });
+    // Also send io-config directly to engine for hardware routing
+    sendRawMessage({ type: 'io-config', outputs: state.outputs });
   }
 });
 
