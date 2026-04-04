@@ -188,7 +188,7 @@ function drawTexturedTriangle(
   const d = -(dy0 * (sx1 - sx2) - dy1 * (sx0 - sx2) + dy2 * (sx0 - sx1)) / denom;
   const f = (dy0 * (sx1 * sy2 - sx2 * sy1) - dy1 * (sx0 * sy2 - sx2 * sy0) + dy2 * (sx0 * sy1 - sx1 * sy0)) / denom;
 
-  ctx.setTransform(a, c, b, d, e, f);
+  ctx.transform(a, c, b, d, e, f);
   ctx.drawImage(img, 0, 0);
   ctx.restore();
 }
