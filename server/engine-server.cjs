@@ -23,6 +23,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 
 const PORT = parseInt(process.env.PORT || '9100', 10);
 const STATE_FILE = path.join(__dirname, '.engine-state.json');
@@ -664,6 +665,79 @@ function handleMessage(ws, msg) {
         }
         dirty = true;
       }
+      break;
+    }
+
+    // ── VFX Output Window (Chromium kiosk on local display) ──
+    case 'vfx-window-open': {
+      const preset = msg.preset || 'plasma-wave';
+      const resolution = msg.resolution || '1920x1080';
+      const displayIndex = msg.display || 1;
+      const appPort = msg.appPort || 5173;
+      const enginePort = PORT;
+
+      // Kill existing VFX window if any
+      if (state._vfxProcess) {
+        try { state._vfxProcess.kill(); } catch {}
+        state._vfxProcess = null;
+      }
+
+      const url = `http://localhost:${appPort}/vfx-output?preset=${preset}&engine=localhost&port=${enginePort}`;
+      const display = `:0.${displayIndex}`;
+
+      // Try chromium-browser, then google-chrome, then chromium
+      const browsers = ['chromium-browser', 'google-chrome', 'chromium'];
+      let launched = false;
+
+      for (const browser of browsers) {
+        try {
+          const proc = spawn(browser, [
+            '--kiosk',
+            '--noerrdialogs',
+            '--disable-infobars',
+            '--disable-session-crashed-bubble',
+            '--disable-restore-session-state',
+            '--no-first-run',
+            '--autoplay-policy=no-user-gesture-required',
+            `--window-size=${resolution.replace('x', ',')}`,
+            `--app=${url}`,
+          ], {
+            env: { ...process.env, DISPLAY: display },
+            detached: true,
+            stdio: 'ignore',
+          });
+          proc.unref();
+          state._vfxProcess = proc;
+          state._vfxDisplay = displayIndex;
+          console.log(`[VFX] Opened ${browser} kiosk on ${display} → ${url}`);
+          launched = true;
+          broadcastToAll({ type: 'vfx-window-status', open: true, display: displayIndex });
+          break;
+        } catch (e) {
+          // Try next browser
+        }
+      }
+
+      if (!launched) {
+        console.error('[VFX] Could not launch any browser. Install chromium-browser.');
+        ws.send(JSON.stringify({ type: 'vfx-window-status', open: false, error: 'No browser found' }));
+      }
+      break;
+    }
+
+    case 'vfx-window-close': {
+      if (state._vfxProcess) {
+        try { state._vfxProcess.kill(); } catch {}
+        state._vfxProcess = null;
+        console.log('[VFX] Closed output window');
+      }
+      broadcastToAll({ type: 'vfx-window-status', open: false });
+      break;
+    }
+
+    case 'vfx-set-preset': {
+      // Forward preset change to all clients (the VFX output page listens)
+      broadcastToAll({ type: 'vfx-preset', preset: msg.preset });
       break;
     }
 

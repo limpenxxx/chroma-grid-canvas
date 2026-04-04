@@ -7,6 +7,7 @@
 type SyncListener = (state: Record<string, unknown>) => void;
 type EngineStatusListener = (status: EngineStatus) => void;
 type PioneerListener = (data: PioneerData) => void;
+type RawMessageListener = (msg: any) => void;
 
 export interface PioneerDeck {
   name: string;
@@ -46,6 +47,7 @@ let pioneerListeners: PioneerListener[] = [];
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let isRemoteUpdate = false;
 let _engineConnected = false;
+let rawMessageListeners: RawMessageListener[] = [];
 
 /** True when we're applying a remote update — stores should skip broadcasting */
 export function isSyncingFromRemote(): boolean {
@@ -78,6 +80,14 @@ export function onPioneerData(listener: PioneerListener): () => void {
   pioneerListeners.push(listener);
   return () => {
     pioneerListeners = pioneerListeners.filter((l) => l !== listener);
+  };
+}
+
+/** Subscribe to all raw engine messages (for VFX status etc.) */
+export function onEngineMessage(listener: RawMessageListener): () => void {
+  rawMessageListeners.push(listener);
+  return () => {
+    rawMessageListeners = rawMessageListeners.filter((l) => l !== listener);
   };
 }
 
@@ -174,6 +184,10 @@ function connect() {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
+        // Dispatch to raw message listeners first
+        for (const listener of rawMessageListeners) {
+          listener(msg);
+        }
         if (msg.type === 'sync' && msg.state) {
           isRemoteUpdate = true;
           for (const listener of listeners) {

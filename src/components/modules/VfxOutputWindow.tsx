@@ -1,151 +1,50 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
-import { Monitor, Maximize2, ExternalLink, Square, Play } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Monitor, ExternalLink, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { AudioVisualizerEngine, PRESET_LABELS, type VisualizerPreset } from '@/lib/audioVisualizer';
+import { PRESET_LABELS, type VisualizerPreset } from '@/lib/audioVisualizer';
 import { useIOStore } from './IOSetup';
+import { sendRawMessage, onEngineMessage } from '@/lib/wsSync';
 
 /**
- * VFX Output Window — opens visualizer in a separate browser window
- * designed for a dedicated HDMI output (secondary GPU).
+ * VFX Output Window — launches Chromium kiosk on the server's local display
+ * via engine-server. No browser popup — renders on the machine's HDMI output.
  */
 
-let vfxWindow: Window | null = null;
-let vfxEngine: AudioVisualizerEngine | null = null;
-
-export function openVfxOutputWindow(
-  preset: VisualizerPreset = 'plasma-wave',
-  resolution: string = '1920x1080',
-  displayIndex: number = 1,
-  autoFullscreen: boolean = true
-) {
-  // Close existing
-  if (vfxWindow && !vfxWindow.closed) {
-    vfxWindow.close();
-  }
-
-  const [w, h] = resolution.split('x').map(Number);
-
-  // Position on secondary display. On Ubuntu with X11, screen.availLeft
-  // gives the offset. For display 1 we assume it's to the right of primary.
-  const left = displayIndex * (window.screen.availWidth || 1920);
-  const top = 0;
-
-  vfxWindow = window.open(
-    '',
-    'stokio-vfx-output',
-    `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes`
-  );
-
-  if (!vfxWindow) {
-    console.error('[VFX OUTPUT] Popup blocked — allow popups for this site');
-    return;
-  }
-
-  // Write minimal HTML
-  vfxWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <title>STOKIO VFX Output</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #000; overflow: hidden; cursor: none; }
-    canvas { width: 100vw; height: 100vh; display: block; }
-  </style>
-</head>
-<body>
-  <canvas id="vfx-canvas" width="${w}" height="${h}"></canvas>
-</body>
-</html>`);
-  vfxWindow.document.close();
-
-  // Setup engine
-  const canvas = vfxWindow.document.getElementById('vfx-canvas') as HTMLCanvasElement;
-  if (!canvas) return;
-
-  vfxEngine = new AudioVisualizerEngine();
-  vfxEngine.preset = preset;
-  vfxEngine.start('microphone').catch(() => {});
-
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  const animate = () => {
-    if (!vfxWindow || vfxWindow.closed) {
-      vfxEngine?.stop();
-      vfxEngine = null;
-      return;
-    }
-    if (vfxEngine && ctx) {
-      vfxEngine.render(ctx, canvas.width, canvas.height);
-    }
-    requestAnimationFrame(animate);
-  };
-  requestAnimationFrame(animate);
-
-  // Auto-fullscreen (requires user gesture in some browsers)
-  if (autoFullscreen) {
-    vfxWindow.document.addEventListener('click', () => {
-      canvas.requestFullscreen?.().catch(() => {});
-    }, { once: true });
-    // Try immediately for kiosk mode
-    setTimeout(() => {
-      try {
-        canvas.requestFullscreen?.().catch(() => {});
-      } catch {}
-    }, 500);
-  }
-
-  // ESC handler
-  vfxWindow.document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-      vfxWindow?.close();
-    }
-  });
-}
-
-export function setVfxOutputPreset(preset: VisualizerPreset) {
-  if (vfxEngine) vfxEngine.preset = preset;
-}
-
-export function closeVfxOutputWindow() {
-  if (vfxWindow && !vfxWindow.closed) vfxWindow.close();
-  vfxEngine?.stop();
-  vfxEngine = null;
-  vfxWindow = null;
-}
-
-export function isVfxOutputOpen(): boolean {
-  return !!(vfxWindow && !vfxWindow.closed);
-}
-
-/**
- * Inline UI control panel for VFX Output (used in I/O Setup or Live DJ)
- */
 export function VfxOutputControl({ currentPreset }: { currentPreset?: VisualizerPreset }) {
   const ioStore = useIOStore();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedPreset, setSelectedPreset] = useState<VisualizerPreset>(currentPreset || 'plasma-wave');
 
+  // Listen for status updates from engine
   useEffect(() => {
-    const check = setInterval(() => {
-      setIsOpen(isVfxOutputOpen());
-    }, 1000);
-    return () => clearInterval(check);
+    const unsub = onEngineMessage((msg: any) => {
+      if (msg.type === 'vfx-window-status') {
+        setIsOpen(!!msg.open);
+      }
+    });
+    return unsub;
   }, []);
 
   const handleOpen = () => {
     const { resolution, display, fullscreen } = ioStore.vfxOutput;
-    openVfxOutputWindow(selectedPreset, resolution, display, fullscreen);
-    setIsOpen(true);
+    sendRawMessage({
+      type: 'vfx-window-open',
+      preset: selectedPreset,
+      resolution,
+      display,
+      fullscreen,
+    });
   };
 
   const handleClose = () => {
-    closeVfxOutputWindow();
-    setIsOpen(false);
+    sendRawMessage({ type: 'vfx-window-close' });
   };
 
+  // Send preset change to engine when changed while open
   useEffect(() => {
-    if (isOpen) setVfxOutputPreset(selectedPreset);
+    if (isOpen) {
+      sendRawMessage({ type: 'vfx-set-preset', preset: selectedPreset });
+    }
   }, [selectedPreset, isOpen]);
 
   return (
@@ -154,7 +53,7 @@ export function VfxOutputControl({ currentPreset }: { currentPreset?: Visualizer
         <div className="flex items-center gap-1.5">
           <Monitor size={12} style={{ color: '#aa44ff' }} />
           <span className="text-[9px] uppercase tracking-widest font-semibold" style={{ color: '#aa44ff' }}>
-            VFX HDMI Output
+            VFX HDMI Output (Lokal)
           </span>
         </div>
         <div className={`flex items-center gap-1 text-[8px] ${isOpen ? 'text-green-400' : 'text-muted-foreground/40'}`}>
@@ -185,8 +84,8 @@ export function VfxOutputControl({ currentPreset }: { currentPreset?: Visualizer
       </div>
 
       <div className="text-[7px] text-muted-foreground/40">
-        Öppnas på skärm {ioStore.vfxOutput.display + 1} ({ioStore.vfxOutput.resolution}). 
-        Klicka i fönstret för fullskärm. ESC för att stänga.
+        Renderas lokalt på skärm {ioStore.vfxOutput.display + 1} ({ioStore.vfxOutput.resolution}) via Chromium kiosk.
+        Klicka för fullskärm. ESC för att stänga.
       </div>
     </div>
   );
