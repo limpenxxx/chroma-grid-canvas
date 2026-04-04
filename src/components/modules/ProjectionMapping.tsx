@@ -308,6 +308,7 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
   const animFrameRef = useRef<number>(0);
   const videoRefs = useRef<Record<string, HTMLVideoElement>>({});
   const lastBeatRef = useRef(0);
+  const beatCountRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selected = shapes.find(s => s.id === selectedId) || null;
