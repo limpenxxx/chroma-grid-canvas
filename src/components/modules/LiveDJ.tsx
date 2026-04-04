@@ -5430,6 +5430,13 @@ export function LiveDJ() {
           <DmxMixer />
         </div>
       )}
+
+      {/* ── PROJECTION MAPPING TAB ── */}
+      {tab === 'projection' && (
+        <div className="flex-1 overflow-hidden p-2">
+          <ProjectionMapping bpm={bpmState.bpm} beatFlash={bpmState.flashOn} />
+        </div>
+      )}
     </motion.div>
   );
 }
