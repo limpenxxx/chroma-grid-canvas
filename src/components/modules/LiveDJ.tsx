@@ -24,6 +24,7 @@ import { setWledPreset, setWledState } from '@/lib/wledApi';
 import { fetchWledPresets, isWledDeviceTargetId, wledDeviceToFixture } from '@/lib/wledUtils';
 import { sendDmxChannel, onPioneerData, type PioneerData } from '@/lib/wsSync';
 import { openVfxOutputWindow } from './VfxOutputWindow';
+import { ProjectionMapping } from './ProjectionMapping';
 import { useIOStore } from './IOSetup';
 
 // ── Types ──
@@ -306,7 +307,7 @@ interface SavedLayout {
   audioConfig: AudioConfig;
 }
 
-type Tab = 'controller' | 'assignments' | 'scripts' | 'groups' | 'mixer';
+type Tab = 'controller' | 'assignments' | 'scripts' | 'groups' | 'mixer' | 'projection';
 
 const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: number; h: number }[] = [
   { type: 'button', label: 'Flash Button', icon: Zap, w: 100, h: 100 },
@@ -3362,6 +3363,7 @@ export function LiveDJ() {
               { id: 'assignments' as Tab, label: '📡 Assign' },
               { id: 'groups' as Tab, label: '👥 Groups' },
               { id: 'scripts' as Tab, label: '📜 Scripts' },
+              { id: 'projection' as Tab, label: '📐 Projection' },
             ]).map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className={`px-3 py-1.5 text-[10px] uppercase tracking-wider font-semibold rounded transition-colors ${
@@ -5426,6 +5428,13 @@ export function LiveDJ() {
       {tab === 'mixer' && (
         <div className="flex-1 overflow-y-auto">
           <DmxMixer />
+        </div>
+      )}
+
+      {/* ── PROJECTION MAPPING TAB ── */}
+      {tab === 'projection' && (
+        <div className="flex-1 overflow-hidden p-2">
+          <ProjectionMapping bpm={bpmState.bpm} beatFlash={bpmState.flashOn} />
         </div>
       )}
     </motion.div>
