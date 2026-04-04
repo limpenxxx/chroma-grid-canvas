@@ -2,11 +2,13 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Plus, Trash2, Circle, Square, Move, Maximize2, Copy,
   Play, Pause, Film, Palette, Settings2, Eye, EyeOff,
-  RotateCcw, Lock, Unlock, Layers, ChevronDown
+  RotateCcw, Lock, Unlock, Layers, ChevronDown,
+  Monitor, ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
+import { useIOStore } from './IOSetup';
 
 // ── Types ──
 
@@ -28,29 +30,24 @@ interface ProjectionShape {
   rotation: number;
   scaleX: number;
   scaleY: number;
-  // Bezier warp — 4 corner control points for quad distortion
   corners: [ControlPoint, ControlPoint, ControlPoint, ControlPoint];
-  // Visual
   fillColor: string;
   strokeColor: string;
   strokeWidth: number;
   opacity: number;
   visible: boolean;
   locked: boolean;
-  // BPM sync
   bpmSync: boolean;
   bpmEffect: 'color-pulse' | 'opacity-pulse' | 'scale-pulse' | 'strobe' | 'rotate' | 'none';
   bpmColor1: string;
   bpmColor2: string;
-  bpmIntensity: number; // 0-100
-  // Video
+  bpmIntensity: number;
   videoSrc: string | null;
   videoOpacity: number;
   videoBpmSync: boolean;
   videoFilter: 'none' | 'invert' | 'hue-rotate' | 'saturate' | 'contrast' | 'grayscale' | 'sepia';
-  videoFilterIntensity: number; // 0-100
+  videoFilterIntensity: number;
   videoPlaybackRate: number;
-  // Blend
   blendMode: string;
   zIndex: number;
 }
@@ -107,6 +104,178 @@ const SHAPE_PRESETS: { type: ShapeType; icon: typeof Circle; label: string }[] =
   { type: 'quad', icon: Maximize2, label: 'Quad Warp' },
 ];
 
+// ── Triangle-subdivision texture mapping ──
+// Draws a video (or image) warped onto an arbitrary quad defined by 4 corner points
+// by subdividing into a grid of triangles with affine mapping per triangle.
+
+function drawTexturedQuad(
+  ctx: CanvasRenderingContext2D,
+  video: HTMLVideoElement | HTMLCanvasElement,
+  // Destination quad corners in canvas space (TL, TR, BR, BL)
+  dstPts: { x: number; y: number }[],
+  subdivisions: number = 8
+) {
+  const vw = video instanceof HTMLVideoElement ? video.videoWidth : video.width;
+  const vh = video instanceof HTMLVideoElement ? video.videoHeight : video.height;
+  if (!vw || !vh) return;
+
+  const n = subdivisions;
+
+  // Bilinear interpolation of quad corners
+  const lerp = (u: number, v: number) => {
+    const top = { x: dstPts[0].x + (dstPts[1].x - dstPts[0].x) * u, y: dstPts[0].y + (dstPts[1].y - dstPts[0].y) * u };
+    const bot = { x: dstPts[3].x + (dstPts[2].x - dstPts[3].x) * u, y: dstPts[3].y + (dstPts[2].y - dstPts[3].y) * u };
+    return { x: top.x + (bot.x - top.x) * v, y: top.y + (bot.y - top.y) * v };
+  };
+
+  // For each cell in the grid, draw two triangles
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const u0 = i / n, u1 = (i + 1) / n;
+      const v0 = j / n, v1 = (j + 1) / n;
+
+      // Destination points
+      const d00 = lerp(u0, v0);
+      const d10 = lerp(u1, v0);
+      const d01 = lerp(u0, v1);
+      const d11 = lerp(u1, v1);
+
+      // Source coords in video
+      const sx0 = u0 * vw, sx1 = u1 * vw;
+      const sy0 = v0 * vh, sy1 = v1 * vh;
+
+      // Triangle 1: d00, d10, d01
+      drawTexturedTriangle(ctx, video,
+        sx0, sy0, sx1, sy0, sx0, sy1,
+        d00.x, d00.y, d10.x, d10.y, d01.x, d01.y
+      );
+      // Triangle 2: d10, d11, d01
+      drawTexturedTriangle(ctx, video,
+        sx1, sy0, sx1, sy1, sx0, sy1,
+        d10.x, d10.y, d11.x, d11.y, d01.x, d01.y
+      );
+    }
+  }
+}
+
+function drawTexturedTriangle(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLVideoElement | HTMLCanvasElement,
+  // Source triangle coords
+  sx0: number, sy0: number, sx1: number, sy1: number, sx2: number, sy2: number,
+  // Destination triangle coords
+  dx0: number, dy0: number, dx1: number, dy1: number, dx2: number, dy2: number
+) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(dx0, dy0);
+  ctx.lineTo(dx1, dy1);
+  ctx.lineTo(dx2, dy2);
+  ctx.closePath();
+  ctx.clip();
+
+  // Compute affine transform from source to destination
+  // [sx0 sy0 1] [a c e]   [dx0 dy0]
+  // [sx1 sy1 1] [b d f] = [dx1 dy1]
+  // [sx2 sy2 1]           [dx2 dy2]
+  const denom = sx0 * (sy1 - sy2) - sx1 * (sy0 - sy2) + sx2 * (sy0 - sy1);
+  if (Math.abs(denom) < 0.001) { ctx.restore(); return; }
+
+  const a = (dx0 * (sy1 - sy2) - dx1 * (sy0 - sy2) + dx2 * (sy0 - sy1)) / denom;
+  const b = -(dx0 * (sx1 - sx2) - dx1 * (sx0 - sx2) + dx2 * (sx0 - sx1)) / denom;
+  const e = (dx0 * (sx1 * sy2 - sx2 * sy1) - dx1 * (sx0 * sy2 - sx2 * sy0) + dx2 * (sx0 * sy1 - sx1 * sy0)) / denom;
+  const c = (dy0 * (sy1 - sy2) - dy1 * (sy0 - sy2) + dy2 * (sy0 - sy1)) / denom;
+  const d = -(dy0 * (sx1 - sx2) - dy1 * (sx0 - sx2) + dy2 * (sx0 - sx1)) / denom;
+  const f = (dy0 * (sx1 * sy2 - sx2 * sy1) - dy1 * (sx0 * sy2 - sx2 * sy0) + dy2 * (sx0 * sy1 - sx1 * sy0)) / denom;
+
+  ctx.setTransform(a, c, b, d, e, f);
+  ctx.drawImage(img, 0, 0);
+  ctx.restore();
+}
+
+// ── Projection Output Window (External HDMI) ──
+
+let projOutputWindow: Window | null = null;
+let projOutputCanvas: HTMLCanvasElement | null = null;
+
+export function openProjectionOutputWindow(
+  resolution: string = '1920x1080',
+  displayIndex: number = 1,
+  autoFullscreen: boolean = true
+) {
+  if (projOutputWindow && !projOutputWindow.closed) {
+    projOutputWindow.close();
+  }
+
+  const [w, h] = resolution.split('x').map(Number);
+
+  // Position on target display for Linux/X11
+  // xrandr typically places displays side-by-side
+  const left = displayIndex * (window.screen.availWidth || 1920);
+  const top = 0;
+
+  projOutputWindow = window.open(
+    '',
+    'stokio-projection-output',
+    `width=${w},height=${h},left=${left},top=${top},menubar=no,toolbar=no,location=no,status=no,resizable=yes`
+  );
+
+  if (!projOutputWindow) {
+    console.error('[PROJECTION OUTPUT] Popup blocked — allow popups for this site');
+    return;
+  }
+
+  projOutputWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>STOKIO Projection Output</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; overflow: hidden; cursor: none; }
+    canvas { width: 100vw; height: 100vh; display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="proj-output-canvas" width="${w}" height="${h}"></canvas>
+</body>
+</html>`);
+  projOutputWindow.document.close();
+
+  projOutputCanvas = projOutputWindow.document.getElementById('proj-output-canvas') as HTMLCanvasElement;
+
+  // Fullscreen on click
+  if (autoFullscreen && projOutputCanvas) {
+    projOutputWindow.document.addEventListener('click', () => {
+      projOutputCanvas?.requestFullscreen?.().catch(() => {});
+    }, { once: true });
+    setTimeout(() => {
+      try { projOutputCanvas?.requestFullscreen?.().catch(() => {}); } catch {}
+    }, 500);
+  }
+
+  // ESC to close
+  projOutputWindow.document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') projOutputWindow?.close();
+  });
+}
+
+export function closeProjectionOutputWindow() {
+  if (projOutputWindow && !projOutputWindow.closed) projOutputWindow.close();
+  projOutputCanvas = null;
+  projOutputWindow = null;
+}
+
+export function isProjectionOutputOpen(): boolean {
+  return !!(projOutputWindow && !projOutputWindow.closed);
+}
+
+export function getProjectionOutputCanvas(): HTMLCanvasElement | null {
+  if (projOutputWindow?.closed) { projOutputCanvas = null; projOutputWindow = null; }
+  return projOutputCanvas;
+}
+
+// ── Main Component ──
+
 interface ProjectionMappingProps {
   bpm: number;
   beatFlash: boolean;
@@ -115,6 +284,7 @@ interface ProjectionMappingProps {
 export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const ioStore = useIOStore();
   const [shapes, setShapes] = useState<ProjectionShape[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<{
@@ -130,9 +300,9 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
     origCorner?: ControlPoint;
   } | null>(null);
   const [showProps, setShowProps] = useState(true);
+  const [outputOpen, setOutputOpen] = useState(false);
   const animFrameRef = useRef<number>(0);
   const videoRefs = useRef<Record<string, HTMLVideoElement>>({});
-  const beatPhaseRef = useRef(0);
   const lastBeatRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -140,10 +310,216 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
 
   // ── BPM phase tracking ──
   useEffect(() => {
-    if (beatFlash) {
-      lastBeatRef.current = performance.now();
-    }
+    if (beatFlash) lastBeatRef.current = performance.now();
   }, [beatFlash]);
+
+  // ── Poll output window status ──
+  useEffect(() => {
+    const iv = setInterval(() => setOutputOpen(isProjectionOutputOpen()), 1000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // ── Core render function (used for both preview canvas and output window) ──
+  const renderScene = useCallback((
+    ctx: CanvasRenderingContext2D,
+    w: number, h: number,
+    scaleX: number, scaleY: number,
+    drawUI: boolean
+  ) => {
+    ctx.clearRect(0, 0, w, h);
+
+    // Dark background
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, w, h);
+
+    if (drawUI) {
+      // Grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+      ctx.lineWidth = 1;
+      for (let gx = 0; gx < w; gx += 40) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h); ctx.stroke(); }
+      for (let gy = 0; gy < h; gy += 40) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke(); }
+    }
+
+    const now = performance.now();
+    const beatInterval = bpm > 0 ? 60000 / bpm : 1000;
+    const beatPhase = ((now - lastBeatRef.current) % beatInterval) / beatInterval;
+
+    const sorted = [...shapes].sort((a, b) => a.zIndex - b.zIndex);
+
+    for (const shape of sorted) {
+      if (!shape.visible) continue;
+
+      ctx.save();
+      ctx.globalAlpha = shape.opacity / 100;
+      ctx.globalCompositeOperation = shape.blendMode as GlobalCompositeOperation;
+
+      let fillColor = shape.fillColor;
+      let currentOpacity = shape.opacity / 100;
+      let scale = 1;
+      let rot = shape.rotation;
+
+      if (shape.bpmSync && bpm > 0) {
+        const intensity = shape.bpmIntensity / 100;
+        const pulse = Math.max(0, 1 - beatPhase * 3);
+
+        switch (shape.bpmEffect) {
+          case 'color-pulse': {
+            const r1 = parseInt(shape.bpmColor1.slice(1, 3), 16);
+            const g1 = parseInt(shape.bpmColor1.slice(3, 5), 16);
+            const b1 = parseInt(shape.bpmColor1.slice(5, 7), 16);
+            const r2 = parseInt(shape.bpmColor2.slice(1, 3), 16);
+            const g2 = parseInt(shape.bpmColor2.slice(3, 5), 16);
+            const b2 = parseInt(shape.bpmColor2.slice(5, 7), 16);
+            const t = pulse * intensity;
+            fillColor = `rgb(${Math.round(r1 + (r2 - r1) * t)},${Math.round(g1 + (g2 - g1) * t)},${Math.round(b1 + (b2 - b1) * t)})`;
+            break;
+          }
+          case 'opacity-pulse':
+            currentOpacity = Math.max(0.05, (shape.opacity / 100) * (1 - pulse * intensity * 0.8));
+            break;
+          case 'scale-pulse':
+            scale = 1 + pulse * intensity * 0.3;
+            break;
+          case 'strobe':
+            currentOpacity = pulse > 0.5 ? shape.opacity / 100 : 0;
+            break;
+          case 'rotate':
+            rot += beatPhase * 360 * intensity;
+            break;
+        }
+      }
+
+      ctx.globalAlpha = currentOpacity;
+
+      // Apply scale factor for output window mapping
+      const sx = shape.x * scaleX;
+      const sy = shape.y * scaleY;
+      const sw = shape.width * scaleX;
+      const sh = shape.height * scaleY;
+
+      const cx = sx + sw / 2;
+      const cy = sy + sh / 2;
+      ctx.translate(cx, cy);
+      ctx.rotate((rot * Math.PI) / 180);
+      ctx.scale(shape.scaleX * scale, shape.scaleY * scale);
+      ctx.translate(-sw / 2, -sh / 2);
+
+      // Corner points in local (shape-local after transform) space
+      const pts = shape.corners.map(c => ({
+        x: c.x * sw,
+        y: c.y * sh,
+      }));
+
+      // Build clip path
+      if (shape.type === 'circle') {
+        const centerX = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
+        const centerY = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
+        const rx = Math.max(10, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) / 2);
+        const ry = Math.max(10, Math.hypot(pts[3].y - pts[0].y, pts[3].x - pts[0].x) / 2);
+        const angle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
+        ctx.beginPath();
+        ctx.ellipse(centerX, centerY, rx, ry, angle, 0, Math.PI * 2);
+      } else if (shape.type === 'triangle') {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        ctx.lineTo(pts[1].x, pts[1].y);
+        ctx.lineTo(pts[3].x, pts[3].y);
+        ctx.closePath();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        ctx.lineTo(pts[1].x, pts[1].y);
+        ctx.lineTo(pts[2].x, pts[2].y);
+        ctx.lineTo(pts[3].x, pts[3].y);
+        ctx.closePath();
+      }
+
+      // Video fill — use textured quad warping
+      const vid = videoRefs.current[shape.id];
+      if (shape.videoSrc && vid && vid.readyState >= 2) {
+        ctx.save();
+
+        // Apply video filter
+        if (shape.videoFilter !== 'none') {
+          const fi = shape.videoFilterIntensity;
+          switch (shape.videoFilter) {
+            case 'invert': ctx.filter = `invert(${fi}%)`; break;
+            case 'hue-rotate': ctx.filter = `hue-rotate(${fi * 3.6}deg)`; break;
+            case 'saturate': ctx.filter = `saturate(${fi * 3}%)`; break;
+            case 'contrast': ctx.filter = `contrast(${50 + fi * 2}%)`; break;
+            case 'grayscale': ctx.filter = `grayscale(${fi}%)`; break;
+            case 'sepia': ctx.filter = `sepia(${fi}%)`; break;
+          }
+        }
+        ctx.globalAlpha = (shape.videoOpacity / 100) * currentOpacity;
+
+        // Use triangle-subdivision texture mapping for proper quad warp
+        drawTexturedQuad(ctx, vid, pts, 6);
+
+        ctx.filter = 'none';
+        ctx.restore();
+      } else {
+        ctx.fillStyle = fillColor;
+        ctx.fill();
+      }
+
+      if (shape.strokeWidth > 0) {
+        // Re-draw path for stroke (since texturedQuad resets transform)
+        if (shape.type === 'circle') {
+          const centerX = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
+          const centerY = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
+          const rx = Math.max(10, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) / 2);
+          const ry = Math.max(10, Math.hypot(pts[3].y - pts[0].y, pts[3].x - pts[0].x) / 2);
+          const angle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
+          ctx.beginPath();
+          ctx.ellipse(centerX, centerY, rx, ry, angle, 0, Math.PI * 2);
+        } else if (shape.type === 'triangle') {
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          ctx.lineTo(pts[1].x, pts[1].y);
+          ctx.lineTo(pts[3].x, pts[3].y);
+          ctx.closePath();
+        } else {
+          ctx.beginPath();
+          ctx.moveTo(pts[0].x, pts[0].y);
+          ctx.lineTo(pts[1].x, pts[1].y);
+          ctx.lineTo(pts[2].x, pts[2].y);
+          ctx.lineTo(pts[3].x, pts[3].y);
+          ctx.closePath();
+        }
+        ctx.strokeStyle = shape.strokeColor;
+        ctx.lineWidth = shape.strokeWidth;
+        ctx.stroke();
+      }
+
+      // Selection UI (only on preview)
+      if (drawUI && shape.id === selectedId) {
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 3]);
+        ctx.strokeRect(-4, -4, sw + 8, sh + 8);
+        ctx.setLineDash([]);
+
+        shape.corners.forEach((c, i) => {
+          if (shape.type === 'triangle' && i === 2) return;
+          const px = c.x * sw;
+          const py = c.y * sh;
+          ctx.fillStyle = i === 0 ? '#ff0' : '#0ff';
+          ctx.beginPath();
+          ctx.arc(px, py, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#000';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        });
+
+        ctx.fillStyle = '#00ff88';
+        ctx.fillRect(sw - 6, sh - 6, 12, 12);
+      }
+
+      ctx.restore();
+    }
+  }, [shapes, selectedId, bpm]);
 
   // ── Canvas render loop ──
   useEffect(() => {
@@ -153,177 +529,18 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
     if (!ctx) return;
 
     const render = () => {
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
+      // Render preview canvas
+      renderScene(ctx, canvas.width, canvas.height, 1, 1, true);
 
-      // Dark background
-      ctx.fillStyle = '#0a0a0a';
-      ctx.fillRect(0, 0, w, h);
-
-      // Grid
-      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-      ctx.lineWidth = 1;
-      for (let gx = 0; gx < w; gx += 40) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h); ctx.stroke(); }
-      for (let gy = 0; gy < h; gy += 40) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke(); }
-
-      const now = performance.now();
-      const beatInterval = bpm > 0 ? 60000 / bpm : 1000;
-      const beatPhase = ((now - lastBeatRef.current) % beatInterval) / beatInterval;
-      beatPhaseRef.current = beatPhase;
-
-      // Sort by zIndex
-      const sorted = [...shapes].sort((a, b) => a.zIndex - b.zIndex);
-
-      for (const shape of sorted) {
-        if (!shape.visible) continue;
-
-        ctx.save();
-        ctx.globalAlpha = shape.opacity / 100;
-        ctx.globalCompositeOperation = shape.blendMode as GlobalCompositeOperation;
-
-        // BPM effects
-        let fillColor = shape.fillColor;
-        let currentOpacity = shape.opacity / 100;
-        let scale = 1;
-        let rot = shape.rotation;
-
-        if (shape.bpmSync && bpm > 0) {
-          const intensity = shape.bpmIntensity / 100;
-          const pulse = Math.max(0, 1 - beatPhase * 3); // sharp attack, fast decay
-
-          switch (shape.bpmEffect) {
-            case 'color-pulse': {
-              const r1 = parseInt(shape.bpmColor1.slice(1, 3), 16);
-              const g1 = parseInt(shape.bpmColor1.slice(3, 5), 16);
-              const b1 = parseInt(shape.bpmColor1.slice(5, 7), 16);
-              const r2 = parseInt(shape.bpmColor2.slice(1, 3), 16);
-              const g2 = parseInt(shape.bpmColor2.slice(3, 5), 16);
-              const b2 = parseInt(shape.bpmColor2.slice(5, 7), 16);
-              const t = pulse * intensity;
-              const r = Math.round(r1 + (r2 - r1) * t);
-              const g = Math.round(g1 + (g2 - g1) * t);
-              const b = Math.round(b1 + (b2 - b1) * t);
-              fillColor = `rgb(${r},${g},${b})`;
-              break;
-            }
-            case 'opacity-pulse':
-              currentOpacity = (shape.opacity / 100) * (1 - pulse * intensity * 0.8);
-              currentOpacity = Math.max(0.05, currentOpacity);
-              break;
-            case 'scale-pulse':
-              scale = 1 + pulse * intensity * 0.3;
-              break;
-            case 'strobe':
-              currentOpacity = pulse > 0.5 ? shape.opacity / 100 : 0;
-              break;
-            case 'rotate':
-              rot += beatPhase * 360 * intensity;
-              break;
-          }
+      // Mirror to output window if open
+      const outCanvas = getProjectionOutputCanvas();
+      if (outCanvas) {
+        const outCtx = outCanvas.getContext('2d');
+        if (outCtx) {
+          const sx = outCanvas.width / canvas.width;
+          const sy = outCanvas.height / canvas.height;
+          renderScene(outCtx, outCanvas.width, outCanvas.height, sx, sy, false);
         }
-
-        ctx.globalAlpha = currentOpacity;
-
-        const cx = shape.x + shape.width / 2;
-        const cy = shape.y + shape.height / 2;
-        ctx.translate(cx, cy);
-        ctx.rotate((rot * Math.PI) / 180);
-        ctx.scale(shape.scaleX * scale, shape.scaleY * scale);
-        ctx.translate(-shape.width / 2, -shape.height / 2);
-
-        // Draw shape — all shapes use corner warp points
-        const pts = shape.corners.map(c => ({
-          x: c.x * shape.width,
-          y: c.y * shape.height,
-        }));
-
-        if (shape.type === 'circle') {
-          // Ellipse warped into the quad defined by corners
-          const centerX = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
-          const centerY = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
-          const rx = Math.max(10, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) / 2);
-          const ry = Math.max(10, Math.hypot(pts[3].y - pts[0].y, pts[3].x - pts[0].x) / 2);
-          const angle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
-          ctx.beginPath();
-          ctx.ellipse(centerX, centerY, rx, ry, angle, 0, Math.PI * 2);
-        } else if (shape.type === 'triangle') {
-          // Triangle using first 3 corners
-          ctx.beginPath();
-          ctx.moveTo(pts[0].x, pts[0].y);
-          ctx.lineTo(pts[1].x, pts[1].y);
-          ctx.lineTo(pts[3].x, pts[3].y);
-          ctx.closePath();
-        } else {
-          // Rect & Quad — draw as quadrilateral using all 4 corners
-          ctx.beginPath();
-          ctx.moveTo(pts[0].x, pts[0].y);
-          ctx.lineTo(pts[1].x, pts[1].y);
-          ctx.lineTo(pts[2].x, pts[2].y);
-          ctx.lineTo(pts[3].x, pts[3].y);
-          ctx.closePath();
-        }
-
-        // Video fill
-        const vid = videoRefs.current[shape.id];
-        if (shape.videoSrc && vid && vid.readyState >= 2) {
-          ctx.save();
-          ctx.clip();
-          // Video filter
-          if (shape.videoFilter !== 'none') {
-            const fi = shape.videoFilterIntensity;
-            switch (shape.videoFilter) {
-              case 'invert': ctx.filter = `invert(${fi}%)`; break;
-              case 'hue-rotate': ctx.filter = `hue-rotate(${fi * 3.6}deg)`; break;
-              case 'saturate': ctx.filter = `saturate(${fi * 3}%)`; break;
-              case 'contrast': ctx.filter = `contrast(${50 + fi * 2}%)`; break;
-              case 'grayscale': ctx.filter = `grayscale(${fi}%)`; break;
-              case 'sepia': ctx.filter = `sepia(${fi}%)`; break;
-            }
-          }
-          ctx.globalAlpha = (shape.videoOpacity / 100) * currentOpacity;
-          ctx.drawImage(vid, 0, 0, shape.width, shape.height);
-          ctx.filter = 'none';
-          ctx.restore();
-        } else {
-          ctx.fillStyle = fillColor;
-          ctx.fill();
-        }
-
-        if (shape.strokeWidth > 0) {
-          ctx.strokeStyle = shape.strokeColor;
-          ctx.lineWidth = shape.strokeWidth;
-          ctx.stroke();
-        }
-
-        // Selection indicator
-        if (shape.id === selectedId) {
-          ctx.strokeStyle = '#00ff88';
-          ctx.lineWidth = 2;
-          ctx.setLineDash([5, 3]);
-          ctx.strokeRect(-4, -4, shape.width + 8, shape.height + 8);
-          ctx.setLineDash([]);
-
-          // Corner handles for ALL shapes
-          shape.corners.forEach((c, i) => {
-            if (shape.type === 'triangle' && i === 2) return; // skip unused corner for triangle
-            const px = c.x * shape.width;
-            const py = c.y * shape.height;
-            ctx.fillStyle = i === 0 ? '#ff0' : '#0ff';
-            ctx.beginPath();
-            ctx.arc(px, py, 6, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-          });
-
-          // Resize handle
-          ctx.fillStyle = '#00ff88';
-          ctx.fillRect(shape.width - 6, shape.height - 6, 12, 12);
-        }
-
-        ctx.restore();
       }
 
       animFrameRef.current = requestAnimationFrame(render);
@@ -331,7 +548,7 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
 
     animFrameRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animFrameRef.current);
-  }, [shapes, selectedId, bpm, beatFlash]);
+  }, [renderScene]);
 
   // ── Resize canvas ──
   useEffect(() => {
@@ -347,7 +564,7 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
     return () => window.removeEventListener('resize', resize);
   }, []);
 
-  // ── Mouse handlers for drag/resize/warp ──
+  // ── Mouse handlers ──
   const getCanvasPos = useCallback((e: React.MouseEvent): { x: number; y: number } => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return { x: 0, y: 0 };
@@ -356,62 +573,36 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     const pos = getCanvasPos(e);
-
-    // Check shapes in reverse z-order (top first)
     const sorted = [...shapes].sort((a, b) => b.zIndex - a.zIndex);
     for (const shape of sorted) {
       if (!shape.visible || shape.locked) continue;
-
-      const cx = shape.x + shape.width / 2;
-      const cy = shape.y + shape.height / 2;
-      // Simple AABB check
       const lx = pos.x - shape.x;
       const ly = pos.y - shape.y;
 
-      // Resize handle (bottom-right corner)
       if (lx >= shape.width - 10 && lx <= shape.width + 10 && ly >= shape.height - 10 && ly <= shape.height + 10) {
         setSelectedId(shape.id);
-        setDragState({
-          type: 'resize', shapeId: shape.id,
-          startX: pos.x, startY: pos.y,
-          origX: shape.x, origY: shape.y,
-          origW: shape.width, origH: shape.height,
-        });
+        setDragState({ type: 'resize', shapeId: shape.id, startX: pos.x, startY: pos.y, origX: shape.x, origY: shape.y, origW: shape.width, origH: shape.height });
         return;
       }
 
-      // Corner warp for ALL shapes
       if (shape.id === selectedId) {
-        const cornerCount = shape.type === 'triangle' ? 3 : 4;
         const cornerIndices = shape.type === 'triangle' ? [0, 1, 3] : [0, 1, 2, 3];
         for (const i of cornerIndices) {
           const cpx = shape.x + shape.corners[i].x * shape.width;
           const cpy = shape.y + shape.corners[i].y * shape.height;
           if (Math.abs(pos.x - cpx) < 14 && Math.abs(pos.y - cpy) < 14) {
-            setDragState({
-              type: 'corner', shapeId: shape.id,
-              startX: pos.x, startY: pos.y,
-              origX: shape.x, origY: shape.y,
-              cornerIdx: i,
-              origCorner: { ...shape.corners[i] },
-            });
+            setDragState({ type: 'corner', shapeId: shape.id, startX: pos.x, startY: pos.y, origX: shape.x, origY: shape.y, cornerIdx: i, origCorner: { ...shape.corners[i] } });
             return;
           }
         }
       }
 
-      // Move
       if (lx >= 0 && lx <= shape.width && ly >= 0 && ly <= shape.height) {
         setSelectedId(shape.id);
-        setDragState({
-          type: 'move', shapeId: shape.id,
-          startX: pos.x, startY: pos.y,
-          origX: shape.x, origY: shape.y,
-        });
+        setDragState({ type: 'move', shapeId: shape.id, startX: pos.x, startY: pos.y, origX: shape.x, origY: shape.y });
         return;
       }
     }
-
     setSelectedId(null);
   }, [shapes, selectedId, getCanvasPos]);
 
@@ -423,16 +614,8 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
 
     setShapes(prev => prev.map(s => {
       if (s.id !== dragState.shapeId) return s;
-      if (dragState.type === 'move') {
-        return { ...s, x: dragState.origX + dx, y: dragState.origY + dy };
-      }
-      if (dragState.type === 'resize') {
-        return {
-          ...s,
-          width: Math.max(30, (dragState.origW || 100) + dx),
-          height: Math.max(30, (dragState.origH || 100) + dy),
-        };
-      }
+      if (dragState.type === 'move') return { ...s, x: dragState.origX + dx, y: dragState.origY + dy };
+      if (dragState.type === 'resize') return { ...s, width: Math.max(30, (dragState.origW || 100) + dx), height: Math.max(30, (dragState.origH || 100) + dy) };
       if (dragState.type === 'corner' && dragState.cornerIdx !== undefined && dragState.origCorner) {
         const newCorners = [...s.corners] as [ControlPoint, ControlPoint, ControlPoint, ControlPoint];
         newCorners[dragState.cornerIdx] = {
@@ -480,8 +663,6 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
     const file = e.target.files[0];
     const url = URL.createObjectURL(file);
     updateSelected({ videoSrc: url });
-
-    // Create video element
     const vid = document.createElement('video');
     vid.src = url;
     vid.loop = true;
@@ -491,13 +672,23 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
     videoRefs.current[selectedId] = vid;
   };
 
-  // ── Manage video playback rate BPM sync ──
+  const handleOpenOutput = () => {
+    const { resolution, display, fullscreen } = ioStore.vfxOutput;
+    openProjectionOutputWindow(resolution, display, fullscreen);
+    setOutputOpen(true);
+  };
+
+  const handleCloseOutput = () => {
+    closeProjectionOutputWindow();
+    setOutputOpen(false);
+  };
+
+  // ── Video BPM sync ──
   useEffect(() => {
     shapes.forEach(s => {
       const vid = videoRefs.current[s.id];
       if (!vid) return;
       if (s.videoBpmSync && bpm > 0) {
-        // Scale playback rate relative to BPM (120bpm = 1x)
         vid.playbackRate = Math.max(0.25, Math.min(4, bpm / 120));
       } else {
         vid.playbackRate = s.videoPlaybackRate;
@@ -542,7 +733,6 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
             onMouseUp={onMouseUp}
             onMouseLeave={onMouseUp}
           />
-          {/* BPM indicator */}
           {bpm > 0 && (
             <div className={`absolute top-2 right-2 px-2 py-0.5 rounded text-[9px] font-mono transition-colors ${
               beatFlash ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-muted-foreground'
@@ -555,6 +745,33 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
         {/* Properties Panel */}
         {showProps && (
           <div className="w-56 flex-shrink-0 overflow-y-auto space-y-2 pr-1 text-[10px]">
+            {/* ── External Output Control ── */}
+            <div className="bg-card/40 rounded-lg p-2 border border-border/20 space-y-1.5">
+              <div className="flex items-center gap-1">
+                <Monitor size={10} className="text-primary" />
+                <span className="text-[9px] font-bold uppercase tracking-wider text-primary flex-1">HDMI Utgång</span>
+                <div className={`flex items-center gap-1 text-[8px] ${outputOpen ? 'text-green-400' : 'text-muted-foreground/40'}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${outputOpen ? 'bg-green-400 animate-pulse' : 'bg-muted-foreground/30'}`} />
+                  {outputOpen ? 'LIVE' : 'Av'}
+                </div>
+              </div>
+              <div className="text-[8px] text-muted-foreground/60">
+                Skärm {ioStore.vfxOutput.display + 1} · {ioStore.vfxOutput.resolution}
+              </div>
+              <div className="text-[7px] text-muted-foreground/40">
+                Linux: xrandr --output HDMI-2 --mode {ioStore.vfxOutput.resolution} --right-of HDMI-1
+              </div>
+              {!outputOpen ? (
+                <Button size="sm" className="h-6 text-[9px] w-full gap-1" onClick={handleOpenOutput}>
+                  <ExternalLink size={10} /> Öppna Projection Output
+                </Button>
+              ) : (
+                <Button variant="destructive" size="sm" className="h-6 text-[9px] w-full gap-1" onClick={handleCloseOutput}>
+                  <Square size={10} /> Stäng Output
+                </Button>
+              )}
+            </div>
+
             {/* Layer list */}
             <div className="bg-card/40 rounded-lg p-2 border border-border/20">
               <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Lager</div>
@@ -582,11 +799,8 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
                 <div className="bg-card/40 rounded-lg p-2 border border-border/20 space-y-1.5">
                   <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Transform</div>
                   <div className="flex gap-1">
-                    <Input
-                      className="h-6 text-[9px] bg-background/50"
-                      value={selected.label}
-                      onChange={e => updateSelected({ label: e.target.value })}
-                    />
+                    <Input className="h-6 text-[9px] bg-background/50" value={selected.label}
+                      onChange={e => updateSelected({ label: e.target.value })} />
                   </div>
                   <div className="grid grid-cols-2 gap-1">
                     <label className="text-muted-foreground">W</label>
