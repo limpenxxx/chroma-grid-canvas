@@ -151,66 +151,6 @@ export function Devices() {
     setTab('library');
   };
 
-  const addModeToEditor = () => {
-    if (!editingDef) return;
-    setEditingDef({
-      ...editingDef,
-      modes: [...editingDef.modes, {
-        id: `mode-${Date.now()}`,
-        name: `Mode ${editingDef.modes.length + 1}`,
-        channelCount: 1,
-        channels: [{ id: `ch-${Date.now()}`, number: 1, name: 'Ch 1', function: 'dimmer', defaultValue: 0, min: 0, max: 255 }],
-      }],
-    });
-  };
-
-  const addChannelToMode = (modeId: string) => {
-    if (!editingDef) return;
-    setEditingDef({
-      ...editingDef,
-      modes: editingDef.modes.map(m => {
-        if (m.id !== modeId) return m;
-        const num = m.channels.length + 1;
-        return {
-          ...m,
-          channelCount: num,
-          channels: [...m.channels, {
-            id: `ch-${Date.now()}`, number: num, name: `Ch ${num}`,
-            function: 'custom' as ChannelFunction, defaultValue: 0, min: 0, max: 255,
-          }],
-        };
-      }),
-    });
-  };
-
-  const updateChannel = (modeId: string, chId: string, updates: Partial<FixtureChannel>) => {
-    if (!editingDef) return;
-    setEditingDef({
-      ...editingDef,
-      modes: editingDef.modes.map(m => {
-        if (m.id !== modeId) return m;
-        return { ...m, channels: m.channels.map(c => c.id === chId ? { ...c, ...updates } : c) };
-      }),
-    });
-  };
-
-  const removeChannel = (modeId: string, chId: string) => {
-    if (!editingDef) return;
-    setEditingDef({
-      ...editingDef,
-      modes: editingDef.modes.map(m => {
-        if (m.id !== modeId) return m;
-        const filtered = m.channels.filter(c => c.id !== chId).map((c, i) => ({ ...c, number: i + 1 }));
-        return { ...m, channelCount: filtered.length, channels: filtered };
-      }),
-    });
-  };
-
-  const removeMode = (modeId: string) => {
-    if (!editingDef || editingDef.modes.length <= 1) return;
-    setEditingDef({ ...editingDef, modes: editingDef.modes.filter(m => m.id !== modeId) });
-  };
-
   const getInstanceDef = (inst: FixtureInstance) => store.definitions.find(d => d.id === inst.definitionId);
   const getInstanceMode = (inst: FixtureInstance) => {
     const def = getInstanceDef(inst);
