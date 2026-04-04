@@ -515,7 +515,6 @@ export function IOSetup() {
           </div>
         )}
       </div>
-      </div>
 
       {/* VFX Output (HDMI) */}
       <div className="glass-panel p-4 space-y-3">
