@@ -651,10 +651,9 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
   useEffect(() => {
     const resize = () => {
       const canvas = canvasRef.current;
-      const container = containerRef.current;
-      if (!canvas || !container) return;
-      canvas.width = container.clientWidth;
-      canvas.height = container.clientHeight;
+      if (!canvas) return;
+      canvas.width = 1920;
+      canvas.height = 1080;
     };
     resize();
     window.addEventListener('resize', resize);
