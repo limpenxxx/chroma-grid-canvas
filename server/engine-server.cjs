@@ -447,9 +447,12 @@ wss.on('connection', (ws) => {
         let adapterType = 'unknown';
         if (vendor === '0403' && product === '6001') adapterType = 'enttec-open';
         else if (vendor === '0403' && product === '6010') adapterType = 'enttec-pro';
+        else if (vendor === '0403' && product === '6014') adapterType = 'eurolite-dmx';
         else if (vendor === '0403') adapterType = 'ftdi-generic';
         else if (vendor === '10cf') adapterType = 'udmx';
         else if (vendor === '16c0') adapterType = 'dmxking';
+        else if (vendor === '1a86' && product === '7523') adapterType = 'ch340-dmx';
+        else if (vendor === '1a86') adapterType = 'ch340-generic';
         return { path: devPath, name: f, vendor, product, serial, adapterType };
       });
     if (usbSerialPorts.length > 0) {
