@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { onEngineStatus, type EngineStatus, broadcastState, isSyncingFromRemote, onSyncState, sendRawMessage } from '@/lib/wsSync';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { VfxOutputControl } from './VfxOutputWindow';
 
 // ── Types ──
 
