@@ -89,6 +89,8 @@ function createShape(type: ShapeType, x: number, y: number): ProjectionShape {
     videoSrc: null,
     videoOpacity: 100,
     videoBpmSync: false,
+    videoBpmRestart: false,
+    videoBpmRestartDiv: 1,
     videoFilter: 'none',
     videoFilterIntensity: 50,
     videoPlaybackRate: 1,
