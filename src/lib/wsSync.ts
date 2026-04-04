@@ -47,6 +47,7 @@ let pioneerListeners: PioneerListener[] = [];
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let isRemoteUpdate = false;
 let _engineConnected = false;
+let rawMessageListeners: RawMessageListener[] = [];
 
 /** True when we're applying a remote update — stores should skip broadcasting */
 export function isSyncingFromRemote(): boolean {
