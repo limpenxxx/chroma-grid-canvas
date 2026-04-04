@@ -7,6 +7,7 @@
 type SyncListener = (state: Record<string, unknown>) => void;
 type EngineStatusListener = (status: EngineStatus) => void;
 type PioneerListener = (data: PioneerData) => void;
+type RawMessageListener = (msg: any) => void;
 
 export interface PioneerDeck {
   name: string;
