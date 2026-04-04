@@ -418,7 +418,18 @@ wss.on('connection', (ws) => {
   };
   ws.send(JSON.stringify({ type: 'sync', state: syncState }));
 
-  // Send engine status
+  // Send engine status with NIC list
+  const os = require('os');
+  const ifaces = os.networkInterfaces();
+  const nicList = [];
+  for (const [name, addrs] of Object.entries(ifaces)) {
+    for (const addr of addrs) {
+      if (addr.family === 'IPv4') {
+        nicList.push({ name, address: addr.address, mac: addr.mac || '', internal: addr.internal });
+      }
+    }
+  }
+
   ws.send(JSON.stringify({
     type: 'engine-status',
     running: true,
@@ -427,6 +438,7 @@ wss.on('connection', (ws) => {
     hueBridges: Object.keys(state.hue).length,
     magicDevices: Object.keys(state.magic).length,
     pioneerDecks: state.pioneerDecks,
+    networkInterfaces: nicList,
   }));
 
   // Send Pioneer deck state if any
