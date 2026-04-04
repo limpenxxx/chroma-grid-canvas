@@ -125,9 +125,27 @@ const PROTOCOL_COLORS: Record<OutputProtocol, string> = {
   ddp: '#aa44ff',
 };
 
+interface DetectedUsbPort {
+  path: string;
+  name: string;
+  vendor: string;
+  product: string;
+  serial: string;
+  adapterType: string;
+}
+
+const USB_TYPE_FROM_DETECTED: Record<string, UsbAdapterType> = {
+  'enttec-open': 'enttec-open',
+  'enttec-pro': 'enttec-pro',
+  'ftdi-generic': 'enttec-open',
+  'udmx': 'udmx',
+  'dmxking': 'dmxking',
+};
+
 export function IOSetup() {
   const store = useIOStore();
   const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null);
+  const [detectedUsbPorts, setDetectedUsbPorts] = useState<DetectedUsbPort[]>([]);
   const [addingOutput, setAddingOutput] = useState(false);
   const [newProtocol, setNewProtocol] = useState<OutputProtocol>('artnet');
   const [newUniverse, setNewUniverse] = useState(1);
@@ -138,12 +156,15 @@ export function IOSetup() {
     return onEngineStatus(setEngineStatus);
   }, []);
 
-  // Request NIC list from engine on mount
+  // Parse NIC list and USB ports from engine status
   useEffect(() => {
-    // The engine broadcasts NIC list on connect via engine-status
-    // We also parse from window for a fallback
-    if (engineStatus && (engineStatus as any).networkInterfaces) {
-      store.setNetworkInterfaces((engineStatus as any).networkInterfaces);
+    if (engineStatus) {
+      if ((engineStatus as any).networkInterfaces) {
+        store.setNetworkInterfaces((engineStatus as any).networkInterfaces);
+      }
+      if ((engineStatus as any).usbSerialPorts) {
+        setDetectedUsbPorts((engineStatus as any).usbSerialPorts);
+      }
     }
   }, [engineStatus]);
 
