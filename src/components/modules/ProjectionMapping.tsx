@@ -616,7 +616,7 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
 
       ctx.restore();
     }
-  }, [shapes, selectedId, bpm]);
+  }, [shapes, selectedId, effectiveBpm]);
 
   // ── Canvas render loop ──
   useEffect(() => {
