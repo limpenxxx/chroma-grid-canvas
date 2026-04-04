@@ -791,7 +791,7 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
         vid.playbackRate = s.videoPlaybackRate;
       }
     });
-  }, [shapes, bpm]);
+  }, [shapes, effectiveBpm]);
 
   return (
     <div className="flex flex-col h-full gap-2">
