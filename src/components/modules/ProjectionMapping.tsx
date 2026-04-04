@@ -971,6 +971,28 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
                           <span className="w-8 text-right">{selected.videoPlaybackRate}x</span>
                         </div>
                       )}
+                      <div className="flex items-center gap-1">
+                        <label className="text-muted-foreground flex-1">Beat-restart</label>
+                        <button
+                          className={`w-8 h-4 rounded-full transition-colors ${selected.videoBpmRestart ? 'bg-primary' : 'bg-muted'}`}
+                          onClick={() => updateSelected({ videoBpmRestart: !selected.videoBpmRestart })}
+                        >
+                          <div className={`w-3 h-3 rounded-full bg-white transition-transform ${selected.videoBpmRestart ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+                      {selected.videoBpmRestart && (
+                        <div className="flex items-center gap-1">
+                          <label className="text-muted-foreground w-14">Var N:e</label>
+                          <select className="flex-1 bg-background/50 text-[9px] rounded px-1 h-5 border border-border/30"
+                            value={selected.videoBpmRestartDiv}
+                            onChange={e => updateSelected({ videoBpmRestartDiv: +e.target.value })}>
+                            <option value={1}>Varje beat</option>
+                            <option value={2}>Var 2:a beat</option>
+                            <option value={4}>Var 4:e (takt)</option>
+                            <option value={8}>Var 8:e</option>
+                            <option value={16}>Var 16:e</option>
+                          </select>
+                        </div>
                       <Button variant="ghost" size="sm" className="h-5 text-[8px] w-full text-destructive"
                         onClick={() => {
                           const vid = videoRefs.current[selectedId!];
