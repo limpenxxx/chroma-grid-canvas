@@ -1471,7 +1471,20 @@ function ControlWidget({
                 {PRESET_LABELS[widget.vfxPreset || 'plasma-wave']}
               </span>
             </div>
-            <div className="absolute top-1 right-1 z-10">
+            <div className="absolute top-1 right-1 z-10 flex gap-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const { openVfxOutputWindow } = require('./VfxOutputWindow');
+                  const { useIOStore } = require('./IOSetup');
+                  const io = useIOStore.getState().vfxOutput;
+                  openVfxOutputWindow(widget.vfxPreset || 'plasma-wave', io.resolution, io.display, io.fullscreen);
+                }}
+                className="w-6 h-6 rounded-full flex items-center justify-center bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all"
+                title="Öppna VFX Output-fönster (HDMI)"
+              >
+                <Monitor size={10} />
+              </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onUpdate({ vfxRunning: !widget.vfxRunning }); }}
                 className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
