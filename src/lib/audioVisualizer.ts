@@ -301,6 +301,15 @@ export class AudioVisualizerEngine {
       case 'retro-arcade-idle': this.renderRetroArcade(ctx, w, h, energy, bass, mid, treble, t); break;
       case 'timebar-arcade': this.renderTimeBarArcade(ctx, w, h, energy, bass, mid, treble, t); break;
       case 'timebar-arcade-2': this.renderTimeBarArcade2(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-fire': this.renderXlFire(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-meteors': this.renderXlMeteors(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-shockwave': this.renderXlShockwave(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-twinkle': this.renderXlTwinkle(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-spirals': this.renderXlSpirals(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-curtain': this.renderXlCurtain(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-pinwheel': this.renderXlPinwheel(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-liquid': this.renderXlLiquid(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-warp': this.renderXlWarp(ctx, w, h, energy, bass, mid, treble, t); break;
     }
   }
 
