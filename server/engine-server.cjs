@@ -677,6 +677,17 @@ function handleMessage(ws, msg) {
       break;
     }
 
+    // ── DDP pixel output ──
+    case 'ddp-output': {
+      // { ip, pixels: [r,g,b,r,g,b,...] }
+      if (msg.ip && msg.pixels) {
+        if (!state.ddp) state.ddp = {};
+        state.ddp[msg.ip] = { pixels: msg.pixels };
+        dirty = true;
+      }
+      break;
+    }
+
     // ── Master controls ──
     case 'master-dimmer': {
       if (msg.value !== undefined) {
