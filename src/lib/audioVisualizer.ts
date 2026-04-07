@@ -42,7 +42,16 @@ export type VisualizerPreset =
   | 'retro-arcade'
   | 'retro-arcade-idle'
   | 'timebar-arcade'
-  | 'timebar-arcade-2';
+  | 'timebar-arcade-2'
+  | 'xl-fire'
+  | 'xl-meteors'
+  | 'xl-shockwave'
+  | 'xl-twinkle'
+  | 'xl-spirals'
+  | 'xl-curtain'
+  | 'xl-pinwheel'
+  | 'xl-liquid'
+  | 'xl-warp';
 
 export type AudioInputSource = 'microphone' | 'system-audio' | 'audio-interface';
 
@@ -86,6 +95,15 @@ export const PRESET_LABELS: Record<VisualizerPreset, string> = {
   'retro-arcade-idle': '👾 Retro Arcade (Idle)',
   'timebar-arcade': '🍺 TIME BAR Arcade',
   'timebar-arcade-2': '🍺 TIME BAR Arcade 2',
+  'xl-fire': '🔥 xL Fire',
+  'xl-meteors': '☄️ xL Meteors',
+  'xl-shockwave': '💫 xL Shockwave',
+  'xl-twinkle': '✨ xL Twinkle',
+  'xl-spirals': '🌀 xL Spirals',
+  'xl-curtain': '🎭 xL Curtain',
+  'xl-pinwheel': '🎡 xL Pinwheel',
+  'xl-liquid': '💧 xL Liquid',
+  'xl-warp': '🌊 xL Warp',
 };
 
 export const INPUT_LABELS: Record<AudioInputSource, string> = {
