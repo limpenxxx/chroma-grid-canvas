@@ -883,7 +883,10 @@ async function outputLoop() {
   outputArtNet();
   outputSacn();
 
-  // WLED every cycle
+  // DDP every cycle (25fps) — fast pixel protocol for WLED
+  outputDdp();
+
+  // WLED JSON API every cycle
   await outputWled();
 
   // Hue every 3rd cycle (~8fps, within Hue rate limits)
