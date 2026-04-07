@@ -40,6 +40,7 @@ const state = {
   wled: {},
   hue: {},
   magic: {},
+  ddp: {},    // DDP pixel data: { ip: { pixels: [r,g,b,...] } }
   app: {},
   fixtures: {},
   media: {},
