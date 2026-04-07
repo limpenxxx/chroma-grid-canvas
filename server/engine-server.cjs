@@ -40,6 +40,7 @@ const state = {
   wled: {},
   hue: {},
   magic: {},
+  ddp: {},    // DDP pixel data: { ip: { pixels: [r,g,b,...] } }
   app: {},
   fixtures: {},
   media: {},
@@ -305,58 +306,38 @@ function buildSacnPacket(universe, dmxData, priority = 100) {
   let offset = 0;
 
   // Root Layer
-  // Preamble Size
   packet.writeUInt16BE(0x0010, offset); offset += 2;
-  // Post-amble Size
   packet.writeUInt16BE(0x0000, offset); offset += 2;
-  // ACN Packet Identifier
   const acnId = Buffer.from([0x41, 0x53, 0x43, 0x2d, 0x45, 0x31, 0x2e, 0x31, 0x37, 0x00, 0x00, 0x00]);
   acnId.copy(packet, offset); offset += 12;
-  // Flags + Length (root)
   const rootLen = 110 + slotCount;
   packet.writeUInt16BE(0x7000 | (rootLen & 0x0fff), offset); offset += 2;
-  // Vector (root): 0x00000004
   packet.writeUInt32BE(0x00000004, offset); offset += 4;
-  // CID
   SACN_CID.copy(packet, offset); offset += 16;
 
   // Framing Layer
   const framingLen = 88 + slotCount;
   packet.writeUInt16BE(0x7000 | (framingLen & 0x0fff), offset); offset += 2;
-  // Vector (framing): 0x00000002
   packet.writeUInt32BE(0x00000002, offset); offset += 4;
-  // Source Name (64 bytes)
   const sourceName = Buffer.alloc(64);
   sourceName.write('Chroma Grid Canvas Engine');
   sourceName.copy(packet, offset); offset += 64;
-  // Priority
   packet.writeUInt8(priority, offset); offset += 1;
-  // Sync Address
   packet.writeUInt16BE(0, offset); offset += 2;
-  // Sequence Number
   sacnSequence = (sacnSequence + 1) & 0xff;
   packet.writeUInt8(sacnSequence, offset); offset += 1;
-  // Options
   packet.writeUInt8(0, offset); offset += 1;
-  // Universe
   packet.writeUInt16BE(universe, offset); offset += 2;
 
   // DMP Layer
   const dmpLen = 11 + slotCount;
   packet.writeUInt16BE(0x7000 | (dmpLen & 0x0fff), offset); offset += 2;
-  // Vector (DMP): 0x02
   packet.writeUInt8(0x02, offset); offset += 1;
-  // Address & Data Type
   packet.writeUInt8(0xa1, offset); offset += 1;
-  // First Property Address
   packet.writeUInt16BE(0, offset); offset += 2;
-  // Address Increment
   packet.writeUInt16BE(1, offset); offset += 2;
-  // Property Value Count (start code + data)
   packet.writeUInt16BE(1 + slotCount, offset); offset += 2;
-  // Start Code
   packet.writeUInt8(0, offset); offset += 1;
-  // DMX Data
   Buffer.from(dmxData.slice(0, slotCount)).copy(packet, offset);
 
   return packet;
@@ -377,11 +358,109 @@ function outputSacn() {
     }
 
     const packet = buildSacnPacket(uni, outputBuf);
-    // sACN multicast: 239.255.{hi}.{lo}
     const hi = (uni >> 8) & 0xff;
     const lo = uni & 0xff;
     const multicastAddr = `239.255.${hi}.${lo}`;
     sacnSocket.send(packet, 0, packet.length, 5568, multicastAddr, () => {});
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// Hardware Output: DDP (Distributed Display Protocol)
+// ══════════════════════════════════════════════════════════════
+// DDP is a lightweight protocol optimized for LED controllers like WLED.
+// No universe limits — direct pixel addressing. Much faster than E1.31 for WLED.
+
+const ddpSocket = dgram.createSocket('udp4');
+ddpSocket.on('error', () => {});
+
+const DDP_PORT = 4048;
+let ddpSequence = 0;
+
+// DDP header flags
+const DDP_FLAGS_VER1 = 0x40;    // Version 1
+const DDP_FLAGS_PUSH = 0x01;    // Push (display) after this packet
+const DDP_FLAGS_TIMECODE = 0x10; // Has timecode (not used)
+const DDP_TYPE_RGB = 0x01;      // RGB data type (8-bit per channel)
+
+/**
+ * Build a DDP packet for RGB pixel data.
+ * DDP packet format:
+ *   Byte 0: flags (ver | push)
+ *   Byte 1: sequence (1-15)
+ *   Byte 2: data type (0x01 = RGB 8-bit)
+ *   Byte 3: source ID
+ *   Byte 4-7: data offset (big-endian)
+ *   Byte 8-9: data length (big-endian)
+ *   Byte 10+: pixel data (R,G,B,R,G,B,...)
+ */
+function buildDdpPacket(pixelData, offset = 0, isLast = true) {
+  const dataLen = pixelData.length;
+  const headerLen = 10;
+  const packet = Buffer.alloc(headerLen + dataLen);
+
+  let flags = DDP_FLAGS_VER1;
+  if (isLast) flags |= DDP_FLAGS_PUSH;
+
+  packet.writeUInt8(flags, 0);
+  ddpSequence = (ddpSequence % 15) + 1; // 1-15, wraps
+  packet.writeUInt8(ddpSequence, 1);
+  packet.writeUInt8(DDP_TYPE_RGB, 2); // data type
+  packet.writeUInt8(0x01, 3);          // source ID
+
+  // Data offset (4 bytes big-endian)
+  packet.writeUInt32BE(offset, 4);
+  // Data length (2 bytes big-endian)
+  packet.writeUInt16BE(dataLen, 8);
+
+  // Copy pixel data
+  Buffer.from(pixelData).copy(packet, headerLen);
+
+  return packet;
+}
+
+// DDP pixel buffers per target IP
+const ddpBuffers = {}; // ip → { pixels: Uint8Array, lastHash: string }
+
+/**
+ * Send DDP pixel data to a WLED device.
+ * pixelData should be a flat array of [R,G,B,R,G,B,...] values.
+ */
+function sendDdpPixels(ip, pixelData) {
+  const key = Buffer.from(pixelData).toString('base64').slice(0, 64);
+  if (!ddpBuffers[ip]) ddpBuffers[ip] = { lastHash: '' };
+  if (ddpBuffers[ip].lastHash === key) return; // no change
+  ddpBuffers[ip].lastHash = key;
+
+  // DDP max payload is ~1440 bytes (480 pixels * 3 channels)
+  const MAX_PIXELS_PER_PACKET = 480;
+  const MAX_BYTES_PER_PACKET = MAX_PIXELS_PER_PACKET * 3;
+
+  for (let offset = 0; offset < pixelData.length; offset += MAX_BYTES_PER_PACKET) {
+    const chunk = pixelData.slice(offset, offset + MAX_BYTES_PER_PACKET);
+    const isLast = (offset + MAX_BYTES_PER_PACKET >= pixelData.length);
+    const packet = buildDdpPacket(chunk, offset / 3, isLast); // offset in pixels
+    ddpSocket.send(packet, 0, packet.length, DDP_PORT, ip, () => {});
+  }
+}
+
+/**
+ * Output DDP to all configured WLED devices with DDP protocol
+ */
+function outputDdp() {
+  // DDP targets are stored in state.ddp: { ip: { pixels: [r,g,b,...] } }
+  for (const [ip, data] of Object.entries(state.ddp || {})) {
+    if (data.pixels && data.pixels.length > 0) {
+      let pixels = data.pixels;
+      // Apply master dimmer
+      if (state.blackout) {
+        pixels = new Array(pixels.length).fill(0);
+      } else if (state.masterDimmer < 100) {
+        const scale = state.masterDimmer / 100;
+        pixels = pixels.map(v => Math.round(v * scale));
+      }
+      sendDdpPixels(ip, pixels);
+    }
   }
 }
 
@@ -598,6 +677,17 @@ function handleMessage(ws, msg) {
       break;
     }
 
+    // ── DDP pixel output ──
+    case 'ddp-output': {
+      // { ip, pixels: [r,g,b,r,g,b,...] }
+      if (msg.ip && msg.pixels) {
+        if (!state.ddp) state.ddp = {};
+        state.ddp[msg.ip] = { pixels: msg.pixels };
+        dirty = true;
+      }
+      break;
+    }
+
     // ── Master controls ──
     case 'master-dimmer': {
       if (msg.value !== undefined) {
@@ -793,7 +883,10 @@ async function outputLoop() {
   outputArtNet();
   outputSacn();
 
-  // WLED every cycle
+  // DDP every cycle (25fps) — fast pixel protocol for WLED
+  outputDdp();
+
+  // WLED JSON API every cycle
   await outputWled();
 
   // Hue every 3rd cycle (~8fps, within Hue rate limits)
@@ -988,6 +1081,7 @@ process.on('SIGINT', () => {
   saveState();
   artnetSocket.close();
   sacnSocket.close();
+  ddpSocket.close();
   wss.close();
   process.exit(0);
 });
@@ -1007,11 +1101,12 @@ const localIPs = Object.values(interfaces)
 
 console.log(`
 ╔═══════════════════════════════════════════════╗
-║   Chroma Grid Canvas — Lighting Engine                ║
+║   Chroma Grid Canvas — Lighting Engine        ║
 ║   ─────────────────────────────────────────   ║
 ║   WebSocket:  port ${String(PORT).padEnd(27)}║
 ║   ArtNet:     port 6454 (UDP broadcast)       ║
 ║   sACN:       port 5568 (UDP multicast)       ║
+║   DDP:        port 4048 (UDP pixel data)      ║
 ║                                               ║
 ║   Engine runs independently of browser.       ║
 ║   Close all browser tabs — lights stay on.    ║

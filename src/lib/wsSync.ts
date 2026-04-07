@@ -129,6 +129,13 @@ export function sendWledOutput(ip: string, payload: Record<string, unknown>) {
   }
 }
 
+/** Send DDP pixel data to a WLED device via the engine (fast pixel protocol, no universe limits) */
+export function sendDdpPixels(ip: string, pixels: number[]) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'ddp-output', ip, pixels }));
+  }
+}
+
 /** Register a Hue bridge with the engine */
 export function sendHueBridge(bridgeId: string, ip: string, apiKey: string) {
   if (ws && ws.readyState === WebSocket.OPEN) {

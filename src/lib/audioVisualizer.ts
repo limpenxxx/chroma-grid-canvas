@@ -42,7 +42,16 @@ export type VisualizerPreset =
   | 'retro-arcade'
   | 'retro-arcade-idle'
   | 'timebar-arcade'
-  | 'timebar-arcade-2';
+  | 'timebar-arcade-2'
+  | 'xl-fire'
+  | 'xl-meteors'
+  | 'xl-shockwave'
+  | 'xl-twinkle'
+  | 'xl-spirals'
+  | 'xl-curtain'
+  | 'xl-pinwheel'
+  | 'xl-liquid'
+  | 'xl-warp';
 
 export type AudioInputSource = 'microphone' | 'system-audio' | 'audio-interface';
 
@@ -86,6 +95,15 @@ export const PRESET_LABELS: Record<VisualizerPreset, string> = {
   'retro-arcade-idle': '👾 Retro Arcade (Idle)',
   'timebar-arcade': '🍺 TIME BAR Arcade',
   'timebar-arcade-2': '🍺 TIME BAR Arcade 2',
+  'xl-fire': '🔥 xL Fire',
+  'xl-meteors': '☄️ xL Meteors',
+  'xl-shockwave': '💫 xL Shockwave',
+  'xl-twinkle': '✨ xL Twinkle',
+  'xl-spirals': '🌀 xL Spirals',
+  'xl-curtain': '🎭 xL Curtain',
+  'xl-pinwheel': '🎡 xL Pinwheel',
+  'xl-liquid': '💧 xL Liquid',
+  'xl-warp': '🌊 xL Warp',
 };
 
 export const INPUT_LABELS: Record<AudioInputSource, string> = {
@@ -283,6 +301,15 @@ export class AudioVisualizerEngine {
       case 'retro-arcade-idle': this.renderRetroArcade(ctx, w, h, energy, bass, mid, treble, t); break;
       case 'timebar-arcade': this.renderTimeBarArcade(ctx, w, h, energy, bass, mid, treble, t); break;
       case 'timebar-arcade-2': this.renderTimeBarArcade2(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-fire': this.renderXlFire(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-meteors': this.renderXlMeteors(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-shockwave': this.renderXlShockwave(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-twinkle': this.renderXlTwinkle(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-spirals': this.renderXlSpirals(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-curtain': this.renderXlCurtain(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-pinwheel': this.renderXlPinwheel(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-liquid': this.renderXlLiquid(ctx, w, h, energy, bass, mid, treble, t); break;
+      case 'xl-warp': this.renderXlWarp(ctx, w, h, energy, bass, mid, treble, t); break;
     }
   }
 
@@ -2542,6 +2569,443 @@ export class AudioVisualizerEngine {
     }
   }
 
+  // ══════════════════════════════════════════════════════
+  // xLights-inspired effects
+  // ══════════════════════════════════════════════════════
+
+  private xlMeteors: { x: number; y: number; speed: number; len: number; hue: number; angle: number }[] = [];
+  private xlTwinkles: { x: number; y: number; phase: number; hue: number; maxBright: number }[] = [];
+  private xlShockwaves: { cx: number; cy: number; radius: number; maxRadius: number; hue: number; birth: number }[] = [];
+
+  /** xL Fire — xLights-style fire with height, hue shift, growth */
+  private renderXlFire(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    // Fade previous frame for trailing effect
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fillRect(0, 0, w, h);
+
+    const cols = Math.ceil(w / 4);
+    const fireHeight = 0.3 + bass * 0.5 + energy * 0.2;
+    const hueShift = (this._colorShift + t * 10) % 360;
+
+    for (let col = 0; col < cols; col++) {
+      const x = col * 4;
+      const baseIntensity = 0.3 + Math.sin(col * 0.3 + t * 3) * 0.15 + bass * 0.4;
+      const flameHeight = h * fireHeight * (0.6 + Math.sin(col * 0.5 + t * 5) * 0.2 + Math.random() * 0.2);
+
+      for (let row = 0; row < flameHeight; row++) {
+        const y = h - row;
+        const normalizedY = row / flameHeight;
+        const intensity = baseIntensity * (1 - normalizedY * normalizedY);
+        if (intensity < 0.05) continue;
+
+        // Fire colors: red at bottom → orange → yellow → white at tips
+        const hue = (hueShift + normalizedY * 40) % 360;
+        const sat = 100 - normalizedY * 30;
+        const light = Math.min(70, 15 + intensity * 55 + normalizedY * 20);
+        const flicker = 0.7 + Math.random() * 0.3;
+
+        ctx.fillStyle = `hsla(${hue}, ${sat}%, ${light}%, ${intensity * flicker})`;
+        ctx.fillRect(x, y, 4, 4);
+      }
+    }
+
+    // Ember particles on bass hits
+    if (bass > 0.5) {
+      for (let i = 0; i < Math.floor(bass * 5); i++) {
+        const ex = Math.random() * w;
+        const ey = h - Math.random() * h * fireHeight * 0.8;
+        const size = 1 + Math.random() * 3;
+        ctx.fillStyle = `hsla(${(hueShift + 30) % 360}, 100%, 70%, ${0.5 + Math.random() * 0.5})`;
+        ctx.beginPath();
+        ctx.arc(ex, ey, size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  /** xL Meteors — falling/rising streaks with trails */
+  private renderXlMeteors(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    ctx.fillRect(0, 0, w, h);
+
+    // Spawn meteors on beats
+    if (bass > 0.35 && this.xlMeteors.length < 60) {
+      const count = Math.floor(1 + bass * 4);
+      for (let i = 0; i < count; i++) {
+        const angle = -Math.PI / 2 + (Math.random() - 0.5) * 0.8; // mostly downward
+        this.xlMeteors.push({
+          x: Math.random() * w,
+          y: -10,
+          speed: 2 + Math.random() * 6 + energy * 4,
+          len: 10 + Math.random() * 40 + bass * 30,
+          hue: (Math.random() * 60 + this._colorShift + t * 20) % 360,
+          angle,
+        });
+      }
+    }
+
+    // Update & render
+    for (let i = this.xlMeteors.length - 1; i >= 0; i--) {
+      const m = this.xlMeteors[i];
+      m.x += Math.cos(m.angle) * m.speed;
+      m.y += Math.sin(m.angle + Math.PI / 2) * m.speed;
+
+      // Draw trail
+      const tailX = m.x - Math.cos(m.angle) * m.len;
+      const tailY = m.y - Math.sin(m.angle + Math.PI / 2) * m.len;
+
+      const grad = ctx.createLinearGradient(tailX, tailY, m.x, m.y);
+      grad.addColorStop(0, `hsla(${m.hue}, 90%, 60%, 0)`);
+      grad.addColorStop(0.7, `hsla(${m.hue}, 90%, 60%, 0.6)`);
+      grad.addColorStop(1, `hsla(${m.hue}, 100%, 80%, 1)`);
+
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 2 + bass;
+      ctx.beginPath();
+      ctx.moveTo(tailX, tailY);
+      ctx.lineTo(m.x, m.y);
+      ctx.stroke();
+
+      // Bright head
+      ctx.fillStyle = `hsla(${m.hue}, 100%, 90%, 0.9)`;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Remove off-screen
+      if (m.y > h + 50 || m.x < -50 || m.x > w + 50) {
+        this.xlMeteors.splice(i, 1);
+      }
+    }
+  }
+
+  /** xL Shockwave — expanding/contracting rings */
+  private renderXlShockwave(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    ctx.fillRect(0, 0, w, h);
+
+    const maxR = Math.sqrt(w * w + h * h) / 2;
+
+    // Spawn on bass
+    if (bass > 0.45 && this.xlShockwaves.length < 10) {
+      this.xlShockwaves.push({
+        cx: w * (0.2 + Math.random() * 0.6),
+        cy: h * (0.2 + Math.random() * 0.6),
+        radius: 5,
+        maxRadius: maxR * (0.4 + bass * 0.6),
+        hue: (Math.random() * 360 + this._colorShift) % 360,
+        birth: t,
+      });
+    }
+
+    for (let i = this.xlShockwaves.length - 1; i >= 0; i--) {
+      const sw = this.xlShockwaves[i];
+      const age = t - sw.birth;
+      sw.radius += (3 + energy * 8);
+
+      const progress = sw.radius / sw.maxRadius;
+      if (progress > 1) {
+        this.xlShockwaves.splice(i, 1);
+        continue;
+      }
+
+      const alpha = (1 - progress) * 0.8;
+      const lineW = 2 + (1 - progress) * 6 + bass * 4;
+
+      // Multiple concentric rings
+      for (let ring = 0; ring < 3; ring++) {
+        const r = sw.radius * (1 - ring * 0.15);
+        if (r < 0) continue;
+        const ringAlpha = alpha * (1 - ring * 0.3);
+        ctx.strokeStyle = `hsla(${(sw.hue + ring * 30) % 360}, 90%, ${50 + ring * 10}%, ${ringAlpha})`;
+        ctx.lineWidth = lineW * (1 - ring * 0.3);
+        ctx.beginPath();
+        ctx.arc(sw.cx, sw.cy, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Center glow
+      if (progress < 0.3) {
+        const glowR = 20 * (1 - progress / 0.3);
+        const glow = ctx.createRadialGradient(sw.cx, sw.cy, 0, sw.cx, sw.cy, glowR);
+        glow.addColorStop(0, `hsla(${sw.hue}, 100%, 80%, ${0.5 * (1 - progress / 0.3)})`);
+        glow.addColorStop(1, 'transparent');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(sw.cx, sw.cy, glowR, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  /** xL Twinkle — random pixels flashing */
+  private renderXlTwinkle(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    ctx.fillStyle = 'rgba(0,0,0,0.04)';
+    ctx.fillRect(0, 0, w, h);
+
+    // Maintain twinkle pool
+    const targetCount = 100 + Math.floor(energy * 200);
+    while (this.xlTwinkles.length < targetCount) {
+      this.xlTwinkles.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        phase: Math.random() * Math.PI * 2,
+        hue: (Math.random() * 360 + this._colorShift) % 360,
+        maxBright: 0.3 + Math.random() * 0.7,
+      });
+    }
+    while (this.xlTwinkles.length > targetCount + 50) {
+      this.xlTwinkles.pop();
+    }
+
+    for (const tw of this.xlTwinkles) {
+      const brightness = (Math.sin(t * (2 + tw.phase) + tw.phase * 10) + 1) / 2 * tw.maxBright;
+      if (brightness < 0.1) continue;
+
+      const size = 1 + brightness * 3 + bass * 2;
+      const alpha = brightness * (0.5 + energy * 0.5);
+
+      // Star shape for brighter twinkles
+      if (brightness > 0.5) {
+        ctx.strokeStyle = `hsla(${tw.hue}, 80%, 70%, ${alpha * 0.5})`;
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(tw.x - size * 2, tw.y);
+        ctx.lineTo(tw.x + size * 2, tw.y);
+        ctx.moveTo(tw.x, tw.y - size * 2);
+        ctx.lineTo(tw.x, tw.y + size * 2);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = `hsla(${tw.hue}, 80%, ${50 + brightness * 30}%, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(tw.x, tw.y, size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /** xL Spirals — rotating colored spirals */
+  private renderXlSpirals(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    ctx.fillRect(0, 0, w, h);
+
+    const cx = w / 2, cy = h / 2;
+    const arms = 4 + Math.floor(mid * 4);
+    const maxR = Math.min(w, h) * 0.45;
+    const rotSpeed = t * (0.5 + energy) + bass * 2;
+
+    for (let arm = 0; arm < arms; arm++) {
+      const armAngle = (arm / arms) * Math.PI * 2;
+      const hue = (arm / arms * 360 + this._colorShift + t * 30) % 360;
+
+      ctx.beginPath();
+      for (let i = 0; i < 200; i++) {
+        const frac = i / 200;
+        const r = frac * maxR * (0.5 + energy * 0.5);
+        const angle = armAngle + frac * Math.PI * 6 + rotSpeed;
+        const x = cx + Math.cos(angle) * r;
+        const y = cy + Math.sin(angle) * r;
+
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+
+      ctx.strokeStyle = `hsla(${hue}, 85%, ${40 + energy * 20}%, ${0.6 + bass * 0.3})`;
+      ctx.lineWidth = 1.5 + bass * 3;
+      ctx.shadowColor = `hsl(${hue}, 90%, 60%)`;
+      ctx.shadowBlur = 8 + bass * 15;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  /** xL Curtain — opening/closing curtain animation */
+  private renderXlCurtain(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    ctx.fillStyle = '#050505';
+    ctx.fillRect(0, 0, w, h);
+
+    const openAmount = (Math.sin(t * 0.5 + bass * 3) + 1) / 2; // 0 = closed, 1 = open
+    const halfW = w / 2;
+    const curtainWidth = halfW * (1 - openAmount * 0.8);
+
+    // Left curtain
+    for (let x = 0; x < curtainWidth; x++) {
+      const frac = x / curtainWidth;
+      const fold = Math.sin(frac * Math.PI * 8 + t * 2) * 0.3;
+      const bright = 20 + fold * 15 + frac * 10;
+      const hue = (this._colorShift + 0) % 360;
+
+      for (let y = 0; y < h; y++) {
+        const yFold = Math.sin(y / 30 + t + x * 0.02) * 5;
+        const drape = Math.sin(y / h * Math.PI) * 0.2;
+        ctx.fillStyle = `hsla(${hue}, 70%, ${bright + drape * 10 + yFold}%, 0.9)`;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    }
+
+    // Right curtain (mirrored)
+    for (let x = 0; x < curtainWidth; x++) {
+      const rx = w - x;
+      const frac = x / curtainWidth;
+      const fold = Math.sin(frac * Math.PI * 8 - t * 2) * 0.3;
+      const bright = 20 + fold * 15 + frac * 10;
+      const hue = (this._colorShift + 0) % 360;
+
+      for (let y = 0; y < h; y++) {
+        const yFold = Math.sin(y / 30 - t + x * 0.02) * 5;
+        const drape = Math.sin(y / h * Math.PI) * 0.2;
+        ctx.fillStyle = `hsla(${hue}, 70%, ${bright + drape * 10 + yFold}%, 0.9)`;
+        ctx.fillRect(rx, y, 1, 1);
+      }
+    }
+
+    // Center light beam when open
+    if (openAmount > 0.3) {
+      const beamW = (openAmount - 0.3) * w * 0.5;
+      const grad = ctx.createRadialGradient(halfW, h * 0.3, 0, halfW, h * 0.3, beamW);
+      grad.addColorStop(0, `hsla(${(this._colorShift + 60) % 360}, 60%, 70%, ${(openAmount - 0.3) * 0.5})`);
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
+
+  /** xL Pinwheel — rotating colored sectors */
+  private renderXlPinwheel(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    ctx.fillStyle = 'rgba(0,0,0,0.05)';
+    ctx.fillRect(0, 0, w, h);
+
+    const cx = w / 2, cy = h / 2;
+    const sectors = 6 + Math.floor(treble * 6);
+    const rotation = t * (1 + energy * 2) + bass * 4;
+    const maxR = Math.max(w, h) * 0.7;
+
+    for (let i = 0; i < sectors; i++) {
+      const startAngle = (i / sectors) * Math.PI * 2 + rotation;
+      const endAngle = ((i + 0.8) / sectors) * Math.PI * 2 + rotation;
+      const hue = (i / sectors * 360 + this._colorShift + t * 20) % 360;
+      const intensity = 0.5 + (this.freqData[Math.floor(i / sectors * this.freqData.length * 0.5)] || 0) / 255 * this._sensitivity * 0.5;
+
+      const grad = ctx.createRadialGradient(cx, cy, 10, cx, cy, maxR * intensity);
+      grad.addColorStop(0, `hsla(${hue}, 100%, 70%, 0.8)`);
+      grad.addColorStop(0.5, `hsla(${hue}, 90%, 50%, 0.5)`);
+      grad.addColorStop(1, `hsla(${hue}, 80%, 30%, 0)`);
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, maxR * intensity, startAngle, endAngle);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Center pulse
+    const pulseR = 15 + bass * 30;
+    ctx.fillStyle = `hsla(${(t * 60 + this._colorShift) % 360}, 100%, 80%, 0.7)`;
+    ctx.beginPath();
+    ctx.arc(cx, cy, pulseR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /** xL Liquid — organic fluid simulation */
+  private renderXlLiquid(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    const step = 6;
+    for (let x = 0; x < w; x += step) {
+      for (let y = 0; y < h; y += step) {
+        const nx = x / w, ny = y / h;
+
+        // Multiple noise layers for liquid effect
+        const n1 = Math.sin(nx * 4 + t * 0.8 + Math.cos(ny * 3 + t * 0.5) * 2);
+        const n2 = Math.cos(ny * 5 - t * 0.6 + Math.sin(nx * 4 - t * 0.3) * 2);
+        const n3 = Math.sin((nx + ny) * 3 + t * 1.2 + bass * 4);
+        const n4 = Math.cos(nx * 6 - ny * 4 + t * 0.4 + energy * 3);
+
+        const v = (n1 + n2 + n3 + n4) / 4;
+        const flow = Math.sin(v * Math.PI * 2) * 0.5 + 0.5;
+
+        const hue = (v * 80 + t * 15 + this._colorShift + flow * 40) % 360;
+        const sat = 60 + flow * 30;
+        const light = 10 + flow * 35 + energy * 15;
+        const alpha = 0.7 + flow * 0.3;
+
+        ctx.fillStyle = `hsla(${hue}, ${sat}%, ${light}%, ${alpha})`;
+        ctx.fillRect(x, y, step, step);
+      }
+    }
+  }
+
+  /** xL Warp — geometric distortion effect */
+  private renderXlWarp(ctx: CanvasRenderingContext2D, w: number, h: number, energy: number, bass: number, mid: number, treble: number, t: number) {
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    ctx.fillRect(0, 0, w, h);
+
+    const cx = w / 2, cy = h / 2;
+    const warpStrength = 0.3 + bass * 0.7 + energy * 0.3;
+
+    // Warped grid
+    const gridSize = 30;
+    const cols = Math.ceil(w / gridSize) + 1;
+    const rows = Math.ceil(h / gridSize) + 1;
+
+    for (let row = 0; row < rows; row++) {
+      ctx.beginPath();
+      for (let col = 0; col <= cols; col++) {
+        let gx = col * gridSize;
+        let gy = row * gridSize;
+
+        // Warp displacement
+        const dx = gx - cx, dy = gy - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+        const warp = Math.sin(dist / 50 - t * 2 + angle * 2) * warpStrength * 15;
+
+        gx += Math.cos(angle + Math.PI / 2) * warp;
+        gy += Math.sin(angle + Math.PI / 2) * warp;
+
+        if (col === 0) ctx.moveTo(gx, gy);
+        else ctx.lineTo(gx, gy);
+      }
+      const hue = (row / rows * 180 + t * 30 + this._colorShift) % 360;
+      ctx.strokeStyle = `hsla(${hue}, 80%, ${30 + energy * 30}%, ${0.3 + bass * 0.4})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Vertical lines
+    for (let col = 0; col < cols; col++) {
+      ctx.beginPath();
+      for (let row = 0; row <= rows; row++) {
+        let gx = col * gridSize;
+        let gy = row * gridSize;
+
+        const dx = gx - cx, dy = gy - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+        const warp = Math.sin(dist / 50 - t * 2 + angle * 2) * warpStrength * 15;
+
+        gx += Math.cos(angle + Math.PI / 2) * warp;
+        gy += Math.sin(angle + Math.PI / 2) * warp;
+
+        if (row === 0) ctx.moveTo(gx, gy);
+        else ctx.lineTo(gx, gy);
+      }
+      const hue = (col / cols * 180 + 90 + t * 30 + this._colorShift) % 360;
+      ctx.strokeStyle = `hsla(${hue}, 80%, ${30 + energy * 30}%, ${0.3 + bass * 0.4})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Center vortex glow
+    const vortexR = 40 + bass * 60;
+    const vGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, vortexR);
+    vGrad.addColorStop(0, `hsla(${(t * 50 + this._colorShift) % 360}, 100%, 60%, 0.6)`);
+    vGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = vGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, vortexR, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   destroy() {
     this.stop();
     this.particles = [];
@@ -2550,5 +3014,8 @@ export class AudioVisualizerEngine {
     this.pixelGrid = [];
     this.arcadeSprites = [];
     this.arcadeStars = [];
+    this.xlMeteors = [];
+    this.xlTwinkles = [];
+    this.xlShockwaves = [];
   }
 }
