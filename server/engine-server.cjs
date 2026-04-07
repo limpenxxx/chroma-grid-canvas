@@ -1081,6 +1081,7 @@ process.on('SIGINT', () => {
   saveState();
   artnetSocket.close();
   sacnSocket.close();
+  ddpSocket.close();
   wss.close();
   process.exit(0);
 });
@@ -1100,11 +1101,12 @@ const localIPs = Object.values(interfaces)
 
 console.log(`
 ╔═══════════════════════════════════════════════╗
-║   Chroma Grid Canvas — Lighting Engine                ║
+║   Chroma Grid Canvas — Lighting Engine        ║
 ║   ─────────────────────────────────────────   ║
 ║   WebSocket:  port ${String(PORT).padEnd(27)}║
 ║   ArtNet:     port 6454 (UDP broadcast)       ║
 ║   sACN:       port 5568 (UDP multicast)       ║
+║   DDP:        port 4048 (UDP pixel data)      ║
 ║                                               ║
 ║   Engine runs independently of browser.       ║
 ║   Close all browser tabs — lights stay on.    ║
