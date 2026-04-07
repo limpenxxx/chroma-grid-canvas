@@ -24,6 +24,8 @@ import { setWledPreset, setWledState } from '@/lib/wledApi';
 import { fetchWledPresets, isWledDeviceTargetId, wledDeviceToFixture } from '@/lib/wledUtils';
 import { sendDmxChannel, sendRawMessage, onPioneerData, type PioneerData } from '@/lib/wsSync';
 import { ProjectionMapping } from './ProjectionMapping';
+import { StageMap } from './StageMap';
+import { AILightShow } from './AILightShow';
 import { useIOStore } from './IOSetup';
 
 // ── Types ──
@@ -306,7 +308,7 @@ interface SavedLayout {
   audioConfig: AudioConfig;
 }
 
-type Tab = 'controller' | 'assignments' | 'scripts' | 'groups' | 'mixer' | 'projection';
+type Tab = 'controller' | 'assignments' | 'scripts' | 'groups' | 'mixer' | 'projection' | 'stagemap';
 
 const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: number; h: number }[] = [
   { type: 'button', label: 'Flash Button', icon: Zap, w: 100, h: 100 },
@@ -3364,6 +3366,7 @@ export function LiveDJ() {
           <div className="flex gap-1">
             {([
               { id: 'controller' as Tab, label: '🎛 Controller' },
+              { id: 'stagemap' as Tab, label: '🗺️ Stage Map' },
               { id: 'mixer' as Tab, label: '🎚️ DMX Mixer' },
               { id: 'assignments' as Tab, label: '📡 Assign' },
               { id: 'groups' as Tab, label: '👥 Groups' },
@@ -5433,6 +5436,25 @@ export function LiveDJ() {
       {tab === 'mixer' && (
         <div className="flex-1 overflow-y-auto">
           <DmxMixer />
+        </div>
+      )}
+
+      {/* ── STAGE MAP + AI TAB ── */}
+      {tab === 'stagemap' && (
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="flex-1 min-h-0">
+            <StageMap
+              selectedFixtureIds={[]}
+              onSelectionChange={() => {}}
+            />
+          </div>
+          <div className="border-t border-border/20 max-h-[40%] overflow-y-auto">
+            <AILightShow
+              selectedFixtureIds={[]}
+              bpm={bpmState.bpm}
+              audioLevel={bpmState.audioLevel}
+            />
+          </div>
         </div>
       )}
 
