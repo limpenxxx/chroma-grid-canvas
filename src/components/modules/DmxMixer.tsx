@@ -121,18 +121,74 @@ function ChannelFader({
 
   const pct = (value / 255) * 100;
   const livePct = liveValue !== undefined ? (liveValue / 255) * 100 : null;
-  const fnColor = channelFunction ? getChannelColor(channelFunction as any) : undefined;
+  const fnColor = channelFunction ? getChannelColor(channelFunction) : undefined;
+  const fnIcon = channelFunction ? getChannelFunctionIcon(channelFunction) : undefined;
   const hasFixture = !!fixtureName;
   const isActive = value > 0;
+  const hasCapabilities = capabilities && capabilities.length > 0;
+  const activeCapability = hasCapabilities
+    ? capabilities.find(c => value >= c.dmxMin && value <= c.dmxMax)
+    : undefined;
 
   return (
-    <div className={`flex flex-col items-center gap-0.5 select-none transition-opacity ${hasFixture ? 'opacity-100' : 'opacity-40'}`} style={{ width: 30 }}>
+    <div className={`flex flex-col items-center gap-0.5 select-none transition-opacity ${hasFixture ? 'opacity-100' : 'opacity-40'}`} style={{ width: 34 }}>
       {/* Fixture icon */}
       {fixtureIcon && (
         <span className="text-[8px] leading-none" title={fixtureName}>{fixtureIcon}</span>
       )}
 
-      {/* Channel number with function color indicator */}
+      {/* Function icon with optional capabilities popup */}
+      {fnIcon && hasCapabilities ? (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              className="text-[10px] leading-none cursor-pointer hover:scale-125 transition-transform"
+              style={{ color: fnColor }}
+              title={`${channelFunction} – click for details`}
+            >
+              {activeCapability?.icon || fnIcon}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-2 text-[9px] max-h-60 overflow-y-auto" side="top" align="center">
+            <div className="font-semibold text-[10px] mb-1 text-foreground/80">{fixtureName} – {channelName}</div>
+            <div className="space-y-0.5">
+              {capabilities.map(cap => {
+                const isCurrentRange = value >= cap.dmxMin && value <= cap.dmxMax;
+                return (
+                  <button
+                    key={cap.id}
+                    onClick={() => {
+                      const midVal = Math.round((cap.dmxMin + cap.dmxMax) / 2);
+                      onValueChange(midVal);
+                      sendDmxChannel(1, channel, midVal);
+                    }}
+                    className={`w-full flex items-center gap-1.5 px-1.5 py-0.5 rounded text-left transition-colors ${
+                      isCurrentRange ? 'bg-primary/15 text-primary border border-primary/30' : 'hover:bg-muted/30'
+                    }`}
+                  >
+                    {cap.color && (
+                      <div className="w-3 h-3 rounded-sm border border-border/30 flex-shrink-0" style={{ backgroundColor: cap.color }} />
+                    )}
+                    {cap.icon && <span className="flex-shrink-0">{cap.icon}</span>}
+                    <span className="truncate flex-1">{cap.label}</span>
+                    <span className="text-muted-foreground/50 font-mono">{cap.dmxMin}–{cap.dmxMax}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </PopoverContent>
+        </Popover>
+      ) : fnIcon ? (
+        <span
+          className="text-[10px] leading-none"
+          style={{ color: fnColor, opacity: isActive ? 1 : 0.4 }}
+          title={channelFunction}
+        >
+          {fnIcon}
+        </span>
+      ) : null}
+
+      {/* Channel number */}
       <div className="flex items-center gap-0.5">
         {fnColor && (
           <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: fnColor, opacity: isActive ? 1 : 0.3 }} />
