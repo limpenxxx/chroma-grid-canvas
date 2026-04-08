@@ -1,8 +1,43 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Lock, Unlock, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useFixtureStore, getChannelColor, getFixtureTypeIcon, getFixtureIconEmoji } from '@/store/fixtureStore';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { useFixtureStore, getChannelColor, getFixtureTypeIcon, getFixtureIconEmoji, type ChannelFunction, type ChannelCapability } from '@/store/fixtureStore';
 import { sendDmxChannel } from '@/lib/wsSync';
+
+// Function-specific icons for each channel type
+function getChannelFunctionIcon(fn: ChannelFunction): string {
+  const icons: Partial<Record<ChannelFunction, string>> = {
+    dimmer: '☀',
+    red: '🔴',
+    green: '🟢',
+    blue: '🔵',
+    white: '⚪',
+    amber: '🟠',
+    uv: '🟣',
+    pan: '↔',
+    'pan-fine': '↔̃',
+    tilt: '↕',
+    'tilt-fine': '↕̃',
+    strobe: '⚡',
+    shutter: '▦',
+    'color-wheel': '🎨',
+    gobo: '◑',
+    'gobo-rotation': '↻',
+    prism: '◇',
+    focus: '⊙',
+    zoom: '🔍',
+    iris: '◎',
+    frost: '❄',
+    speed: '⏱',
+    macro: '⚙',
+    fx: '✦',
+    cto: '🌡',
+    ctb: '❄',
+    custom: '⬡',
+  };
+  return icons[fn] || '·';
+}
 
 const STORAGE_KEY = 'stokio-dmx-mixer-v1';
 
