@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { broadcastState, isSyncingFromRemote, onSyncState, sendMasterDimmer, sendBlackout } from '@/lib/wsSync';
 
-export type ModuleId = 'stage' | 'media' | 'text' | 'fixtures' | 'nodes' | 'devices' | 'livedj';
+export type ModuleId = 'stage' | 'media' | 'text' | 'fixtures' | 'nodes' | 'devices' | 'livedj' | 'systemlog';
 export type UserRole = 'admin' | 'user';
 export type LayoutMode = 'desktop' | 'tablet' | 'mobile';
 
