@@ -65,16 +65,17 @@ function channelKey(universe: number, channel: number) {
 // Enhanced fader with fixture info, icon, and live color
 function ChannelFader({
   channel, value, locked, fixtureName, channelName, channelFunction, fixtureIcon,
-  liveValue, onValueChange, onToggleLock,
+  liveValue, capabilities, onValueChange, onToggleLock,
 }: {
   channel: number;
   value: number;
   locked: boolean;
   fixtureName?: string;
   channelName?: string;
-  channelFunction?: string;
+  channelFunction?: ChannelFunction;
   fixtureIcon?: string;
-  liveValue?: number; // real-time DMX output value (may differ from slider if driven by program)
+  liveValue?: number;
+  capabilities?: ChannelCapability[];
   onValueChange: (v: number) => void;
   onToggleLock: () => void;
 }) {
