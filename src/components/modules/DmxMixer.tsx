@@ -264,6 +264,7 @@ export function DmxMixer({ liveDmxValues = {}, onValueChange }: DmxMixerProps) {
           channelFunction: ch.function,
           fixtureIcon: icon,
           instanceId: inst.id,
+          capabilities: ch.capabilities,
         });
       }
     });
