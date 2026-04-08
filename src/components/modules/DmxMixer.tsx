@@ -455,6 +455,7 @@ export function DmxMixer({ liveDmxValues = {}, onValueChange }: DmxMixerProps) {
                 channelFunction={info?.channelFunction}
                 fixtureIcon={info?.fixtureIcon}
                 liveValue={liveVal}
+                capabilities={info?.capabilities}
                 onValueChange={(v) => updateValue(ch, v)}
                 onToggleLock={() => toggleLock(ch)}
               />
