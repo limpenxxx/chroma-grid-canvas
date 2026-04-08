@@ -133,7 +133,7 @@ export function SystemLog() {
           filtered.map((e) => (
             <div key={e.id} className="flex gap-2 hover:bg-muted/10 px-1 rounded group">
               <span className="text-muted-foreground/40 shrink-0">
-                {new Date(e.ts).toLocaleTimeString('sv-SE', { hour12: false, fractionalSecondDigits: 1 })}
+                {new Date(e.ts).toLocaleTimeString('sv-SE', { hour12: false })}.{Math.floor((e.ts % 1000) / 100)}
               </span>
               <span className={`uppercase font-bold w-[38px] shrink-0 ${LEVEL_COLORS[e.level]}`}>
                 {e.level}
