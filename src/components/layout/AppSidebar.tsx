@@ -24,6 +24,7 @@ const navItems: { id: ModuleId; icon: typeof Layout; label: string }[] = [
   { id: 'nodes', icon: GitBranch, label: 'Node Logic' },
   { id: 'devices', icon: Cpu, label: 'Devices' },
   { id: 'livedj', icon: Speaker, label: 'LIVE DJ' },
+  { id: 'files', icon: FolderOpen, label: 'File Explorer' },
   { id: 'systemlog', icon: ScrollText, label: 'System Log' },
 ];
 
