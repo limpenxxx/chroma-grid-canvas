@@ -242,9 +242,10 @@ export function DmxMixer({ liveDmxValues = {}, onValueChange }: DmxMixerProps) {
   const channelFixtureMap = new Map<number, {
     fixtureName: string;
     channelName: string;
-    channelFunction: string;
+    channelFunction: ChannelFunction;
     fixtureIcon: string;
     instanceId: string;
+    capabilities?: ChannelCapability[];
   }>();
 
   store.instances.forEach(inst => {
