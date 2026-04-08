@@ -15,6 +15,7 @@ import { NodeLogic } from '@/components/modules/NodeLogic';
 import { Devices } from '@/components/modules/Devices';
 import { LiveDJ } from '@/components/modules/LiveDJ';
 import { SystemLog } from '@/components/modules/SystemLog';
+import { FileExplorer } from '@/components/modules/FileExplorer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -26,6 +27,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
   nodes: NodeLogic,
   devices: Devices,
   systemlog: SystemLog,
+  files: FileExplorer,
 };
 
 // Modules that should stay mounted (complex state that must survive navigation)
