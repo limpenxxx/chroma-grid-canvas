@@ -1,8 +1,43 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Lock, Unlock, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useFixtureStore, getChannelColor, getFixtureTypeIcon, getFixtureIconEmoji } from '@/store/fixtureStore';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { useFixtureStore, getChannelColor, getFixtureTypeIcon, getFixtureIconEmoji, type ChannelFunction, type ChannelCapability } from '@/store/fixtureStore';
 import { sendDmxChannel } from '@/lib/wsSync';
+
+// Function-specific icons for each channel type
+function getChannelFunctionIcon(fn: ChannelFunction): string {
+  const icons: Partial<Record<ChannelFunction, string>> = {
+    dimmer: '☀',
+    red: '🔴',
+    green: '🟢',
+    blue: '🔵',
+    white: '⚪',
+    amber: '🟠',
+    uv: '🟣',
+    pan: '↔',
+    'pan-fine': '↔̃',
+    tilt: '↕',
+    'tilt-fine': '↕̃',
+    strobe: '⚡',
+    shutter: '▦',
+    'color-wheel': '🎨',
+    gobo: '◑',
+    'gobo-rotation': '↻',
+    prism: '◇',
+    focus: '⊙',
+    zoom: '🔍',
+    iris: '◎',
+    frost: '❄',
+    speed: '⏱',
+    macro: '⚙',
+    fx: '✦',
+    cto: '🌡',
+    ctb: '❄',
+    custom: '⬡',
+  };
+  return icons[fn] || '·';
+}
 
 const STORAGE_KEY = 'stokio-dmx-mixer-v1';
 
@@ -30,16 +65,17 @@ function channelKey(universe: number, channel: number) {
 // Enhanced fader with fixture info, icon, and live color
 function ChannelFader({
   channel, value, locked, fixtureName, channelName, channelFunction, fixtureIcon,
-  liveValue, onValueChange, onToggleLock,
+  liveValue, capabilities, onValueChange, onToggleLock,
 }: {
   channel: number;
   value: number;
   locked: boolean;
   fixtureName?: string;
   channelName?: string;
-  channelFunction?: string;
+  channelFunction?: ChannelFunction;
   fixtureIcon?: string;
-  liveValue?: number; // real-time DMX output value (may differ from slider if driven by program)
+  liveValue?: number;
+  capabilities?: ChannelCapability[];
   onValueChange: (v: number) => void;
   onToggleLock: () => void;
 }) {
@@ -85,18 +121,74 @@ function ChannelFader({
 
   const pct = (value / 255) * 100;
   const livePct = liveValue !== undefined ? (liveValue / 255) * 100 : null;
-  const fnColor = channelFunction ? getChannelColor(channelFunction as any) : undefined;
+  const fnColor = channelFunction ? getChannelColor(channelFunction) : undefined;
+  const fnIcon = channelFunction ? getChannelFunctionIcon(channelFunction) : undefined;
   const hasFixture = !!fixtureName;
   const isActive = value > 0;
+  const hasCapabilities = capabilities && capabilities.length > 0;
+  const activeCapability = hasCapabilities
+    ? capabilities.find(c => value >= c.dmxMin && value <= c.dmxMax)
+    : undefined;
 
   return (
-    <div className={`flex flex-col items-center gap-0.5 select-none transition-opacity ${hasFixture ? 'opacity-100' : 'opacity-40'}`} style={{ width: 30 }}>
+    <div className={`flex flex-col items-center gap-0.5 select-none transition-opacity ${hasFixture ? 'opacity-100' : 'opacity-40'}`} style={{ width: 34 }}>
       {/* Fixture icon */}
       {fixtureIcon && (
         <span className="text-[8px] leading-none" title={fixtureName}>{fixtureIcon}</span>
       )}
 
-      {/* Channel number with function color indicator */}
+      {/* Function icon with optional capabilities popup */}
+      {fnIcon && hasCapabilities ? (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              className="text-[10px] leading-none cursor-pointer hover:scale-125 transition-transform"
+              style={{ color: fnColor }}
+              title={`${channelFunction} – click for details`}
+            >
+              {activeCapability?.icon || fnIcon}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-2 text-[9px] max-h-60 overflow-y-auto" side="top" align="center">
+            <div className="font-semibold text-[10px] mb-1 text-foreground/80">{fixtureName} – {channelName}</div>
+            <div className="space-y-0.5">
+              {capabilities.map(cap => {
+                const isCurrentRange = value >= cap.dmxMin && value <= cap.dmxMax;
+                return (
+                  <button
+                    key={cap.id}
+                    onClick={() => {
+                      const midVal = Math.round((cap.dmxMin + cap.dmxMax) / 2);
+                      onValueChange(midVal);
+                      sendDmxChannel(1, channel, midVal);
+                    }}
+                    className={`w-full flex items-center gap-1.5 px-1.5 py-0.5 rounded text-left transition-colors ${
+                      isCurrentRange ? 'bg-primary/15 text-primary border border-primary/30' : 'hover:bg-muted/30'
+                    }`}
+                  >
+                    {cap.color && (
+                      <div className="w-3 h-3 rounded-sm border border-border/30 flex-shrink-0" style={{ backgroundColor: cap.color }} />
+                    )}
+                    {cap.icon && <span className="flex-shrink-0">{cap.icon}</span>}
+                    <span className="truncate flex-1">{cap.label}</span>
+                    <span className="text-muted-foreground/50 font-mono">{cap.dmxMin}–{cap.dmxMax}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </PopoverContent>
+        </Popover>
+      ) : fnIcon ? (
+        <span
+          className="text-[10px] leading-none"
+          style={{ color: fnColor, opacity: isActive ? 1 : 0.4 }}
+          title={channelFunction}
+        >
+          {fnIcon}
+        </span>
+      ) : null}
+
+      {/* Channel number */}
       <div className="flex items-center gap-0.5">
         {fnColor && (
           <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: fnColor, opacity: isActive ? 1 : 0.3 }} />
@@ -206,9 +298,10 @@ export function DmxMixer({ liveDmxValues = {}, onValueChange }: DmxMixerProps) {
   const channelFixtureMap = new Map<number, {
     fixtureName: string;
     channelName: string;
-    channelFunction: string;
+    channelFunction: ChannelFunction;
     fixtureIcon: string;
     instanceId: string;
+    capabilities?: ChannelCapability[];
   }>();
 
   store.instances.forEach(inst => {
@@ -227,6 +320,7 @@ export function DmxMixer({ liveDmxValues = {}, onValueChange }: DmxMixerProps) {
           channelFunction: ch.function,
           fixtureIcon: icon,
           instanceId: inst.id,
+          capabilities: ch.capabilities,
         });
       }
     });
@@ -417,6 +511,7 @@ export function DmxMixer({ liveDmxValues = {}, onValueChange }: DmxMixerProps) {
                 channelFunction={info?.channelFunction}
                 fixtureIcon={info?.fixtureIcon}
                 liveValue={liveVal}
+                capabilities={info?.capabilities}
                 onValueChange={(v) => updateValue(ch, v)}
                 onToggleLock={() => toggleLock(ch)}
               />
