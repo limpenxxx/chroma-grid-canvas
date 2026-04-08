@@ -14,6 +14,7 @@ import { FixtureControls } from '@/components/modules/FixtureControls';
 import { NodeLogic } from '@/components/modules/NodeLogic';
 import { Devices } from '@/components/modules/Devices';
 import { LiveDJ } from '@/components/modules/LiveDJ';
+import { SystemLog } from '@/components/modules/SystemLog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -24,6 +25,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
   fixtures: FixtureControls,
   nodes: NodeLogic,
   devices: Devices,
+  systemlog: SystemLog,
 };
 
 // Modules that should stay mounted (complex state that must survive navigation)

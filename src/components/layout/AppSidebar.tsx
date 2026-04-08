@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker, Grid3X3, Download, Upload, LogOut,
-  FolderOpen, Save, FilePlus, Star, Trash2, X
+  FolderOpen, Save, FilePlus, Star, Trash2, X, ScrollText
 } from 'lucide-react';
 import { useAppStore, type ModuleId } from '@/store/appStore';
 import stokioLogo from '@/assets/stokio-logo-color.png';
@@ -24,6 +24,7 @@ const navItems: { id: ModuleId; icon: typeof Layout; label: string }[] = [
   { id: 'nodes', icon: GitBranch, label: 'Node Logic' },
   { id: 'devices', icon: Cpu, label: 'Devices' },
   { id: 'livedj', icon: Speaker, label: 'LIVE DJ' },
+  { id: 'systemlog', icon: ScrollText, label: 'System Log' },
 ];
 
 export function AppSidebar({ compact = false }: { compact?: boolean }) {
