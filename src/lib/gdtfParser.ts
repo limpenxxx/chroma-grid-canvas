@@ -249,7 +249,7 @@ async function extractDescriptionXmlFromZip(buffer: ArrayBuffer): Promise<string
         // Deflate — use DecompressionStream if available
         const compressedData = bytes.slice(dataStart, dataStart + compressedSize);
         try {
-          const ds = new DecompressionStream('raw');
+          const ds = new DecompressionStream('deflate-raw' as CompressionFormat);
           const writer = ds.writable.getWriter();
           writer.write(compressedData);
           writer.close();
