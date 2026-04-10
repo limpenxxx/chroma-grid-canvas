@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Play, Square, GripVertical, Palette, SlidersHorizontal,
   Zap, ChevronDown, ChevronRight, Monitor, Hand, Layers,
-  Speaker, X, Save, Mic, Activity, Sparkles, Wifi, Radio,
+  Speaker, X, Save, Mic, Activity, Sparkles, Wifi, Radio, Music,
   ImagePlus, Lock, Unlock, Move, FolderOpen, Download, Upload, FileText, Users,
   Bookmark, Settings2, CircleDot, Maximize2, Minimize2, Film, Copy, Grid3X3
 } from 'lucide-react';
@@ -30,6 +30,7 @@ import { ProjectionMapping } from './ProjectionMapping';
 import { StageMap } from './StageMap';
 import { AILightShow } from './AILightShow';
 import { useIOStore } from './IOSetup';
+import { type ArpConfig, createDefaultArpConfig, computeArpFrame, ArpeggiatorPreview, ARP_PATTERNS, BPM_DIVISIONS, ARP_PRESETS, type ArpColorStep, type ArpEngineState } from './ArpeggiatorWidget';
 
 // ── Types ──
 
@@ -40,7 +41,7 @@ interface FixtureAssignment {
   mode: ControlMode;
 }
 
-type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset' | 'audio-reactive' | 'tap-bpm' | 'eq-trigger';
+type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset' | 'audio-reactive' | 'tap-bpm' | 'eq-trigger' | 'arpeggiator';
 
 // ── Audio Reactive Effect Types ──
 type AudioReactiveEffectType =
@@ -231,6 +232,8 @@ interface DJWidget {
   audioReactive?: AudioReactiveConfig;
   // EQ Trigger widget
   eqTriggerZones?: EqTriggerZone[];
+  // Arpeggiator widget
+  arpConfig?: ArpConfig;
 }
 
 type ColorProgramMode = 'static' | 'switch' | 'fade';
@@ -328,6 +331,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'audio-reactive', label: 'Audio Reactive', icon: Radio, w: 260, h: 320 },
   { type: 'tap-bpm', label: 'Tap / Audio In', icon: Activity, w: 220, h: 200 },
   { type: 'eq-trigger', label: 'EQ Trigger', icon: Activity, w: 320, h: 280 },
+  { type: 'arpeggiator', label: 'Arpeggiator', icon: Music, w: 260, h: 200 },
 ];
 
 // ── Color distance helper (Euclidean in RGB space) ──
@@ -1931,7 +1935,51 @@ function ControlWidget({
         );
       })()}
 
-      {/* EQ TRIGGER WIDGET */}
+      {/* ARPEGGIATOR WIDGET */}
+      {widget.type === 'arpeggiator' && (() => {
+        const arp = widget.arpConfig || createDefaultArpConfig();
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col overflow-hidden"
+            style={bgStyle}
+            onClick={onSelect}>
+            <div className="px-2 py-1 flex items-center gap-1.5 border-b border-border/20 shrink-0" style={{ background: 'rgba(255,100,0,0.08)' }}>
+              <Music size={10} className="text-orange-400" />
+              <span className="text-[9px] font-semibold truncate flex-1 text-orange-300">{widget.label}</span>
+              <button
+                onClick={e => { e.stopPropagation(); onUpdate({ arpConfig: { ...arp, running: !arp.running } }); }}
+                className={`w-5 h-5 rounded flex items-center justify-center transition-all ${
+                  arp.running ? 'bg-green-500/20 text-green-400' : 'bg-muted/20 text-muted-foreground'
+                }`}>
+                {arp.running ? <Square size={8} /> : <Play size={8} />}
+              </button>
+            </div>
+            <div className="flex-1 p-1.5 flex flex-col gap-1 overflow-hidden">
+              <div className="flex items-center gap-1 text-[7px] text-muted-foreground">
+                <span className="font-mono">{ARP_PATTERNS.find(p => p.value === arp.pattern)?.label}</span>
+                <span>•</span>
+                <span>{arp.syncMode === 'bpm' ? `${BPM_DIVISIONS.find(d => d.value === arp.bpmDivision)?.label || '1 beat'}` : arp.syncMode === 'audio' ? '🎙 Audio' : `${arp.speed.toFixed(1)} Hz`}</span>
+                <span>•</span>
+                <span>{widget.linkedFixtureIds.length} dev</span>
+              </div>
+              <ArpeggiatorPreview
+                config={arp}
+                bpm={bpmStateProp?.bpm || bpm || 120}
+                deviceCount={Math.max(widget.linkedFixtureIds.length, 4)}
+                audioLevel={bpmStateProp?.audioLevel || 0}
+              />
+              {/* Color steps preview */}
+              <div className="flex gap-0.5 mt-auto">
+                {arp.steps.map((s, i) => (
+                  <div key={i} className="flex-1 h-3 rounded-sm border border-border/10"
+                    style={{ backgroundColor: `rgb(${s.r},${s.g},${s.b})`, opacity: s.dimmer / 255 }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+
       {widget.type === 'eq-trigger' && (() => {
         const zones = widget.eqTriggerZones || [];
         const fixtureList = fixtureData.map(f => ({
@@ -2771,6 +2819,7 @@ export function LiveDJ() {
       wledFixtureBrightness: type === 'wled-fixture' ? 128 : undefined,
       audioReactive: type === 'audio-reactive' ? { running: false, effects: [], globalDecay: 180, sensitivity: 160 } : undefined,
       eqTriggerZones: type === 'eq-trigger' ? [] : undefined,
+      arpConfig: type === 'arpeggiator' ? createDefaultArpConfig() : undefined,
     }]);
   };
 
@@ -3284,6 +3333,94 @@ export function LiveDJ() {
     raf = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(raf); clearTimeout(raf); };
   }, [widgets, audioConfig.source, bpmState.bpm, allFixturesWithDefs, wledStore.devices, wledStore.fixtures]);
+
+  // ── Arpeggiator Engine Loop ──
+  const arpStartTimeRef = useRef(performance.now() / 1000);
+  useEffect(() => {
+    const arpWidgets = widgets.filter(w => w.type === 'arpeggiator' && w.arpConfig?.running);
+    if (arpWidgets.length === 0) return;
+
+    const wledOutputFixtures = [
+      ...wledStore.devices.map(wledDeviceToFixture),
+      ...wledStore.fixtures,
+    ];
+    const wledFixMap = new Map(wledOutputFixtures.map(f => [f.id, f]));
+
+    let raf = 0;
+    let lastFrame = 0;
+    const arpStates: Record<string, ArpEngineState> = {};
+
+    const tick = (now: number) => {
+      if (now - lastFrame < 33) { raf = requestAnimationFrame(tick); return; }
+      lastFrame = now;
+      const timeS = now / 1000 - arpStartTimeRef.current;
+
+      arpWidgets.forEach(w => {
+        const arp = w.arpConfig!;
+        const linkedIds = w.linkedFixtureIds;
+        if (linkedIds.length === 0) return;
+
+        if (!arpStates[w.id]) {
+          arpStates[w.id] = { stepIndex: 0, deviceIndex: 0, phase: 0, direction: 1, activeDevices: Array(linkedIds.length).fill(false) };
+        }
+
+        const { outputs, nextState } = computeArpFrame(
+          arp, arpStates[w.id], linkedIds.length, timeS, bpmState.bpm, bpmState.audioLevel
+        );
+        arpStates[w.id] = nextState;
+
+        // Send outputs to devices
+        linkedIds.forEach((fid, i) => {
+          const out = outputs[i];
+          if (!out) return;
+
+          const instData = allFixturesWithDefs.find(f => f.inst.id === fid);
+          if (!instData) return;
+
+          const isWled = instData.def.category === 'wled';
+
+          if (isWled) {
+            const wledFix = wledFixMap.get(fid);
+            if (wledFix && (out.r > 0 || out.g > 0 || out.b > 0 || out.dimmer > 0)) {
+              void setWledState(wledFix.deviceIp, {
+                on: true,
+                bri: Math.max(1, out.dimmer),
+                seg: [{ id: 0, col: [[out.r, out.g, out.b, out.w]] }],
+              }).catch(() => {});
+            } else if (wledFix) {
+              void setWledState(wledFix.deviceIp, { on: false }).catch(() => {});
+            }
+          } else {
+            const inst = instData.inst;
+            const def = instData.def;
+            const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+            const chs = mode?.channels || [];
+
+            const dimCh = chs.find(c => c.function === 'dimmer');
+            const rCh = chs.find(c => c.function === 'red');
+            const gCh = chs.find(c => c.function === 'green');
+            const bCh = chs.find(c => c.function === 'blue');
+            const wCh = chs.find(c => c.function === 'white');
+
+            if (dimCh) sendDmxChannel(inst.universe, inst.dmxAddress + dimCh.number - 1, out.dimmer);
+            if (rCh) sendDmxChannel(inst.universe, inst.dmxAddress + rCh.number - 1, out.r);
+            if (gCh) sendDmxChannel(inst.universe, inst.dmxAddress + gCh.number - 1, out.g);
+            if (bCh) sendDmxChannel(inst.universe, inst.dmxAddress + bCh.number - 1, out.b);
+            if (wCh) sendDmxChannel(inst.universe, inst.dmxAddress + wCh.number - 1, out.w);
+          }
+        });
+      });
+
+      if (document.hidden) {
+        raf = window.setTimeout(tick, 33) as unknown as number;
+      } else {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => { cancelAnimationFrame(raf); clearTimeout(raf); };
+  }, [widgets, bpmState.bpm, bpmState.audioLevel, allFixturesWithDefs, wledStore.devices, wledStore.fixtures]);
 
   useEffect(() => {
     const nextSent: Record<string, string> = {};
@@ -5168,7 +5305,175 @@ export function LiveDJ() {
                     );
                   })()}
 
-                  {/* EQ Trigger Widget Config */}
+                  {/* Arpeggiator Widget Config */}
+                  {selectedWidgetData.type === 'arpeggiator' && (() => {
+                    const arp = selectedWidgetData.arpConfig || createDefaultArpConfig();
+                    const updateArp = (updates: Partial<ArpConfig>) => updateWidget(selectedWidgetData.id, { arpConfig: { ...arp, ...updates } });
+                    return (
+                      <div className="space-y-2 border-t border-border/20 pt-2">
+                        <label className="text-[8px] uppercase tracking-widest text-orange-400 font-semibold flex items-center gap-1">
+                          <Music size={10} /> Arpeggiator
+                        </label>
+
+                        {/* Play/Stop */}
+                        <Button variant={arp.running ? 'destructive' : 'default'} size="sm" className="w-full h-7 text-[10px] gap-1"
+                          onClick={() => updateArp({ running: !arp.running })}>
+                          {arp.running ? <><Square size={10} /> Stop</> : <><Play size={10} /> Start</>}
+                        </Button>
+
+                        {/* Presets */}
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Quick Presets</label>
+                          <div className="grid grid-cols-2 gap-1 mt-1">
+                            {ARP_PRESETS.map((p, i) => (
+                              <button key={i}
+                                onClick={() => updateArp({ steps: [...p.steps], pattern: p.pattern, running: true })}
+                                className="text-[8px] py-1 px-1.5 rounded border border-border/20 hover:border-primary/30 hover:bg-primary/5 transition-all text-left truncate">
+                                {p.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Pattern */}
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Pattern</label>
+                          <select value={arp.pattern}
+                            onChange={e => updateArp({ pattern: e.target.value as any })}
+                            className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
+                            {ARP_PATTERNS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                          </select>
+                        </div>
+
+                        {/* Channel Mode */}
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Channel</label>
+                          <div className="flex gap-1 mt-0.5">
+                            {(['dimmer', 'rgb', 'rgbw'] as const).map(ch => (
+                              <button key={ch} onClick={() => updateArp({ channel: ch })}
+                                className={`flex-1 h-5 rounded text-[8px] font-semibold border transition-all ${
+                                  arp.channel === ch ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border/20 text-muted-foreground'
+                                }`}>{ch.toUpperCase()}</button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Sync Mode */}
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Sync</label>
+                          <div className="flex gap-1 mt-0.5">
+                            {([
+                              { v: 'free' as const, l: '⏱ Free' },
+                              { v: 'bpm' as const, l: '🎵 BPM' },
+                              { v: 'audio' as const, l: '🎙 Audio' },
+                            ]).map(s => (
+                              <button key={s.v} onClick={() => updateArp({ syncMode: s.v })}
+                                className={`flex-1 h-5 rounded text-[8px] font-semibold border transition-all ${
+                                  arp.syncMode === s.v ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border/20 text-muted-foreground'
+                                }`}>{s.l}</button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Speed / BPM Division */}
+                        {arp.syncMode === 'bpm' ? (
+                          <div>
+                            <label className="text-[7px] uppercase text-muted-foreground">BPM Division</label>
+                            <select value={arp.bpmDivision}
+                              onChange={e => updateArp({ bpmDivision: Number(e.target.value) })}
+                              className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
+                              {BPM_DIVISIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}
+                            </select>
+                          </div>
+                        ) : (
+                          <div>
+                            <label className="text-[7px] uppercase text-muted-foreground">Speed: {arp.speed.toFixed(1)} Hz</label>
+                            <Slider min={0.25} max={20} step={0.25} value={[arp.speed]}
+                              onValueChange={([v]) => updateArp({ speed: v })}
+                              className="mt-1" />
+                          </div>
+                        )}
+
+                        {/* Fade */}
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Fade: {arp.fadePct}%</label>
+                          <Slider min={0} max={100} step={5} value={[arp.fadePct]}
+                            onValueChange={([v]) => updateArp({ fadePct: v })}
+                            className="mt-1" />
+                        </div>
+
+                        {/* Intensity */}
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Intensity: {arp.intensity}</label>
+                          <Slider min={0} max={255} step={1} value={[arp.intensity]}
+                            onValueChange={([v]) => updateArp({ intensity: v })}
+                            className="mt-1" />
+                        </div>
+
+                        {/* Tail Length (chase) */}
+                        {arp.pattern === 'chase' && (
+                          <div>
+                            <label className="text-[7px] uppercase text-muted-foreground">Tail: {arp.tailLength}</label>
+                            <Slider min={1} max={8} step={1} value={[arp.tailLength]}
+                              onValueChange={([v]) => updateArp({ tailLength: v })}
+                              className="mt-1" />
+                          </div>
+                        )}
+
+                        {/* Color Steps */}
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Color Steps ({arp.steps.length})</label>
+                          <div className="space-y-1 mt-1">
+                            {arp.steps.map((step, i) => (
+                              <div key={i} className="flex items-center gap-1">
+                                <input type="color" value={`#${step.r.toString(16).padStart(2,'0')}${step.g.toString(16).padStart(2,'0')}${step.b.toString(16).padStart(2,'0')}`}
+                                  onChange={e => {
+                                    const hex = e.target.value.replace('#', '');
+                                    const r = parseInt(hex.slice(0,2), 16);
+                                    const g = parseInt(hex.slice(2,4), 16);
+                                    const b = parseInt(hex.slice(4,6), 16);
+                                    const newSteps = [...arp.steps];
+                                    newSteps[i] = { ...newSteps[i], r, g, b };
+                                    updateArp({ steps: newSteps });
+                                  }}
+                                  className="w-6 h-5 rounded border-none cursor-pointer" />
+                                <Input type="number" min={0} max={255} value={step.dimmer}
+                                  onChange={e => {
+                                    const newSteps = [...arp.steps];
+                                    newSteps[i] = { ...newSteps[i], dimmer: Number(e.target.value) };
+                                    updateArp({ steps: newSteps });
+                                  }}
+                                  className="h-5 w-12 text-[9px] bg-muted/20 border-border/20 font-mono px-1" />
+                                {arp.channel === 'rgbw' && (
+                                  <Input type="number" min={0} max={255} value={step.w} placeholder="W"
+                                    onChange={e => {
+                                      const newSteps = [...arp.steps];
+                                      newSteps[i] = { ...newSteps[i], w: Number(e.target.value) };
+                                      updateArp({ steps: newSteps });
+                                    }}
+                                    className="h-5 w-10 text-[9px] bg-muted/20 border-border/20 font-mono px-1" />
+                                )}
+                                <button onClick={() => {
+                                  const newSteps = arp.steps.filter((_, j) => j !== i);
+                                  updateArp({ steps: newSteps.length > 0 ? newSteps : [{ r: 255, g: 255, b: 255, w: 0, dimmer: 255 }] });
+                                }} className="text-muted-foreground/40 hover:text-destructive text-[8px]">✕</button>
+                              </div>
+                            ))}
+                            <Button variant="outline" size="sm" className="h-5 text-[8px] w-full gap-1"
+                              onClick={() => updateArp({ steps: [...arp.steps, { r: 255, g: 255, b: 255, w: 0, dimmer: 255 }] })}>
+                              <Plus size={8} /> Add Step
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                          🎹 Arpeggiator sekvenserar ljus över länkade enheter. Stöder DMX, WLED, Hue och MagicHome. Välj mönster, hastighet och synk-läge.
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+
                   {selectedWidgetData.type === 'eq-trigger' && (
                     <div className="space-y-2">
                       <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
