@@ -2862,6 +2862,9 @@ export function LiveDJ() {
       audioReactive: type === 'audio-reactive' ? { running: false, effects: [], globalDecay: 180, sensitivity: 160 } : undefined,
       eqTriggerZones: type === 'eq-trigger' ? [] : undefined,
       arpConfig: type === 'arpeggiator' ? createDefaultArpConfig() : undefined,
+      matrixCols: type === 'matrix' ? 4 : undefined,
+      matrixRows: type === 'matrix' ? 4 : undefined,
+      matrixCells: type === 'matrix' ? Array.from({ length: 16 }, () => ({ sourceType: 'none' as MatrixCellSourceType })) : undefined,
     }]);
   };
 
