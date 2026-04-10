@@ -48,7 +48,19 @@ interface FixtureAssignment {
   mode: ControlMode;
 }
 
-type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset' | 'audio-reactive' | 'tap-bpm' | 'eq-trigger' | 'arpeggiator';
+type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset' | 'audio-reactive' | 'tap-bpm' | 'eq-trigger' | 'arpeggiator' | 'matrix';
+
+// ── Matrix Cell ──
+type MatrixCellSourceType = 'none' | 'dmx' | 'wled' | 'hue' | 'magichome';
+
+interface MatrixCell {
+  sourceType: MatrixCellSourceType;
+  fixtureInstanceId?: string; // DMX fixture instance or WLED fixture id
+  label?: string;
+  color?: { r: number; g: number; b: number };
+  dimmer?: number; // 0-255
+  active?: boolean;
+}
 
 // ── Audio Reactive Effect Types ──
 type AudioReactiveEffectType =
@@ -241,6 +253,10 @@ interface DJWidget {
   eqTriggerZones?: EqTriggerZone[];
   // Arpeggiator widget
   arpConfig?: ArpConfig;
+  // Matrix widget
+  matrixCols?: number;
+  matrixRows?: number;
+  matrixCells?: MatrixCell[];
 }
 
 type ColorProgramMode = 'static' | 'switch' | 'fade';
@@ -345,6 +361,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'tap-bpm', label: 'Tap / Audio In', icon: Activity, w: 220, h: 200 },
   { type: 'eq-trigger', label: 'EQ Trigger', icon: Activity, w: 320, h: 280 },
   { type: 'arpeggiator', label: 'Arpeggiator', icon: Music, w: 260, h: 200 },
+  { type: 'matrix', label: 'Matrix Grid', icon: Grid3X3, w: 320, h: 320 },
 ];
 
 const PRESET_WIDGET_TEMPLATES: PresetWidgetTemplate[] = [
