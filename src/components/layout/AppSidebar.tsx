@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker, Grid3X3, Download, Upload, LogOut,
-  FolderOpen, Save, FilePlus, Star, Trash2, X, ScrollText
+  FolderOpen, Save, FilePlus, Star, Trash2, X, ScrollText, Box, ListMusic, Waves
 } from 'lucide-react';
 import { useAppStore, type ModuleId } from '@/store/appStore';
 import stokioLogo from '@/assets/stokio-logo-color.png';
@@ -18,9 +18,12 @@ import { toast } from 'sonner';
 
 const navItems: { id: ModuleId; icon: typeof Layout; label: string }[] = [
   { id: 'stage', icon: Grid3X3, label: 'Pixel Mapping' },
+  { id: 'stage3d', icon: Box, label: '3D Stage' },
   { id: 'media', icon: Film, label: 'Media Server' },
   { id: 'text', icon: Type, label: 'Text Overlays' },
   { id: 'fixtures', icon: Sliders, label: 'Fixtures' },
+  { id: 'showrunner', icon: ListMusic, label: 'Cue List' },
+  { id: 'effects', icon: Waves, label: 'Effects' },
   { id: 'nodes', icon: GitBranch, label: 'Node Logic' },
   { id: 'devices', icon: Cpu, label: 'Devices' },
   { id: 'livedj', icon: Speaker, label: 'LIVE DJ' },
