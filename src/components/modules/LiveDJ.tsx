@@ -3422,7 +3422,12 @@ export function LiveDJ() {
     return () => { cancelAnimationFrame(raf); clearTimeout(raf); };
   }, [widgets, bpmState.bpm, bpmState.audioLevel, allFixturesWithDefs, wledStore.devices, wledStore.fixtures]);
 
-
+  useEffect(() => {
+    const nextSent: Record<string, string> = {};
+    const wledOutputFixtures = [
+      ...wledStore.devices.map(wledDeviceToFixture),
+      ...wledStore.fixtures,
+    ];
     const wledFixMap = new Map(wledOutputFixtures.map(f => [f.id, f]));
     const wledDevMap = new Map(wledStore.devices.map(dev => [dev.id, dev]));
 
