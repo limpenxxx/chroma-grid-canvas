@@ -5654,7 +5654,225 @@ export function LiveDJ() {
                   })()}
 
 
-                  {selectedWidgetData.type === 'eq-trigger' && (
+                  {/* MATRIX CONFIG */}
+                  {selectedWidgetData.type === 'matrix' && (() => {
+                    const cols = selectedWidgetData.matrixCols || 4;
+                    const rows = selectedWidgetData.matrixRows || 4;
+                    const cells = selectedWidgetData.matrixCells || [];
+                    const [editCellIdx, setEditCellIdx] = useState<number | null>(null);
+
+                    const resizeMatrix = (newCols: number, newRows: number) => {
+                      const total = newCols * newRows;
+                      const newCells = Array.from({ length: total }, (_, i) => cells[i] || { sourceType: 'none' as MatrixCellSourceType });
+                      updateWidget(selectedWidgetData.id, { matrixCols: newCols, matrixRows: newRows, matrixCells: newCells });
+                    };
+
+                    const updateCell = (idx: number, updates: Partial<MatrixCell>) => {
+                      const newCells = [...cells];
+                      if (!newCells[idx]) newCells[idx] = { sourceType: 'none' };
+                      newCells[idx] = { ...newCells[idx], ...updates };
+                      updateWidget(selectedWidgetData.id, { matrixCells: newCells });
+                    };
+
+                    const editCell = editCellIdx !== null ? (cells[editCellIdx] || { sourceType: 'none' as MatrixCellSourceType }) : null;
+
+                    return (
+                      <div className="space-y-2 border-t border-border/20 pt-2">
+                        <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
+                          <Grid3X3 size={10} /> Matrix Grid
+                        </label>
+
+                        {/* Grid size */}
+                        <div className="grid grid-cols-2 gap-1">
+                          <div>
+                            <label className="text-[7px] uppercase text-muted-foreground">Columns</label>
+                            <Input type="number" min={1} max={16} value={cols}
+                              onChange={e => resizeMatrix(Math.max(1, Math.min(16, Number(e.target.value))), rows)}
+                              className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
+                          </div>
+                          <div>
+                            <label className="text-[7px] uppercase text-muted-foreground">Rows</label>
+                            <Input type="number" min={1} max={16} value={rows}
+                              onChange={e => resizeMatrix(cols, Math.max(1, Math.min(16, Number(e.target.value))))}
+                              className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono" />
+                          </div>
+                        </div>
+
+                        {/* Cell grid for selecting which cell to edit */}
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Klicka på en cell för att konfigurera</label>
+                          <div className="mt-1 border border-border/20 rounded p-1"
+                            style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '2px' }}>
+                            {Array.from({ length: rows * cols }).map((_, idx) => {
+                              const cell = cells[idx] || { sourceType: 'none' as MatrixCellSourceType };
+                              const hasFixture = cell.sourceType !== 'none' && cell.fixtureInstanceId;
+                              const c = cell.color || { r: 100, g: 100, b: 100 };
+                              return (
+                                <button key={idx}
+                                  onClick={() => setEditCellIdx(editCellIdx === idx ? null : idx)}
+                                  className={`aspect-square rounded-sm border text-[6px] font-mono transition-all ${
+                                    editCellIdx === idx ? 'ring-1 ring-primary border-primary/50' : 'border-border/20'
+                                  }`}
+                                  style={{
+                                    background: hasFixture ? `rgba(${c.r},${c.g},${c.b},0.25)` : undefined,
+                                  }}
+                                  title={cell.label || `Cell ${idx + 1}`}>
+                                  {hasFixture ? '●' : ''}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Edit selected cell */}
+                        {editCellIdx !== null && editCell && (
+                          <div className="space-y-2 glass-panel p-2 rounded border border-primary/20">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[8px] font-semibold text-primary">Cell {editCellIdx + 1} (R{Math.floor(editCellIdx / cols) + 1} C{(editCellIdx % cols) + 1})</span>
+                              <button onClick={() => setEditCellIdx(null)} className="text-muted-foreground/40 hover:text-foreground"><X size={10} /></button>
+                            </div>
+
+                            {/* Label */}
+                            <div>
+                              <label className="text-[7px] uppercase text-muted-foreground">Label</label>
+                              <Input value={editCell.label || ''} placeholder="Auto"
+                                onChange={e => updateCell(editCellIdx, { label: e.target.value })}
+                                className="h-6 text-[10px] bg-muted/20 border-border/20" />
+                            </div>
+
+                            {/* Source type */}
+                            <div>
+                              <label className="text-[7px] uppercase text-muted-foreground">Källa</label>
+                              <select value={editCell.sourceType}
+                                onChange={e => updateCell(editCellIdx, { sourceType: e.target.value as MatrixCellSourceType, fixtureInstanceId: undefined })}
+                                className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
+                                <option value="none">Ingen</option>
+                                <option value="dmx">DMX Fixture</option>
+                                <option value="wled">WLED</option>
+                                <option value="hue">Philips Hue</option>
+                                <option value="magichome">MagicHome</option>
+                              </select>
+                            </div>
+
+                            {/* Fixture selector based on source */}
+                            {editCell.sourceType === 'dmx' && (
+                              <div>
+                                <label className="text-[7px] uppercase text-muted-foreground">DMX Fixture</label>
+                                <select value={editCell.fixtureInstanceId || ''}
+                                  onChange={e => {
+                                    const instId = e.target.value;
+                                    const inst = fixturesWithDefs.find(f => f.inst.id === instId);
+                                    updateCell(editCellIdx, { fixtureInstanceId: instId, label: editCell.label || inst?.inst.name });
+                                  }}
+                                  className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
+                                  <option value="">Välj fixture...</option>
+                                  {fixturesWithDefs.map(({ inst, def }) => (
+                                    <option key={inst.id} value={inst.id}>{getFixtureTypeIcon(def.type)} {inst.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+
+                            {editCell.sourceType === 'wled' && (
+                              <div>
+                                <label className="text-[7px] uppercase text-muted-foreground">WLED Fixture / Device</label>
+                                <select value={editCell.fixtureInstanceId || ''}
+                                  onChange={e => {
+                                    const id = e.target.value;
+                                    const wf = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === id);
+                                    updateCell(editCellIdx, { fixtureInstanceId: id, label: editCell.label || wf?.name });
+                                  }}
+                                  className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
+                                  <option value="">Välj WLED...</option>
+                                  {wledStore.devices.map(d => (
+                                    <option key={`dev-${d.id}`} value={wledDeviceToFixture(d).id}>💡 {d.name} (All)</option>
+                                  ))}
+                                  {wledStore.fixtures.map(f => (
+                                    <option key={f.id} value={f.id}>🔗 {f.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+
+                            {editCell.sourceType === 'hue' && (
+                              <div>
+                                <label className="text-[7px] uppercase text-muted-foreground">Hue Fixture</label>
+                                <select value={editCell.fixtureInstanceId || ''}
+                                  onChange={e => {
+                                    const id = e.target.value;
+                                    const inst = allFixturesWithDefs.find(f => f.inst.id === id && f.def.category === 'hue');
+                                    updateCell(editCellIdx, { fixtureInstanceId: id, label: editCell.label || inst?.inst.name });
+                                  }}
+                                  className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
+                                  <option value="">Välj Hue...</option>
+                                  {allFixturesWithDefs.filter(f => f.def.category === 'hue').map(({ inst }) => (
+                                    <option key={inst.id} value={inst.id}>💡 {inst.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+
+                            {editCell.sourceType === 'magichome' && (
+                              <div>
+                                <label className="text-[7px] uppercase text-muted-foreground">MagicHome Fixture</label>
+                                <select value={editCell.fixtureInstanceId || ''}
+                                  onChange={e => {
+                                    const id = e.target.value;
+                                    const inst = allFixturesWithDefs.find(f => f.inst.id === id && f.def.category === 'magichome');
+                                    updateCell(editCellIdx, { fixtureInstanceId: id, label: editCell.label || inst?.inst.name });
+                                  }}
+                                  className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
+                                  <option value="">Välj MagicHome...</option>
+                                  {allFixturesWithDefs.filter(f => f.def.category === 'magichome').map(({ inst }) => (
+                                    <option key={inst.id} value={inst.id}>💡 {inst.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+
+                            {/* Color */}
+                            {editCell.sourceType !== 'none' && (
+                              <div>
+                                <label className="text-[7px] uppercase text-muted-foreground">Cell Color</label>
+                                <div className="flex gap-1 mt-0.5">
+                                  <input type="color"
+                                    value={`#${(editCell.color?.r || 100).toString(16).padStart(2,'0')}${(editCell.color?.g || 100).toString(16).padStart(2,'0')}${(editCell.color?.b || 100).toString(16).padStart(2,'0')}`}
+                                    onChange={e => {
+                                      const hex = e.target.value.replace('#', '');
+                                      updateCell(editCellIdx, { color: { r: parseInt(hex.slice(0,2),16), g: parseInt(hex.slice(2,4),16), b: parseInt(hex.slice(4,6),16) } });
+                                    }}
+                                    className="w-8 h-6 rounded border-none cursor-pointer" />
+                                  <div className="flex gap-0.5">
+                                    {QUICK_COLORS.slice(0, 8).map(qc => (
+                                      <button key={qc.label} onClick={() => updateCell(editCellIdx, { color: qc.color })}
+                                        className="w-4 h-6 rounded-sm border border-border/20" style={{ backgroundColor: `rgb(${qc.color.r},${qc.color.g},${qc.color.b})` }}
+                                        title={qc.label} />
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Dimmer */}
+                            {editCell.sourceType !== 'none' && (
+                              <div>
+                                <label className="text-[7px] uppercase text-muted-foreground">Dimmer: {editCell.dimmer ?? 255}</label>
+                                <Slider min={0} max={255} step={1} value={[editCell.dimmer ?? 255]}
+                                  onValueChange={([v]) => updateCell(editCellIdx, { dimmer: v })}
+                                  className="mt-1" />
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
+                          🔲 Matrix Grid – Bygg en rutnätsvy. Varje ruta kan kopplas till DMX, WLED, Hue eller MagicHome. Klicka på en ruta i matrisen för att slå av/på.
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+
                     <div className="space-y-2">
                       <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
                         <Activity size={10} /> EQ Trigger Zones
