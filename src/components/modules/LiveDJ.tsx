@@ -2112,7 +2112,7 @@ function ControlWidget({
         );
       })()}
 
-
+      {widget.type === 'eq-trigger' && (() => {
         const zones = widget.eqTriggerZones || [];
         const fixtureList = fixtureData.map(f => ({
           id: f.inst.id,
