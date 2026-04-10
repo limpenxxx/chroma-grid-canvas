@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useMediaStore, type MediaItem } from '@/store/mediaStore';
 import { useFixtureStore, type FixtureDefinition } from '@/store/fixtureStore';
 import { parseGdtfFile } from '@/lib/gdtfParser';
+import { parseQxfFile } from '@/lib/qlcPlusParser';
 import { toast } from 'sonner';
 
 /* ────────── helpers ────────── */
@@ -128,35 +129,54 @@ export function FileExplorer() {
     toast.success(`Exported ${defs.length} fixture definition(s)`);
   };
 
-  /* ── Import fixtures (JSON or GDTF) ── */
+  /* ── Import fixtures (JSON, GDTF, or QLC+ .qxf) ── */
   const importFixtures = async () => {
     try {
-      const file = await pickFile('.json,.gdtf,application/json');
-      
-      if (file.name.endsWith('.gdtf') || file.name.endsWith('.xml')) {
-        // GDTF format
-        const def = await parseGdtfFile(file);
-        if (def) {
-          fixtureStore.addDefinition(def);
-          toast.success(`Imported GDTF: ${def.manufacturer} ${def.model} (${def.modes.length} mode(s))`);
-        } else {
-          toast.error('Could not parse GDTF file');
+      const files = await pickFiles('.json,.gdtf,.qxf,.xml,application/json');
+      let totalImported = 0;
+
+      for (const file of Array.from(files)) {
+        // QLC+ format
+        if (file.name.endsWith('.qxf')) {
+          const def = await parseQxfFile(file);
+          if (def) {
+            fixtureStore.addDefinition(def);
+            totalImported++;
+            toast.success(`QLC+: ${def.manufacturer} ${def.model} (${def.modes.length} mode(s))`);
+          } else {
+            toast.error(`Could not parse QLC+ file: ${file.name}`);
+          }
+          continue;
         }
-        return;
+
+        // GDTF format
+        if (file.name.endsWith('.gdtf') || file.name.endsWith('.xml')) {
+          const def = await parseGdtfFile(file);
+          if (def) {
+            fixtureStore.addDefinition(def);
+            totalImported++;
+            toast.success(`GDTF: ${def.manufacturer} ${def.model} (${def.modes.length} mode(s))`);
+          } else {
+            toast.error(`Could not parse GDTF file: ${file.name}`);
+          }
+          continue;
+        }
+
+        // JSON format
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const arr: FixtureDefinition[] = Array.isArray(parsed) ? parsed : [parsed];
+        for (const def of arr) {
+          if (def.id && def.model && def.modes) {
+            fixtureStore.addDefinition(def);
+            totalImported++;
+          }
+        }
       }
 
-      // JSON format
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      const arr: FixtureDefinition[] = Array.isArray(parsed) ? parsed : [parsed];
-      let count = 0;
-      for (const def of arr) {
-        if (def.id && def.model && def.modes) {
-          fixtureStore.addDefinition(def);
-          count++;
-        }
+      if (totalImported > 0) {
+        toast.success(`Imported ${totalImported} fixture definition(s) total`);
       }
-      toast.success(`Imported ${count} fixture definition(s)`);
     } catch (e: unknown) {
       if (e instanceof Error && e.message !== 'cancelled') toast.error('Invalid fixture file');
     }
