@@ -747,6 +747,7 @@ function SidePanel() {
               <span className="text-[8px] text-muted-foreground">m</span>
             </div>
           ))}
+          {/* Visibility toggles */}
           <div className="flex gap-2 mt-1">
             {(['showFloor', 'showWalls', 'showCeiling'] as const).map(k => (
               <button key={k} onClick={() => store.setRoom({ [k]: !store.room[k] })}
@@ -755,6 +756,32 @@ function SidePanel() {
                 }`}>
                 {k.replace('show', '')}
               </button>
+            ))}
+          </div>
+          {/* Color pickers */}
+          <div className="space-y-1 mt-2">
+            <label className="text-[7px] uppercase text-muted-foreground tracking-wider">Colors</label>
+            {([
+              { key: 'wallColor', label: 'Walls' },
+              { key: 'ceilingColor', label: 'Ceiling' },
+              { key: 'floorColor', label: 'Floor 1' },
+              { key: 'floorColor2', label: 'Floor 2' },
+            ] as const).map(c => (
+              <div key={c.key} className="flex items-center gap-2">
+                <input type="color" value={store.room[c.key] || '#808080'}
+                  onChange={e => store.setRoom({ [c.key]: e.target.value })}
+                  className="w-5 h-5 rounded border-none cursor-pointer" />
+                <span className="text-[8px] text-muted-foreground">{c.label}</span>
+              </div>
+            ))}
+          </div>
+          {/* Floor pattern */}
+          <div className="flex gap-1 mt-1">
+            {(['solid', 'checkered'] as const).map(p => (
+              <button key={p} onClick={() => store.setRoom({ floorPattern: p })}
+                className={`text-[8px] px-1.5 py-0.5 rounded border flex-1 ${
+                  (store.room.floorPattern || 'solid') === p ? 'bg-primary/10 text-primary border-primary/20' : 'text-muted-foreground border-border/20'
+                }`}>{p === 'checkered' ? '▦ Checkered' : '▬ Solid'}</button>
             ))}
           </div>
         </div>
