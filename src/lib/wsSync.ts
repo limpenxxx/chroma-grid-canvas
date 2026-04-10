@@ -171,6 +171,20 @@ export function sendBlackout(value: boolean) {
   }
 }
 
+/** Send MIDI mapping to engine */
+export function sendMidiLearn(channel: number, cc: number, target: string) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'midi-learn', channel, cc, target }));
+  }
+}
+
+/** Send OSC address mapping to engine */
+export function sendOscMap(address: string, target: string) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'osc-map', address, target }));
+  }
+}
+
 /** Get the sync server URL — same hostname as page, port 9100 */
 function getSyncUrl(): string {
   const host = window.location.hostname || 'localhost';
