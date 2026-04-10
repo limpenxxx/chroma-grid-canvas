@@ -19,6 +19,7 @@ import { WledPanel } from './WledPanel';
 import { HuePanel } from './HuePanel';
 import { MagicHomePanel } from './MagicHomePanel';
 import { DmxMixer } from './DmxMixer';
+import { useLiveDmxLevels } from '@/hooks/useLiveDmxLevels';
 import { IOSetup } from './IOSetup';
 import { FixtureEditor } from './FixtureEditor';
 
@@ -28,6 +29,7 @@ type Tab = 'instances' | 'library' | 'editor' | 'wled' | 'hue' | 'magichome' | '
 
 export function Devices() {
   const store = useFixtureStore();
+  const liveDmxLevels = useLiveDmxLevels();
   const wledStore = useWledStore();
   const hueStore = useHueStore();
   const magicStore = useMagicHomeStore();
@@ -735,7 +737,7 @@ export function Devices() {
       {tab === 'io' && <IOSetup />}
 
       {/* MIXER TAB */}
-      {tab === 'mixer' && <DmxMixer />}
+      {tab === 'mixer' && <DmxMixer liveDmxValues={liveDmxLevels} />}
     </motion.div>
   );
 }

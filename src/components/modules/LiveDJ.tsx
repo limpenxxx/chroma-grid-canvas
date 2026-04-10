@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { AudioVisualizerEngine, PRESET_LABELS, type VisualizerPreset } from '@/lib/audioVisualizer';
 import { DmxMixer } from './DmxMixer';
+import { useLiveDmxLevels } from '@/hooks/useLiveDmxLevels';
 import { EqTriggerWidget, type EqTriggerZone, type EqColorOutput } from './EqTriggerWidget';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -2321,6 +2322,7 @@ const DEFAULT_AUDIO_CONFIG: AudioConfig = {
 
 export function LiveDJ() {
   const store = useFixtureStore();
+  const liveDmxLevels = useLiveDmxLevels();
   const wledStore = useWledStore();
   const [tab, setTab] = useState<Tab>('controller');
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -5442,7 +5444,7 @@ export function LiveDJ() {
       {/* ── MIXER TAB ── */}
       {tab === 'mixer' && (
         <div className="flex-1 overflow-y-auto">
-          <DmxMixer />
+          <DmxMixer liveDmxValues={liveDmxLevels} />
         </div>
       )}
 
