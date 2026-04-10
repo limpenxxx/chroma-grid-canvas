@@ -2022,7 +2022,97 @@ function ControlWidget({
       })()}
 
 
-      {widget.type === 'eq-trigger' && (() => {
+      {/* MATRIX GRID */}
+      {widget.type === 'matrix' && (() => {
+        const cols = widget.matrixCols || 4;
+        const rows = widget.matrixRows || 4;
+        const cells = widget.matrixCells || [];
+        const cellW = (widget.width - 8) / cols;
+        const cellH = (widget.height - 30) / rows;
+
+        const toggleCell = (idx: number) => {
+          onSelect();
+          const updated = [...cells];
+          if (!updated[idx]) updated[idx] = { sourceType: 'none' };
+          updated[idx] = { ...updated[idx], active: !updated[idx].active, dimmer: updated[idx].active ? 0 : 255 };
+          onUpdate({ matrixCells: updated });
+
+          // Send DMX/WLED output for activated cell
+          const cell = updated[idx];
+          if (cell.fixtureInstanceId && cell.sourceType !== 'none') {
+            const isWled = cell.sourceType === 'wled';
+            if (isWled) {
+              const wledFix = [...(useWledStore.getState().fixtures), ...useWledStore.getState().devices.map(wledDeviceToFixture)].find(f => f.id === cell.fixtureInstanceId);
+              if (wledFix) {
+                const c = cell.color || { r: 255, g: 255, b: 255 };
+                const bri = cell.active ? 0 : Math.max(1, cell.dimmer ?? 255);
+                void setWledState(wledFix.deviceIp, { on: bri > 0, bri, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+              }
+            } else if (cell.sourceType === 'dmx') {
+              const instData = fixtureData.find(f => f.inst.id === cell.fixtureInstanceId);
+              if (instData) {
+                const mode = instData.def.modes.find(m => m.id === instData.inst.modeId) || instData.def.modes[0];
+                const dimCh = mode?.channels.find(c => c.function === 'dimmer');
+                if (dimCh) {
+                  const val = cell.active ? 0 : (cell.dimmer ?? 255);
+                  sendDmxChannel(instData.inst.universe, instData.inst.dmxAddress + dimCh.number - 1, val);
+                }
+                if (cell.color) {
+                  const rCh = mode?.channels.find(c => c.function === 'red');
+                  const gCh = mode?.channels.find(c => c.function === 'green');
+                  const bCh = mode?.channels.find(c => c.function === 'blue');
+                  if (rCh) sendDmxChannel(instData.inst.universe, instData.inst.dmxAddress + rCh.number - 1, cell.color.r);
+                  if (gCh) sendDmxChannel(instData.inst.universe, instData.inst.dmxAddress + gCh.number - 1, cell.color.g);
+                  if (bCh) sendDmxChannel(instData.inst.universe, instData.inst.dmxAddress + bCh.number - 1, cell.color.b);
+                }
+              }
+            }
+          }
+        };
+
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col overflow-hidden"
+            style={bgStyle} onClick={onSelect}>
+            <div className="px-2 py-1 flex items-center gap-1.5 border-b border-border/20 shrink-0" style={{ background: 'rgba(0,229,255,0.06)' }}>
+              <Grid3X3 size={10} className="text-stokio-cyan" />
+              <span className="text-[9px] font-semibold truncate flex-1 text-stokio-cyan">{widget.label}</span>
+              <span className="text-[7px] font-mono text-muted-foreground/50">{cols}×{rows}</span>
+            </div>
+            <div className="flex-1 p-1 overflow-hidden"
+              style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)`, gap: '2px' }}>
+              {Array.from({ length: rows * cols }).map((_, idx) => {
+                const cell = cells[idx] || { sourceType: 'none' as MatrixCellSourceType };
+                const hasFixture = cell.sourceType !== 'none' && cell.fixtureInstanceId;
+                const cellColor = cell.color || { r: 100, g: 100, b: 100 };
+                const isActive = !!cell.active;
+                return (
+                  <button key={idx}
+                    onClick={(e) => { e.stopPropagation(); toggleCell(idx); }}
+                    className="rounded-sm border transition-all flex items-center justify-center overflow-hidden"
+                    style={{
+                      borderColor: isActive ? `rgb(${cellColor.r},${cellColor.g},${cellColor.b})` : 'hsl(var(--border) / 0.3)',
+                      background: isActive
+                        ? `radial-gradient(circle, rgba(${cellColor.r},${cellColor.g},${cellColor.b},0.6), rgba(${cellColor.r},${cellColor.g},${cellColor.b},0.15))`
+                        : hasFixture
+                          ? `rgba(${cellColor.r},${cellColor.g},${cellColor.b},0.08)`
+                          : 'hsl(var(--muted) / 0.15)',
+                      boxShadow: isActive ? `0 0 8px rgba(${cellColor.r},${cellColor.g},${cellColor.b},0.5)` : undefined,
+                    }}>
+                    <span className="text-[7px] text-muted-foreground/70 truncate px-0.5" style={{
+                      color: isActive ? `rgb(${cellColor.r},${cellColor.g},${cellColor.b})` : undefined,
+                      textShadow: isActive ? '0 0 4px rgba(0,0,0,0.8)' : undefined,
+                    }}>
+                      {cell.label || (hasFixture ? '●' : '')}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+
         const zones = widget.eqTriggerZones || [];
         const fixtureList = fixtureData.map(f => ({
           id: f.inst.id,
