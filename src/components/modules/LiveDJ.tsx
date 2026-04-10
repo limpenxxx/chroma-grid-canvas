@@ -34,6 +34,7 @@ import { setWledPreset, setWledState } from '@/lib/wledApi';
 import { fetchWledPresets, isWledDeviceTargetId, wledDeviceToFixture } from '@/lib/wledUtils';
 import { sendDmxChannel, sendRawMessage, onPioneerData, type PioneerData } from '@/lib/wsSync';
 import { ProjectionMapping } from './ProjectionMapping';
+import { useMidiController, type MidiMapping, type MidiEvent } from '@/hooks/useMidiController';
 import { StageMap } from './StageMap';
 import { AILightShow } from './AILightShow';
 import { useIOStore } from './IOSetup';
@@ -337,7 +338,7 @@ interface SavedLayout {
   audioConfig: AudioConfig;
 }
 
-type Tab = 'controller' | 'assignments' | 'scripts' | 'groups' | 'mixer' | 'projection' | 'stagemap';
+type Tab = 'controller' | 'assignments' | 'scripts' | 'groups' | 'mixer' | 'projection' | 'stagemap' | 'midi';
 
 interface PresetWidgetTemplate {
   id: string;
@@ -3668,6 +3669,7 @@ export function LiveDJ() {
               { id: 'groups' as Tab, label: '👥 Groups' },
               { id: 'scripts' as Tab, label: '📜 Scripts' },
               { id: 'projection' as Tab, label: '📐 Projection' },
+              { id: 'midi' as Tab, label: '🎹 MIDI' },
             ]).map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className={`px-3 py-1.5 text-[10px] uppercase tracking-wider font-semibold rounded transition-colors ${
