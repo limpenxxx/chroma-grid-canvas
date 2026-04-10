@@ -1102,6 +1102,7 @@ process.on('SIGINT', () => {
   console.log('\n[ENGINE] Shutting down...');
   clearInterval(outputTimer);
   clearInterval(saveTimer);
+  clearInterval(dmxLevelsTimer);
   saveState();
   artnetSocket.close();
   sacnSocket.close();
