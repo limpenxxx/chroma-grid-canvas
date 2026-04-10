@@ -6284,6 +6284,160 @@ export function LiveDJ() {
           <ProjectionMapping bpm={bpmState.bpm} beatFlash={bpmState.flashOn} />
         </div>
       )}
+
+      {/* ── MIDI CONTROLLER TAB ── */}
+      {tab === 'midi' && (
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              🎹 MIDI Controller
+              {midi.midiSupported ? (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">Web MIDI</span>
+              ) : (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive border border-destructive/20">Ej stöd</span>
+              )}
+            </h3>
+            <p className="text-[10px] text-muted-foreground">
+              Anslut AKAI MPD218 eller annan USB MIDI-kontroller. Mappa pads till widgets/scener och knobs till faders.
+            </p>
+          </div>
+
+          {/* Connected devices */}
+          <div className="space-y-1">
+            <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Anslutna enheter</span>
+            {midi.devices.length === 0 ? (
+              <p className="text-[10px] text-muted-foreground italic">Ingen MIDI-enhet hittad. Anslut via USB.</p>
+            ) : (
+              midi.devices.map(dev => (
+                <div key={dev.id} className="flex items-center gap-2 p-2 rounded bg-muted/30 border border-border/20">
+                  <div className={`w-2 h-2 rounded-full ${dev.connected ? 'bg-green-500' : 'bg-red-500'}`} />
+                  <span className="text-xs font-mono text-foreground">{dev.name}</span>
+                  {dev.manufacturer && <span className="text-[9px] text-muted-foreground">({dev.manufacturer})</span>}
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Last MIDI event indicator */}
+          {midi.lastEvent && (
+            <div className="p-2 rounded bg-muted/20 border border-border/20">
+              <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Senaste signal</span>
+              <div className="flex gap-3 mt-1 text-xs font-mono text-foreground">
+                <span className={`px-1.5 py-0.5 rounded ${midi.lastEvent.type === 'noteon' ? 'bg-primary/20 text-primary' : midi.lastEvent.type === 'cc' ? 'bg-stokio-cyan/20 text-stokio-cyan' : 'bg-muted/30 text-muted-foreground'}`}>
+                  {midi.lastEvent.type.toUpperCase()}
+                </span>
+                <span>CH {midi.lastEvent.channel + 1}</span>
+                <span>{midi.lastEvent.type === 'cc' ? `CC ${midi.lastEvent.note}` : `Note ${midi.lastEvent.note}`}</span>
+                <span>Val {midi.lastEvent.velocity}</span>
+              </div>
+            </div>
+          )}
+
+          {/* MIDI Learn */}
+          <div className="space-y-2">
+            <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Ny mappning</span>
+            {midi.isLearning ? (
+              <div className="p-3 rounded border-2 border-dashed border-primary/50 bg-primary/5 text-center space-y-2">
+                <div className="text-xs text-primary font-semibold animate-pulse">⏳ Väntar på MIDI-signal...</div>
+                <p className="text-[10px] text-muted-foreground">
+                  Tryck på en pad eller vrid en knob på din MIDI-kontroller
+                </p>
+                <Button variant="ghost" size="sm" className="text-[10px] h-6" onClick={midi.cancelLearn}>Avbryt</Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <details className="col-span-2">
+                  <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground">
+                    Mappa till Widget
+                  </summary>
+                  <div className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+                    {widgets.map(w => (
+                      <button key={w.id}
+                        onClick={() => midi.startLearn({ targetType: 'widget', targetWidgetId: w.id, label: w.label })}
+                        className="w-full text-left px-2 py-1.5 text-[10px] rounded hover:bg-muted/30 text-foreground flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: w.color }} />
+                        {w.label} <span className="text-muted-foreground">({w.type})</span>
+                      </button>
+                    ))}
+                  </div>
+                </details>
+                <details className="col-span-2">
+                  <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground">
+                    Mappa till Page
+                  </summary>
+                  <div className="mt-2 space-y-1">
+                    {pages.map(p => (
+                      <button key={p.id}
+                        onClick={() => midi.startLearn({ targetType: 'page', targetPageId: p.id, label: `Page: ${p.name}` })}
+                        className="w-full text-left px-2 py-1.5 text-[10px] rounded hover:bg-muted/30 text-foreground">
+                        📄 {p.name}
+                      </button>
+                    ))}
+                  </div>
+                </details>
+                <Button variant="outline" size="sm" className="text-[10px] h-7"
+                  onClick={() => midi.startLearn({ targetType: 'master-dimmer', label: 'Master Dimmer' })}>
+                  🔆 Master Dimmer
+                </Button>
+                <Button variant="outline" size="sm" className="text-[10px] h-7"
+                  onClick={() => midi.startLearn({ targetType: 'blackout', label: 'Blackout' })}>
+                  ⬛ Blackout
+                </Button>
+                <Button variant="outline" size="sm" className="text-[10px] h-7 col-span-2"
+                  onClick={() => midi.startLearn({ targetType: 'bpm-tap', label: 'BPM Tap' })}>
+                  🥁 BPM Tap
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Active Mappings */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">
+                Aktiva mappningar ({midi.mappings.length})
+              </span>
+              {midi.mappings.length > 0 && (
+                <Button variant="ghost" size="sm" className="text-[9px] h-5 text-destructive" onClick={midi.clearAllMappings}>
+                  Rensa alla
+                </Button>
+              )}
+            </div>
+            {midi.mappings.length === 0 ? (
+              <p className="text-[10px] text-muted-foreground italic">Inga mappningar ännu. Använd "Ny mappning" ovan.</p>
+            ) : (
+              <div className="space-y-1">
+                {midi.mappings.map(m => (
+                  <div key={m.id} className="flex items-center gap-2 p-2 rounded bg-muted/20 border border-border/20 group">
+                    <span className={`text-[9px] px-1 py-0.5 rounded font-mono ${m.inputType === 'pad' ? 'bg-primary/15 text-primary' : 'bg-stokio-cyan/15 text-stokio-cyan'}`}>
+                      {m.inputType === 'pad' ? `PAD N${m.noteOrCC}` : `KNOB CC${m.noteOrCC}`}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground">CH{m.channel + 1}</span>
+                    <span className="text-[10px] text-foreground flex-1">→ {m.label || m.targetType}</span>
+                    <button onClick={() => midi.removeMapping(m.id)}
+                      className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive/80 transition-opacity">
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* MPD218 Quick Reference */}
+          <details className="text-[10px] text-muted-foreground">
+            <summary className="cursor-pointer hover:text-foreground font-semibold">AKAI MPD218 — Snabbreferens</summary>
+            <div className="mt-2 space-y-1 pl-2 border-l border-border/30">
+              <p><strong>Pads 1-16:</strong> Note On/Off (36-51), velocity 0-127</p>
+              <p><strong>Bank A Knobs:</strong> CC 3, 9, 12, 13, 14, 15</p>
+              <p><strong>Bank B Knobs:</strong> CC 16, 17, 18, 19, 20, 21</p>
+              <p><strong>Bank C Knobs:</strong> CC 22, 23, 24, 25, 26, 27</p>
+              <p><strong>Full Level:</strong> Tvingar velocity 127 på alla pads</p>
+              <p><strong>Note Repeat:</strong> Repeterar note-on vid inställd hastighet</p>
+            </div>
+          </details>
+        </div>
+      )}
     </motion.div>
   );
 }
