@@ -5,12 +5,25 @@ import { getWledState, type WledFullState, type WledInfo, type WledState, type W
 
 // ── Types ──
 
+/** WLED output protocol — determines how STOKIO sends data to the node */
+export type WledProtocol = 'json' | 'dnrgb' | 'ddp';
+
+export const WLED_PROTOCOL_OPTIONS: { value: WledProtocol; label: string; description: string }[] = [
+  { value: 'dnrgb', label: 'DNRGB (Realtime UDP)', description: 'Temporär override – WLED återgår till sin preset när STOKIO slutar sända' },
+  { value: 'ddp',   label: 'DDP (Realtime UDP)',    description: 'Temporär override – snabbare för stora LED-strips, auto-release' },
+  { value: 'json',  label: 'JSON API (HTTP)',        description: 'Permanent – skriver över WLED:s aktiva preset' },
+];
+
 export interface WledDevice {
   id: string;
   ip: string;
   name: string;
   online: boolean;
   lastSeen: number | null;
+  /** Output protocol: dnrgb (default, auto-releases), ddp, or json (permanent) */
+  protocol: WledProtocol;
+  /** Realtime timeout in seconds (0 = use WLED default, typically 2.5s) */
+  realtimeTimeout: number;
   // Live state from device
   info?: WledInfo;
   state?: WledState;
@@ -92,6 +105,8 @@ export const useWledStore = create<WledStore>()(
           name: name?.trim() || ip.trim(),
           online: false,
           lastSeen: null,
+          protocol: 'dnrgb',
+          realtimeTimeout: 0,
         };
         // Add immediately, then fetch state
         set((s) => ({ devices: [...s.devices, newDev] }));

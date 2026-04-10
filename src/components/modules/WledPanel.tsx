@@ -9,7 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import {
   setWledPower, setWledBrightness, setWledColor, setWledEffect, setWledPreset,
 } from '@/lib/wledApi';
-import { useWledStore, type WledDevice, type WledFixture } from '@/store/wledStore';
+import { useWledStore, type WledDevice, type WledFixture, WLED_PROTOCOL_OPTIONS, type WledProtocol } from '@/store/wledStore';
 
 type SubTab = 'devices' | 'fixtures';
 
@@ -307,7 +307,37 @@ export function WledPanel() {
                           />
                         </div>
 
-                        {/* Quick Colors */}
+                        {/* Protocol / Output Mode */}
+                        <div>
+                          <span className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1 block">
+                            Output Protocol
+                          </span>
+                          <select
+                            className="w-full h-7 rounded bg-muted/30 border border-border/30 text-xs px-2 text-foreground"
+                            value={dev.protocol || 'dnrgb'}
+                            onChange={e => store.updateDevice(dev.id, { protocol: e.target.value as WledProtocol })}
+                          >
+                            {WLED_PROTOCOL_OPTIONS.map(opt => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                          <p className="text-[8px] text-muted-foreground/60 mt-0.5">
+                            {WLED_PROTOCOL_OPTIONS.find(o => o.value === (dev.protocol || 'dnrgb'))?.description}
+                          </p>
+                          {(dev.protocol === 'dnrgb' || dev.protocol === 'ddp' || !dev.protocol) && (
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[8px] text-muted-foreground">Timeout:</span>
+                              <Input
+                                type="number" min={0} max={255} step={1}
+                                value={dev.realtimeTimeout ?? 0}
+                                onChange={e => store.updateDevice(dev.id, { realtimeTimeout: Number(e.target.value) })}
+                                className="h-5 w-16 text-[10px] bg-muted/30 border-border/30 font-mono"
+                              />
+                              <span className="text-[8px] text-muted-foreground/50">sek (0 = WLED default)</span>
+                            </div>
+                          )}
+                        </div>
+
                         <div>
                           <span className="text-[9px] uppercase tracking-widest text-muted-foreground flex items-center gap-1 mb-1">
                             <Palette size={10} /> Color
