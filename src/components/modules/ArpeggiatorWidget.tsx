@@ -68,7 +68,7 @@ export const ARP_PATTERNS: { value: ArpPattern; label: string }[] = [
   { value: 'even-odd', label: '▥ Even/Odd' },
   { value: 'chase', label: '→ Chase' },
   { value: 'scatter', label: '✦ Scatter' },
-];
+  { value: 'matrix', label: '▦ Matrix' },
 
 export const BPM_DIVISIONS: { value: number; label: string }[] = [
   { value: 0.25, label: '1/4 beat' },
