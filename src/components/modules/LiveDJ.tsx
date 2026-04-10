@@ -5753,6 +5753,112 @@ export function LiveDJ() {
                           </div>
                         </div>
 
+                        {/* Matrix Grid Editor (when pattern is 'matrix') */}
+                        {arp.pattern === 'matrix' && (
+                          <div className="space-y-2 border-t border-border/20 pt-2">
+                            <label className="text-[7px] uppercase text-orange-400 font-semibold flex items-center gap-1">
+                              <Grid3X3 size={10} /> Matrix Pattern
+                            </label>
+                            <div className="flex gap-2">
+                              <div className="flex-1">
+                                <label className="text-[7px] uppercase text-muted-foreground">Rader (enheter)</label>
+                                <Input type="number" min={1} max={16} value={arp.matrixRows}
+                                  onChange={e => {
+                                    const newRows = Math.max(1, Math.min(16, Number(e.target.value)));
+                                    const grid = [...arp.matrixGrid];
+                                    while (grid.length < newRows) {
+                                      grid.push(Array.from({ length: arp.matrixCols }, () => ({ on: false, dimmer: 255 })));
+                                    }
+                                    updateArp({ matrixRows: newRows, matrixGrid: grid.slice(0, newRows) });
+                                  }}
+                                  className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono text-foreground" />
+                              </div>
+                              <div className="flex-1">
+                                <label className="text-[7px] uppercase text-muted-foreground">Kolumner (steg)</label>
+                                <Input type="number" min={1} max={32} value={arp.matrixCols}
+                                  onChange={e => {
+                                    const newCols = Math.max(1, Math.min(32, Number(e.target.value)));
+                                    const grid = arp.matrixGrid.map(row => {
+                                      const newRow = [...row];
+                                      while (newRow.length < newCols) newRow.push({ on: false, dimmer: 255 });
+                                      return newRow.slice(0, newCols);
+                                    });
+                                    updateArp({ matrixCols: newCols, matrixGrid: grid });
+                                  }}
+                                  className="h-6 text-[10px] bg-muted/20 border-border/20 font-mono text-foreground" />
+                              </div>
+                            </div>
+
+                            {/* Grid cells — click to toggle, right-click for color */}
+                            <div className="overflow-x-auto">
+                              <div className="inline-grid gap-[2px] p-1 rounded bg-muted/10 border border-border/20"
+                                style={{ gridTemplateColumns: `repeat(${arp.matrixCols}, 1fr)` }}>
+                                {Array.from({ length: arp.matrixRows }).map((_, row) =>
+                                  Array.from({ length: arp.matrixCols }).map((_, col) => {
+                                    const cell = arp.matrixGrid[row]?.[col] || { on: false, dimmer: 255 };
+                                    const cellColor = cell.color || (cell.on ? arp.steps[col % arp.steps.length] : null);
+                                    return (
+                                      <button
+                                        key={`${row}-${col}`}
+                                        onClick={() => {
+                                          const grid = arp.matrixGrid.map(r => [...r]);
+                                          if (!grid[row]) grid[row] = Array.from({ length: arp.matrixCols }, () => ({ on: false, dimmer: 255 }));
+                                          grid[row][col] = { ...grid[row][col], on: !cell.on };
+                                          updateArp({ matrixGrid: grid });
+                                        }}
+                                        onContextMenu={(e) => {
+                                          e.preventDefault();
+                                          const stepIdx = ((arp.steps.findIndex(s =>
+                                            cell.color && s.r === cell.color.r && s.g === cell.color.g && s.b === cell.color.b
+                                          ) || 0) + 1) % arp.steps.length;
+                                          const s = arp.steps[stepIdx];
+                                          const grid = arp.matrixGrid.map(r => [...r]);
+                                          if (!grid[row]) grid[row] = Array.from({ length: arp.matrixCols }, () => ({ on: false, dimmer: 255 }));
+                                          grid[row][col] = { ...grid[row][col], on: true, color: { r: s.r, g: s.g, b: s.b } };
+                                          updateArp({ matrixGrid: grid });
+                                        }}
+                                        className={`w-5 h-5 rounded-sm border transition-all ${
+                                          cell.on
+                                            ? 'border-primary/40 shadow-sm shadow-primary/20'
+                                            : 'border-border/20 opacity-30'
+                                        }`}
+                                        style={{
+                                          backgroundColor: cell.on && cellColor
+                                            ? `rgb(${cellColor.r},${cellColor.g},${cellColor.b})`
+                                            : 'rgba(255,255,255,0.05)',
+                                        }}
+                                        title={`R${row + 1} S${col + 1} — ${cell.on ? 'ON' : 'OFF'}`}
+                                      />
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex gap-1">
+                              <Button variant="outline" size="sm" className="h-5 text-[8px] flex-1"
+                                onClick={() => {
+                                  const grid = arp.matrixGrid.map(r => r.map(c => ({ ...c, on: true })));
+                                  updateArp({ matrixGrid: grid });
+                                }}>Alla på</Button>
+                              <Button variant="outline" size="sm" className="h-5 text-[8px] flex-1"
+                                onClick={() => {
+                                  const grid = arp.matrixGrid.map(r => r.map(c => ({ ...c, on: false })));
+                                  updateArp({ matrixGrid: grid });
+                                }}>Alla av</Button>
+                              <Button variant="outline" size="sm" className="h-5 text-[8px] flex-1"
+                                onClick={() => {
+                                  const grid = arp.matrixGrid.map(r => r.map(c => ({ ...c, on: !c.on })));
+                                  updateArp({ matrixGrid: grid });
+                                }}>Invertera</Button>
+                            </div>
+
+                            <p className="text-[7px] text-muted-foreground/50">
+                              Klicka = toggle cell. Högerklick = byt färg. Rader = enheter (lodrät), kolumner = tidssteg (vågrät).
+                            </p>
+                          </div>
+                        )}
+
                         <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
                           🎹 Arpeggiator sekvenserar ljus över länkade enheter. Stöder DMX, WLED, Hue och MagicHome. Välj mönster, hastighet och synk-läge.
                         </div>

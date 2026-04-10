@@ -21,7 +21,8 @@ export type ArpPattern =
   | 'all-flash'    // all on simultaneously, then off
   | 'even-odd'     // alternating even/odd
   | 'chase'        // one at a time with fade tail
-  | 'scatter';     // random subset each step
+  | 'scatter'      // random subset each step
+  | 'matrix';      // custom grid pattern (rows=devices, cols=steps)
 
 export type ArpChannel = 'dimmer' | 'rgb' | 'rgbw';
 
@@ -35,6 +36,12 @@ export interface ArpColorStep {
   dimmer: number;   // 0-255
 }
 
+export interface ArpMatrixCell {
+  on: boolean;
+  color?: { r: number; g: number; b: number };
+  dimmer?: number; // 0-255
+}
+
 export interface ArpConfig {
   running: boolean;
   pattern: ArpPattern;
@@ -46,6 +53,10 @@ export interface ArpConfig {
   steps: ArpColorStep[];   // color sequence (cycles through)
   intensity: number;       // master intensity 0-255
   tailLength: number;      // for chase: how many fixtures trail (1-8)
+  // Matrix pattern grid: rows = devices, cols = time steps
+  matrixRows: number;      // number of device rows (usually = linked fixtures)
+  matrixCols: number;      // number of time step columns
+  matrixGrid: ArpMatrixCell[][]; // [row][col]
 }
 
 export const ARP_PATTERNS: { value: ArpPattern; label: string }[] = [
@@ -57,6 +68,7 @@ export const ARP_PATTERNS: { value: ArpPattern; label: string }[] = [
   { value: 'even-odd', label: '▥ Even/Odd' },
   { value: 'chase', label: '→ Chase' },
   { value: 'scatter', label: '✦ Scatter' },
+  { value: 'matrix', label: '▦ Matrix' },
 ];
 
 export const BPM_DIVISIONS: { value: number; label: string }[] = [
@@ -122,6 +134,11 @@ export function createDefaultArpConfig(): ArpConfig {
     steps: [...DEFAULT_ARP_STEPS],
     intensity: 255,
     tailLength: 2,
+    matrixRows: 4,
+    matrixCols: 8,
+    matrixGrid: Array.from({ length: 4 }, () =>
+      Array.from({ length: 8 }, () => ({ on: false, dimmer: 255 }))
+    ),
   };
 }
 
@@ -163,7 +180,7 @@ export function computeArpFrame(
     stepDuration = 1 / config.speed;
   }
 
-  const totalSteps = config.pattern === 'up-down' ? Math.max(1, deviceCount * 2 - 2) : deviceCount;
+  const totalSteps = config.pattern === 'matrix' ? (config.matrixCols || 8) : config.pattern === 'up-down' ? Math.max(1, deviceCount * 2 - 2) : deviceCount;
   const cycleTime = stepDuration * totalSteps;
   const t = cycleTime > 0 ? (timeSeconds % cycleTime) / cycleTime : 0;
   const currentStepFloat = t * totalSteps;
@@ -254,6 +271,22 @@ export function computeArpFrame(
       for (let i = 0; i < deviceCount; i++) {
         if (pseudoRand(currentStep * 100 + i) > 0.5) {
           outputs[i] = applyEnvelope(color, envelope, intensityScale);
+        }
+      }
+      break;
+    }
+    case 'matrix': {
+      // Matrix pattern: rows = devices, cols = time steps
+      const grid = config.matrixGrid;
+      const matrixCols = config.matrixCols || 8;
+      const colIdx = currentStep % matrixCols;
+      for (let row = 0; row < Math.min(deviceCount, grid.length); row++) {
+        const cell = grid[row]?.[colIdx];
+        if (cell?.on) {
+          const cellColor = cell.color
+            ? { r: cell.color.r, g: cell.color.g, b: cell.color.b, w: 0, dimmer: cell.dimmer ?? 255 }
+            : getStepColor(colIdx);
+          outputs[row] = applyEnvelope(cellColor, envelope, intensityScale);
         }
       }
       break;
