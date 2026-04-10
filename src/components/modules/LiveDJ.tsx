@@ -2570,6 +2570,44 @@ export function LiveDJ() {
     }, 1000);
     return () => { if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current); };
   }, [pages, groups, assignments, scripts, audioConfig, activePageId]);
+
+  // ── MIDI Controller ──
+  const midiWidgetPressRef = useRef<(widgetId: string, velocity: number) => void>(() => {});
+  const midiWidgetReleaseRef = useRef<(widgetId: string) => void>(() => {});
+  const midiKnobRef = useRef<(widgetId: string, value: number) => void>(() => {});
+
+  const midi = useMidiController({
+    onPadPress: (mapping, velocity) => {
+      if (mapping.targetType === 'widget' && mapping.targetWidgetId) {
+        midiWidgetPressRef.current(mapping.targetWidgetId, velocity);
+      } else if (mapping.targetType === 'page' && mapping.targetPageId) {
+        setActivePageId(mapping.targetPageId);
+      } else if (mapping.targetType === 'blackout') {
+        sendRawMessage({ type: 'blackout', value: true });
+      } else if (mapping.targetType === 'bpm-tap') {
+        handleTapRef.current();
+      } else if (mapping.targetType === 'master-dimmer') {
+        sendRawMessage({ type: 'master-dimmer', value: Math.round(velocity / 127 * 255) });
+      }
+    },
+    onPadRelease: (mapping) => {
+      if (mapping.targetType === 'widget' && mapping.targetWidgetId) {
+        midiWidgetReleaseRef.current(mapping.targetWidgetId);
+      } else if (mapping.targetType === 'blackout') {
+        sendRawMessage({ type: 'blackout', value: false });
+      }
+    },
+    onKnobChange: (mapping, value) => {
+      if (mapping.targetType === 'widget' && mapping.targetWidgetId) {
+        midiKnobRef.current(mapping.targetWidgetId, value);
+      } else if (mapping.targetType === 'master-dimmer') {
+        sendRawMessage({ type: 'master-dimmer', value: Math.round(value / 127 * 255) });
+      }
+    },
+  });
+
+  const handleTapRef = useRef(handleTap);
+
   const bpmFlashRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const handleTap = () => {
