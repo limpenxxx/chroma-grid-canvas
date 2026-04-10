@@ -1056,7 +1056,7 @@ export function Stage3DView() {
   };
 
   return (
-    <div className="h-full flex bg-[hsl(240_10%_4%)]">
+    <div className="h-full flex flex-col sm:flex-row bg-[hsl(240_10%_4%)]">
       {/* 3D Canvas */}
       <div className="flex-1 flex flex-col">
         {/* Toolbar */}
