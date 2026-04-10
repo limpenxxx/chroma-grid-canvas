@@ -1,15 +1,18 @@
 import { motion } from 'framer-motion';
-import { Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker, Grid3X3 } from 'lucide-react';
+import { Layout, Film, Type, Sliders, GitBranch, Cpu, Speaker, Grid3X3, Box, ListMusic, Waves } from 'lucide-react';
 import { useAppStore, type ModuleId } from '@/store/appStore';
 
 const navItems: { id: ModuleId; icon: typeof Layout; label: string }[] = [
   { id: 'stage', icon: Grid3X3, label: 'Stage' },
+  { id: 'stage3d', icon: Box, label: '3D' },
   { id: 'media', icon: Film, label: 'Media' },
-  { id: 'text', icon: Type, label: 'Text' },
   { id: 'fixtures', icon: Sliders, label: 'Fixtures' },
-  { id: 'nodes', icon: GitBranch, label: 'Nodes' },
-  { id: 'devices', icon: Cpu, label: 'Devices' },
+  { id: 'showrunner', icon: ListMusic, label: 'Cues' },
+  { id: 'effects', icon: Waves, label: 'FX' },
   { id: 'livedj', icon: Speaker, label: 'DJ' },
+  { id: 'devices', icon: Cpu, label: 'Devices' },
+  { id: 'nodes', icon: GitBranch, label: 'Nodes' },
+  { id: 'text', icon: Type, label: 'Text' },
 ];
 
 export function MobileNav() {
