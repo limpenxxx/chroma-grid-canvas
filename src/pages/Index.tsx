@@ -16,16 +16,22 @@ import { Devices } from '@/components/modules/Devices';
 import { LiveDJ } from '@/components/modules/LiveDJ';
 import { SystemLog } from '@/components/modules/SystemLog';
 import { FileExplorer } from '@/components/modules/FileExplorer';
+import { Stage3DView } from '@/components/modules/Stage3DView';
+import { ShowRunner } from '@/components/modules/ShowRunner';
+import { EffectsEngine } from '@/components/modules/EffectsEngine';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 const moduleComponents: Record<string, React.ComponentType> = {
   stage: StageBuilder,
+  stage3d: Stage3DView,
   media: MediaServer,
   text: TextOverlays,
   fixtures: FixtureControls,
   nodes: NodeLogic,
   devices: Devices,
+  showrunner: ShowRunner,
+  effects: EffectsEngine,
   systemlog: SystemLog,
   files: FileExplorer,
 };
