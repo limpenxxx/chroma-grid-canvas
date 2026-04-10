@@ -3334,12 +3334,95 @@ export function LiveDJ() {
     return () => { cancelAnimationFrame(raf); clearTimeout(raf); };
   }, [widgets, audioConfig.source, bpmState.bpm, allFixturesWithDefs, wledStore.devices, wledStore.fixtures]);
 
+  // ── Arpeggiator Engine Loop ──
+  const arpStartTimeRef = useRef(performance.now() / 1000);
   useEffect(() => {
-    const nextSent: Record<string, string> = {};
+    const arpWidgets = widgets.filter(w => w.type === 'arpeggiator' && w.arpConfig?.running);
+    if (arpWidgets.length === 0) return;
+
     const wledOutputFixtures = [
       ...wledStore.devices.map(wledDeviceToFixture),
       ...wledStore.fixtures,
     ];
+    const wledFixMap = new Map(wledOutputFixtures.map(f => [f.id, f]));
+
+    let raf = 0;
+    let lastFrame = 0;
+    const arpStates: Record<string, ArpEngineState> = {};
+
+    const tick = (now: number) => {
+      if (now - lastFrame < 33) { raf = requestAnimationFrame(tick); return; }
+      lastFrame = now;
+      const timeS = now / 1000 - arpStartTimeRef.current;
+
+      arpWidgets.forEach(w => {
+        const arp = w.arpConfig!;
+        const linkedIds = w.linkedFixtureIds;
+        if (linkedIds.length === 0) return;
+
+        if (!arpStates[w.id]) {
+          arpStates[w.id] = { stepIndex: 0, deviceIndex: 0, phase: 0, direction: 1, activeDevices: Array(linkedIds.length).fill(false) };
+        }
+
+        const { outputs, nextState } = computeArpFrame(
+          arp, arpStates[w.id], linkedIds.length, timeS, bpmState.bpm, bpmState.audioLevel
+        );
+        arpStates[w.id] = nextState;
+
+        // Send outputs to devices
+        linkedIds.forEach((fid, i) => {
+          const out = outputs[i];
+          if (!out) return;
+
+          const instData = allFixturesWithDefs.find(f => f.inst.id === fid);
+          if (!instData) return;
+
+          const isWled = instData.def.category === 'wled';
+
+          if (isWled) {
+            const wledFix = wledFixMap.get(fid);
+            if (wledFix && (out.r > 0 || out.g > 0 || out.b > 0 || out.dimmer > 0)) {
+              void setWledState(wledFix.deviceIp, {
+                on: true,
+                bri: Math.max(1, out.dimmer),
+                seg: [{ id: 0, col: [[out.r, out.g, out.b, out.w]] }],
+              }).catch(() => {});
+            } else if (wledFix) {
+              void setWledState(wledFix.deviceIp, { on: false }).catch(() => {});
+            }
+          } else {
+            const inst = instData.inst;
+            const def = instData.def;
+            const mode = def.modes.find(m => m.id === inst.modeId) || def.modes[0];
+            const chs = mode?.channels || [];
+
+            const dimCh = chs.find(c => c.function === 'dimmer');
+            const rCh = chs.find(c => c.function === 'red');
+            const gCh = chs.find(c => c.function === 'green');
+            const bCh = chs.find(c => c.function === 'blue');
+            const wCh = chs.find(c => c.function === 'white');
+
+            if (dimCh) sendDmxChannel(inst.universe, inst.dmxAddress + dimCh.number - 1, out.dimmer);
+            if (rCh) sendDmxChannel(inst.universe, inst.dmxAddress + rCh.number - 1, out.r);
+            if (gCh) sendDmxChannel(inst.universe, inst.dmxAddress + gCh.number - 1, out.g);
+            if (bCh) sendDmxChannel(inst.universe, inst.dmxAddress + bCh.number - 1, out.b);
+            if (wCh) sendDmxChannel(inst.universe, inst.dmxAddress + wCh.number - 1, out.w);
+          }
+        });
+      });
+
+      if (document.hidden) {
+        raf = window.setTimeout(tick, 33) as unknown as number;
+      } else {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => { cancelAnimationFrame(raf); clearTimeout(raf); };
+  }, [widgets, bpmState.bpm, bpmState.audioLevel, allFixturesWithDefs, wledStore.devices, wledStore.fixtures]);
+
+
     const wledFixMap = new Map(wledOutputFixtures.map(f => [f.id, f]));
     const wledDevMap = new Map(wledStore.devices.map(dev => [dev.id, dev]));
 
