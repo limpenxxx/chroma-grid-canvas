@@ -2622,6 +2622,72 @@ export function LiveDJ() {
       return { ...prev, tapTimes: taps };
     });
   };
+  handleTapRef.current = handleTap;
+
+  // Wire MIDI → widget actions  
+  const triggerPresetEntries = useCallback((w: DJWidget) => {
+    if (!w.presetEntries) return;
+    w.presetEntries.forEach(entry => {
+      if (entry.targetType === 'wled') {
+        const wledInst = allFixturesWithDefsRef.current.find(f => f.inst.id === entry.targetId);
+        const wledIp = wledInst?.def.wledConfig?.ip;
+        if (wledIp && entry.wledPresetId !== undefined) {
+          void setWledPreset(wledIp, entry.wledPresetId).catch(() => {});
+        }
+        return;
+      }
+      const targetFixtureIds = entry.targetType === 'group'
+        ? (groups.find(g => g.id === entry.targetId)?.fixtureIds || [])
+        : [entry.targetId];
+      widgets.forEach(ow => {
+        if (ow.id === w.id) return;
+        const hasLink = ow.linkedFixtureIds.some(fid => targetFixtureIds.includes(fid));
+        if (!hasLink && ow.linkedFixtureIds.length > 0) return;
+        if (ow.type === 'slider' && (ow.linkedFunction === 'dimmer' || !ow.linkedFunction)) {
+          updateWidget(ow.id, { value: Math.round(entry.dimmer / 255 * 100) });
+        }
+        if (ow.type === 'color-wheel' && entry.color) {
+          updateWidget(ow.id, { colorValue: entry.color });
+        }
+      });
+    });
+  }, [widgets, groups]);
+
+  const allFixturesWithDefsRef = useRef<typeof allFixturesWithDefs>([]);
+
+  useEffect(() => {
+    midiWidgetPressRef.current = (widgetId: string, _velocity: number) => {
+      const w = widgets.find(wi => wi.id === widgetId);
+      if (!w) return;
+      if (w.type === 'button') {
+        if (w.flash) {
+          updateWidget(widgetId, { toggled: true });
+        } else {
+          updateWidget(widgetId, { toggled: !w.toggled });
+        }
+      } else if (w.type === 'preset') {
+        updateWidget(widgetId, { toggled: true });
+        triggerPresetEntries(w);
+      } else if (w.type === 'dmx-reset') {
+        updateWidget(widgetId, { toggled: true });
+      }
+    };
+    midiWidgetReleaseRef.current = (widgetId: string) => {
+      const w = widgets.find(wi => wi.id === widgetId);
+      if (!w) return;
+      if (w.type === 'button' && w.flash) {
+        updateWidget(widgetId, { toggled: false });
+      }
+    };
+    midiKnobRef.current = (widgetId: string, value: number) => {
+      const w = widgets.find(wi => wi.id === widgetId);
+      if (!w) return;
+      if (w.type === 'slider') {
+        const scaledValue = Math.round(value / 127 * (w.max || 100));
+        updateWidget(widgetId, { value: scaledValue });
+      }
+    };
+  });
 
   useEffect(() => {
     if (bpmFlashRef.current) clearInterval(bpmFlashRef.current);
