@@ -2510,6 +2510,7 @@ export function LiveDJ() {
     try { return JSON.parse(localStorage.getItem('stokio-custom-color-presets') || '[]'); } catch { return []; }
   });
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
+  const [matrixEditCellIdx, setMatrixEditCellIdx] = useState<number | null>(null);
   const [editingPageName, setEditingPageName] = useState('');
 
   // ── Load from autosave or defaults ──
