@@ -70,6 +70,8 @@ export interface RoomDimensions {
   height: number;
   wallColor: string;
   floorColor: string;
+  floorColor2: string;     // second color for checkered pattern
+  floorPattern: 'solid' | 'checkered';
   ceilingColor: string;
   showWalls: boolean;
   showCeiling: boolean;
@@ -120,12 +122,14 @@ interface Stage3DStore {
 }
 
 const DEFAULT_ROOM: RoomDimensions = {
-  width: 12,
-  depth: 10,
-  height: 4,
-  wallColor: '#1a1a2e',
-  floorColor: '#0a0a14',
-  ceilingColor: '#111122',
+  width: 20,
+  depth: 20,
+  height: 5,
+  wallColor: '#808080',
+  floorColor: '#c4a882',
+  floorColor2: '#a8906e',
+  floorPattern: 'checkered',
+  ceilingColor: '#3a3a3a',
   showWalls: true,
   showCeiling: true,
   showFloor: true,

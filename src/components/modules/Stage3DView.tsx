@@ -103,6 +103,33 @@ function useLiveFixtureColor(fixture: Fixture3D): { r: number; g: number; b: num
 // 3D Components — all using simple wireframe/flat geometry
 // ══════════════════════════════════════════════════════════════
 
+function CheckeredFloorMaterial({ color1, color2, width, depth }: { color1: string; color2: string; width: number; depth: number }) {
+  const texture = useMemo(() => {
+    const size = 256;
+    const tiles = 16; // tiles per texture
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d')!;
+    const tileSize = size / tiles;
+    for (let y = 0; y < tiles; y++) {
+      for (let x = 0; x < tiles; x++) {
+        ctx.fillStyle = (x + y) % 2 === 0 ? color1 : color2;
+        ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+      }
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    // Scale so each tile ≈ 1m
+    tex.repeat.set(width / tiles, depth / tiles);
+    tex.needsUpdate = true;
+    return tex;
+  }, [color1, color2, width, depth]);
+
+  return <meshStandardMaterial map={texture} roughness={0.7} />;
+}
+
 function Room({ room }: { room: RoomDimensions }) {
   const { width, depth, height } = room;
   return (
@@ -110,29 +137,41 @@ function Room({ room }: { room: RoomDimensions }) {
       {room.showFloor && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
           <planeGeometry args={[width, depth]} />
-          <meshStandardMaterial color={room.floorColor} roughness={0.8} />
+          {room.floorPattern === 'checkered' ? (
+            <CheckeredFloorMaterial color1={room.floorColor} color2={room.floorColor2 || '#a8906e'} width={width} depth={depth} />
+          ) : (
+            <meshStandardMaterial color={room.floorColor} roughness={0.8} />
+          )}
         </mesh>
       )}
       {room.showWalls && (
         <>
+          {/* Back wall */}
           <mesh position={[0, height / 2, -depth / 2]}>
             <planeGeometry args={[width, height]} />
             <meshStandardMaterial color={room.wallColor} roughness={0.9} side={THREE.DoubleSide} />
           </mesh>
+          {/* Left wall */}
           <mesh position={[-width / 2, height / 2, 0]} rotation={[0, Math.PI / 2, 0]}>
             <planeGeometry args={[depth, height]} />
-            <meshStandardMaterial color={room.wallColor} roughness={0.9} side={THREE.DoubleSide} transparent opacity={0.4} />
+            <meshStandardMaterial color={room.wallColor} roughness={0.9} side={THREE.DoubleSide} transparent opacity={0.5} />
           </mesh>
+          {/* Right wall */}
           <mesh position={[width / 2, height / 2, 0]} rotation={[0, -Math.PI / 2, 0]}>
             <planeGeometry args={[depth, height]} />
-            <meshStandardMaterial color={room.wallColor} roughness={0.9} side={THREE.DoubleSide} transparent opacity={0.4} />
+            <meshStandardMaterial color={room.wallColor} roughness={0.9} side={THREE.DoubleSide} transparent opacity={0.5} />
+          </mesh>
+          {/* Front wall (behind camera, semi-transparent) */}
+          <mesh position={[0, height / 2, depth / 2]}>
+            <planeGeometry args={[width, height]} />
+            <meshStandardMaterial color={room.wallColor} roughness={0.9} side={THREE.DoubleSide} transparent opacity={0.15} />
           </mesh>
         </>
       )}
       {room.showCeiling && (
         <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, height, 0]}>
           <planeGeometry args={[width, depth]} />
-          <meshStandardMaterial color={room.ceilingColor} roughness={0.9} side={THREE.DoubleSide} transparent opacity={0.3} />
+          <meshStandardMaterial color={room.ceilingColor} roughness={0.9} side={THREE.DoubleSide} transparent opacity={0.4} />
         </mesh>
       )}
     </group>
@@ -708,6 +747,7 @@ function SidePanel() {
               <span className="text-[8px] text-muted-foreground">m</span>
             </div>
           ))}
+          {/* Visibility toggles */}
           <div className="flex gap-2 mt-1">
             {(['showFloor', 'showWalls', 'showCeiling'] as const).map(k => (
               <button key={k} onClick={() => store.setRoom({ [k]: !store.room[k] })}
@@ -716,6 +756,32 @@ function SidePanel() {
                 }`}>
                 {k.replace('show', '')}
               </button>
+            ))}
+          </div>
+          {/* Color pickers */}
+          <div className="space-y-1 mt-2">
+            <label className="text-[7px] uppercase text-muted-foreground tracking-wider">Colors</label>
+            {([
+              { key: 'wallColor', label: 'Walls' },
+              { key: 'ceilingColor', label: 'Ceiling' },
+              { key: 'floorColor', label: 'Floor 1' },
+              { key: 'floorColor2', label: 'Floor 2' },
+            ] as const).map(c => (
+              <div key={c.key} className="flex items-center gap-2">
+                <input type="color" value={store.room[c.key] || '#808080'}
+                  onChange={e => store.setRoom({ [c.key]: e.target.value })}
+                  className="w-5 h-5 rounded border-none cursor-pointer" />
+                <span className="text-[8px] text-muted-foreground">{c.label}</span>
+              </div>
+            ))}
+          </div>
+          {/* Floor pattern */}
+          <div className="flex gap-1 mt-1">
+            {(['solid', 'checkered'] as const).map(p => (
+              <button key={p} onClick={() => store.setRoom({ floorPattern: p })}
+                className={`text-[8px] px-1.5 py-0.5 rounded border flex-1 ${
+                  (store.room.floorPattern || 'solid') === p ? 'bg-primary/10 text-primary border-primary/20' : 'text-muted-foreground border-border/20'
+                }`}>{p === 'checkered' ? '▦ Checkered' : '▬ Solid'}</button>
             ))}
           </div>
         </div>
