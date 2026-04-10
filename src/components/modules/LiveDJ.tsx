@@ -5874,7 +5874,7 @@ export function LiveDJ() {
                     );
                   })()}
 
-
+                  {selectedWidgetData.type === 'eq-trigger' && (
                     <div className="space-y-2">
                       <label className="text-[8px] uppercase tracking-widest text-stokio-cyan font-semibold flex items-center gap-1">
                         <Activity size={10} /> EQ Trigger Zones
