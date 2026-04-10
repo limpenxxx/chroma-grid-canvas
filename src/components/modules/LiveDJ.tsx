@@ -1963,9 +1963,9 @@ function ControlWidget({
               </div>
               <ArpeggiatorPreview
                 config={arp}
-                bpm={bs?.bpm || 120}
+                bpm={bpmStateProp?.bpm || bpm || 120}
                 deviceCount={Math.max(widget.linkedFixtureIds.length, 4)}
-                audioLevel={bs?.audioLevel || 0}
+                audioLevel={bpmStateProp?.audioLevel || 0}
               />
               {/* Color steps preview */}
               <div className="flex gap-0.5 mt-auto">
