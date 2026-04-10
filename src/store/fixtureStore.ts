@@ -52,6 +52,9 @@ export interface ColorWheelSlot {
 
 export type FixtureCategory = 'dmx' | 'wled';
 
+/** Physical DMX connector types */
+export type DmxConnector = '3-pin' | '5-pin' | 'artnet' | 'sacn' | 'wireless';
+
 export interface WledConfig {
   ip: string;
   ledCount: number;
@@ -66,8 +69,10 @@ export interface FixtureDefinition {
   type: 'moving-head' | 'par' | 'strip' | 'wash' | 'spot' | 'beam' | 'strobe' | 'laser' | 'effect' | 'dimmer' | 'wled' | 'other';
   category: FixtureCategory;
   colorSystem: ColorSystem;
-  colorWheelSlots?: ColorWheelSlot[]; // only used when colorSystem === 'color-wheel'
-  wledConfig?: WledConfig; // only for WLED fixtures
+  colorWheelSlots?: ColorWheelSlot[];
+  wledConfig?: WledConfig;
+  /** Available input connectors on this fixture */
+  connectors?: DmxConnector[];
   modes: FixtureMode[];
   createdAt: number;
 }
@@ -98,6 +103,8 @@ export interface FixtureInstance {
   universe: number;
   dmxAddress: number;
   modeId: string;
+  /** Which input connector to use for this instance */
+  inputMode?: DmxConnector;
   // Stage builder placement
   onStage: boolean;
   stageX: number;
