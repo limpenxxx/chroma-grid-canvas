@@ -18,6 +18,11 @@ const PERSIST_KEYS = [
   'stokio-dmx-mixer-v1',
   'stokio-app-v1',
   'sflc-node-logic-v2',
+  'stokio-stage-v1',
+  'stokio-wled-v1',
+  'stokio-cues-v1',
+  'stokio-effects-v1',
+  'stokio-stage3d-v1',
 ];
 
 export interface StokioBackup {
