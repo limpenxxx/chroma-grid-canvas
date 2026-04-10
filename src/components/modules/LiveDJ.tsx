@@ -5442,7 +5442,7 @@ export function LiveDJ() {
       {/* ── MIXER TAB ── */}
       {tab === 'mixer' && (
         <div className="flex-1 overflow-y-auto">
-          <DmxMixer />
+          <DmxMixer liveDmxValues={liveDmxLevels} />
         </div>
       )}
 

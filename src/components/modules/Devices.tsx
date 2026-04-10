@@ -735,7 +735,7 @@ export function Devices() {
       {tab === 'io' && <IOSetup />}
 
       {/* MIXER TAB */}
-      {tab === 'mixer' && <DmxMixer />}
+      {tab === 'mixer' && <DmxMixer liveDmxValues={liveDmxLevels} />}
     </motion.div>
   );
 }
