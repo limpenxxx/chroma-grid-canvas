@@ -2572,6 +2572,7 @@ export function LiveDJ() {
   }, [pages, groups, assignments, scripts, audioConfig, activePageId]);
 
   // ── MIDI Controller ──
+  const handleTapRef = useRef<() => void>(() => {});
   const midiWidgetPressRef = useRef<(widgetId: string, velocity: number) => void>(() => {});
   const midiWidgetReleaseRef = useRef<(widgetId: string) => void>(() => {});
   const midiKnobRef = useRef<(widgetId: string, value: number) => void>(() => {});
@@ -2605,8 +2606,6 @@ export function LiveDJ() {
       }
     },
   });
-
-  const handleTapRef = useRef(handleTap);
 
   const bpmFlashRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
