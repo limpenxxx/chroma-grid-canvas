@@ -41,6 +41,7 @@ const state = {
   hue: {},
   magic: {},
   ddp: {},    // DDP pixel data: { ip: { pixels: [r,g,b,...] } }
+  wledRealtime: {}, // DNRGB realtime: { ip: { pixels: [r,g,b,...], timeout?: number } }
   app: {},
   fixtures: {},
   media: {},
