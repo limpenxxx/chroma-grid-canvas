@@ -2322,6 +2322,7 @@ const DEFAULT_AUDIO_CONFIG: AudioConfig = {
 
 export function LiveDJ() {
   const store = useFixtureStore();
+  const liveDmxLevels = useLiveDmxLevels();
   const wledStore = useWledStore();
   const [tab, setTab] = useState<Tab>('controller');
   const [isFullscreen, setIsFullscreen] = useState(false);
