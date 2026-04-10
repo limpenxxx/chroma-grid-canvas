@@ -23,6 +23,7 @@ const PERSIST_KEYS = [
   'stokio-cues-v1',
   'stokio-effects-v1',
   'stokio-stage3d-v1',
+  'stokio-presets-v1',
 ];
 
 export interface StokioBackup {
