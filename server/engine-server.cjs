@@ -366,10 +366,87 @@ function outputSacn() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// Hardware Output: WLED Realtime UDP — DNRGB protocol
+// ══════════════════════════════════════════════════════════════
+// DNRGB is WLED's native UDP realtime protocol. Key advantage:
+// it only *temporarily* takes over LED output. When packets stop
+// arriving (configurable timeout in WLED, default 2.5s), the node
+// automatically falls back to its own preset/effect. This means
+// STOKIO can override without permanently locking out the native
+// WLED app — users can still use the WLED app by simply pausing
+// STOKIO output.
+//
+// Packet format (DNRGB):
+//   Byte 0: protocol (4 = DNRGB)
+//   Byte 1: timeout in seconds (0 = use WLED default)
+//   Byte 2-3: start LED index (big-endian)
+//   Byte 4+: R,G,B,R,G,B,... (up to ~480 pixels per packet)
+//
+// The WLED `lor` (live override) setting lets users temporarily
+// ignore realtime data from their WLED app without restarting:
+//   lor=0 → accept realtime (default)
+//   lor=1 → override once (next local change stops realtime)
+//   lor=2 → always override (ignore all incoming realtime data)
+
+const dnrgbSocket = dgram.createSocket('udp4');
+dnrgbSocket.on('error', () => {});
+
+const WLED_UDP_PORT = 21324;
+const DNRGB_PROTOCOL = 4;
+const DNRGB_MAX_PIXELS_PER_PACKET = 480;
+
+const dnrgbLastSent = {}; // ip → last hash
+
+function buildDnrgbPacket(pixelData, startIndex = 0, timeout = 0) {
+  const dataLen = pixelData.length; // R,G,B bytes
+  const packet = Buffer.alloc(4 + dataLen);
+  packet.writeUInt8(DNRGB_PROTOCOL, 0);
+  packet.writeUInt8(timeout, 1); // 0 = use WLED's own setting
+  packet.writeUInt16BE(startIndex, 2); // start LED index
+  Buffer.from(pixelData).copy(packet, 4);
+  return packet;
+}
+
+function sendDnrgbPixels(ip, pixelData, timeout = 0) {
+  const key = Buffer.from(pixelData).toString('base64').slice(0, 64);
+  if (!dnrgbLastSent[ip]) dnrgbLastSent[ip] = '';
+  if (dnrgbLastSent[ip] === key) return; // no change
+  dnrgbLastSent[ip] = key;
+
+  const maxBytes = DNRGB_MAX_PIXELS_PER_PACKET * 3;
+  for (let byteOff = 0; byteOff < pixelData.length; byteOff += maxBytes) {
+    const chunk = pixelData.slice(byteOff, byteOff + maxBytes);
+    const startLed = byteOff / 3;
+    const packet = buildDnrgbPacket(chunk, startLed, timeout);
+    dnrgbSocket.send(packet, 0, packet.length, WLED_UDP_PORT, ip, () => {});
+  }
+}
+
+/**
+ * Output DNRGB realtime data to all configured WLED devices.
+ * Uses state.wledRealtime: { ip: { pixels: [r,g,b,...], timeout?: number } }
+ */
+function outputDnrgb() {
+  for (const [ip, data] of Object.entries(state.wledRealtime || {})) {
+    if (!data.pixels || data.pixels.length === 0) continue;
+    let pixels = data.pixels;
+    // Apply master dimmer & blackout
+    if (state.blackout) {
+      pixels = new Array(pixels.length).fill(0);
+    } else if (state.masterDimmer < 100) {
+      const scale = state.masterDimmer / 100;
+      pixels = pixels.map(v => Math.round(v * scale));
+    }
+    sendDnrgbPixels(ip, pixels, data.timeout || 0);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
 // Hardware Output: DDP (Distributed Display Protocol)
 // ══════════════════════════════════════════════════════════════
 // DDP is a lightweight protocol optimized for LED controllers like WLED.
 // No universe limits — direct pixel addressing. Much faster than E1.31 for WLED.
+// Like DNRGB, DDP is also temporary — WLED falls back when packets stop.
 
 const ddpSocket = dgram.createSocket('udp4');
 ddpSocket.on('error', () => {});
