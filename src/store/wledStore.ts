@@ -105,6 +105,8 @@ export const useWledStore = create<WledStore>()(
           name: name?.trim() || ip.trim(),
           online: false,
           lastSeen: null,
+          protocol: 'dnrgb',
+          realtimeTimeout: 0,
         };
         // Add immediately, then fetch state
         set((s) => ({ devices: [...s.devices, newDev] }));
