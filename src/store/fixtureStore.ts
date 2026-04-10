@@ -52,6 +52,9 @@ export interface ColorWheelSlot {
 
 export type FixtureCategory = 'dmx' | 'wled';
 
+/** Physical DMX connector types */
+export type DmxConnector = '3-pin' | '5-pin' | 'artnet' | 'sacn' | 'wireless';
+
 export interface WledConfig {
   ip: string;
   ledCount: number;
@@ -66,8 +69,10 @@ export interface FixtureDefinition {
   type: 'moving-head' | 'par' | 'strip' | 'wash' | 'spot' | 'beam' | 'strobe' | 'laser' | 'effect' | 'dimmer' | 'wled' | 'other';
   category: FixtureCategory;
   colorSystem: ColorSystem;
-  colorWheelSlots?: ColorWheelSlot[]; // only used when colorSystem === 'color-wheel'
-  wledConfig?: WledConfig; // only for WLED fixtures
+  colorWheelSlots?: ColorWheelSlot[];
+  wledConfig?: WledConfig;
+  /** Available input connectors on this fixture */
+  connectors?: DmxConnector[];
   modes: FixtureMode[];
   createdAt: number;
 }
@@ -98,6 +103,8 @@ export interface FixtureInstance {
   universe: number;
   dmxAddress: number;
   modeId: string;
+  /** Which input connector to use for this instance */
+  inputMode?: DmxConnector;
   // Stage builder placement
   onStage: boolean;
   stageX: number;
@@ -265,6 +272,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     type: 'moving-head',
     category: 'dmx',
     colorSystem: 'rgbw',
+    connectors: ['5-pin', 'artnet'],
     createdAt: 0,
     modes: [{
       id: 'mdn-std', name: 'Standard (19ch)', channelCount: 19,
@@ -329,9 +337,10 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     id: 'sund-dm-rgb400',
     manufacturer: 'SunD',
     model: 'DM-RGB400',
-    type: 'other',
+    type: 'laser',
     category: 'dmx',
     colorSystem: 'rgb',
+    connectors: ['3-pin'],
     createdAt: 0,
     modes: [{
       id: 'sund-std', name: 'DMX Standard (12ch)', channelCount: 12,
