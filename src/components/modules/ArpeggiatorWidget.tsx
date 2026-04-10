@@ -134,6 +134,11 @@ export function createDefaultArpConfig(): ArpConfig {
     steps: [...DEFAULT_ARP_STEPS],
     intensity: 255,
     tailLength: 2,
+    matrixRows: 4,
+    matrixCols: 8,
+    matrixGrid: Array.from({ length: 4 }, () =>
+      Array.from({ length: 8 }, () => ({ on: false, dimmer: 255 }))
+    ),
   };
 }
 
