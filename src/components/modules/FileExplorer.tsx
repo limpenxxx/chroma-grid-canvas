@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useMediaStore, type MediaItem } from '@/store/mediaStore';
 import { useFixtureStore, type FixtureDefinition } from '@/store/fixtureStore';
+import { parseGdtfFile } from '@/lib/gdtfParser';
 import { toast } from 'sonner';
 
 /* ────────── helpers ────────── */
@@ -127,10 +128,24 @@ export function FileExplorer() {
     toast.success(`Exported ${defs.length} fixture definition(s)`);
   };
 
-  /* ── Import fixtures ── */
+  /* ── Import fixtures (JSON or GDTF) ── */
   const importFixtures = async () => {
     try {
-      const file = await pickFile('.json,application/json');
+      const file = await pickFile('.json,.gdtf,application/json');
+      
+      if (file.name.endsWith('.gdtf') || file.name.endsWith('.xml')) {
+        // GDTF format
+        const def = await parseGdtfFile(file);
+        if (def) {
+          fixtureStore.addDefinition(def);
+          toast.success(`Imported GDTF: ${def.manufacturer} ${def.model} (${def.modes.length} mode(s))`);
+        } else {
+          toast.error('Could not parse GDTF file');
+        }
+        return;
+      }
+
+      // JSON format
       const text = await file.text();
       const parsed = JSON.parse(text);
       const arr: FixtureDefinition[] = Array.isArray(parsed) ? parsed : [parsed];
@@ -143,7 +158,7 @@ export function FileExplorer() {
       }
       toast.success(`Imported ${count} fixture definition(s)`);
     } catch (e: unknown) {
-      if (e instanceof Error && e.message !== 'cancelled') toast.error('Invalid fixture JSON');
+      if (e instanceof Error && e.message !== 'cancelled') toast.error('Invalid fixture file');
     }
   };
 
@@ -243,7 +258,7 @@ export function FileExplorer() {
         <TabsContent value="fixtures" className="flex-1 flex flex-col gap-2 mt-2">
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1" onClick={importFixtures}>
-              <Upload size={12} /> Import Fixtures
+              <Upload size={12} /> Import (JSON / GDTF)
             </Button>
             <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1" onClick={exportFixtures}>
               <Download size={12} /> Export All
