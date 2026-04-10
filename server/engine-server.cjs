@@ -1068,6 +1068,30 @@ const outputTimer = setInterval(outputLoop, OUTPUT_INTERVAL);
 // Save state periodically
 const saveTimer = setInterval(saveState, SAVE_INTERVAL);
 
+// ── Broadcast live DMX levels to browsers (10fps) ──
+// Sends only non-zero channels so it stays lightweight for remote tablets
+let lastDmxLevelsHash = '';
+const dmxLevelsTimer = setInterval(() => {
+  if (wss.clients.size === 0) return;
+  const levels = {};
+  let hasData = false;
+  for (const [uniStr, dmxBuf] of Object.entries(state.dmx)) {
+    if (!(dmxBuf instanceof Uint8Array)) continue;
+    const scale = state.blackout ? 0 : (state.masterDimmer / 100);
+    const uniLevels = {};
+    for (let i = 0; i < 512; i++) {
+      const v = Math.round(dmxBuf[i] * scale);
+      if (v > 0) { uniLevels[i + 1] = v; hasData = true; }
+    }
+    if (Object.keys(uniLevels).length > 0) levels[uniStr] = uniLevels;
+  }
+  // Quick hash to avoid sending identical frames
+  const hash = JSON.stringify(levels);
+  if (hash === lastDmxLevelsHash) return;
+  lastDmxLevelsHash = hash;
+  broadcastToAll({ type: 'dmx-levels', levels });
+}, 100);
+
 // Enable broadcast for ArtNet
 artnetSocket.bind(() => {
   try { artnetSocket.setBroadcast(true); } catch {}
