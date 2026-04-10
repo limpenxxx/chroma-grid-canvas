@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useMediaStore, type MediaItem } from '@/store/mediaStore';
 import { useFixtureStore, type FixtureDefinition } from '@/store/fixtureStore';
 import { parseGdtfFile } from '@/lib/gdtfParser';
+import { parseQxfFile } from '@/lib/qlcPlusParser';
 import { toast } from 'sonner';
 
 /* ────────── helpers ────────── */
