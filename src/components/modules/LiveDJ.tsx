@@ -1,6 +1,4 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-// @ts-ignore - ScenePresets import
-import { ScenePresets } from './ScenePresets';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Play, Square, GripVertical, Palette, SlidersHorizontal,
@@ -16,6 +14,15 @@ import { EqTriggerWidget, type EqTriggerZone, type EqColorOutput } from './EqTri
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
+import imgDaylight from '@/assets/presets/daylight.jpg';
+import imgRed from '@/assets/presets/red.jpg';
+import imgRedWhite from '@/assets/presets/red-white.jpg';
+import imgDiscoball from '@/assets/presets/discoball.jpg';
+import imgMhSlow from '@/assets/presets/mh-slow.jpg';
+import imgMhFast from '@/assets/presets/mh-fast.jpg';
+import imgKimOpium from '@/assets/presets/kim-opium.jpg';
+import imgNevzat from '@/assets/presets/nevzat.jpg';
+import imgCem from '@/assets/presets/cem.jpg';
 import {
   useFixtureStore, type FixtureInstance, type FixtureDefinition,
   getFixtureTypeIcon,
@@ -316,6 +323,12 @@ interface SavedLayout {
 
 type Tab = 'controller' | 'assignments' | 'scripts' | 'groups' | 'mixer' | 'projection' | 'stagemap';
 
+interface PresetWidgetTemplate {
+  id: string;
+  label: string;
+  image: string;
+}
+
 const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: number; h: number }[] = [
   { type: 'button', label: 'Flash Button', icon: Zap, w: 100, h: 100 },
   { type: 'slider', label: 'Fader', icon: SlidersHorizontal, w: 70, h: 200 },
@@ -332,6 +345,18 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'tap-bpm', label: 'Tap / Audio In', icon: Activity, w: 220, h: 200 },
   { type: 'eq-trigger', label: 'EQ Trigger', icon: Activity, w: 320, h: 280 },
   { type: 'arpeggiator', label: 'Arpeggiator', icon: Music, w: 260, h: 200 },
+];
+
+const PRESET_WIDGET_TEMPLATES: PresetWidgetTemplate[] = [
+  { id: 'preset-daylight', label: 'Dagsljus', image: imgDaylight },
+  { id: 'preset-red', label: 'Rött', image: imgRed },
+  { id: 'preset-red-white', label: 'Rött + Vitt', image: imgRedWhite },
+  { id: 'preset-discoball', label: 'Discokula', image: imgDiscoball },
+  { id: 'preset-mh-slow', label: 'MH Slow', image: imgMhSlow },
+  { id: 'preset-mh-fast', label: 'MH Fast', image: imgMhFast },
+  { id: 'preset-kim-opium', label: 'Kim Opium', image: imgKimOpium },
+  { id: 'preset-nevzat', label: 'Nevzat', image: imgNevzat },
+  { id: 'preset-cem', label: 'Cem', image: imgCem },
 ];
 
 // ── Color distance helper (Euclidean in RGB space) ──
@@ -2823,6 +2848,25 @@ export function LiveDJ() {
     }]);
   };
 
+  const addPresetTemplateWidget = (template: PresetWidgetTemplate) => {
+    setWidgets(prev => [...prev, {
+      id: `w-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      type: 'preset',
+      label: template.label,
+      x: 20 + Math.random() * 200,
+      y: 20 + Math.random() * 100,
+      width: 120,
+      height: 120,
+      color: '#00e5ff',
+      bgImage: template.image,
+      bgOpacity: 35,
+      flash: false,
+      linkedFixtureIds: [],
+      lockAxis: 'none',
+      presetEntries: [],
+    }]);
+  };
+
   const removeWidget = (id: string) => {
     setWidgets(prev => prev.filter(w => w.id !== id));
     if (selectedWidget === id) setSelectedWidget(null);
@@ -3700,11 +3744,6 @@ export function LiveDJ() {
           </div>
 
           <div className="flex-1 flex overflow-hidden">
-            {/* Scene Presets */}
-            <div className="px-3 py-2 border-b border-border/10 overflow-x-auto">
-              <ScenePresets />
-            </div>
-
             {/* Widget surface */}
             <div className="flex-1 relative overflow-hidden" ref={surfaceRef}
               onClick={(e) => {
@@ -4069,6 +4108,37 @@ export function LiveDJ() {
                     </button>
                   ))}
                 </div>
+
+                <details className="rounded border border-border/20 bg-muted/10" open>
+                  <summary className="flex cursor-pointer list-none items-center justify-between px-2 py-1.5 text-[8px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    <span>Quick Presets</span>
+                    <span className="text-muted-foreground/60">
+                      <ChevronDown size={10} className="inline-block details-open:hidden" />
+                      <ChevronRight size={10} className="hidden details-open:inline-block" />
+                    </span>
+                  </summary>
+                  <div className="grid grid-cols-2 gap-1 border-t border-border/20 p-2">
+                    {PRESET_WIDGET_TEMPLATES.map(template => (
+                      <button
+                        key={template.id}
+                        onClick={() => addPresetTemplateWidget(template)}
+                        className="overflow-hidden rounded border border-border/20 text-left transition-all hover:border-primary/30 hover:bg-primary/5"
+                      >
+                        <div className="aspect-[4/3] overflow-hidden border-b border-border/10">
+                          <img
+                            src={template.image}
+                            alt={template.label}
+                            loading="lazy"
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div className="px-2 py-1 text-[8px] font-semibold uppercase tracking-wide text-foreground/80">
+                          {template.label}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </details>
               </div>
 
               {/* Selected widget properties */}
