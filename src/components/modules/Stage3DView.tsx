@@ -821,7 +821,7 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
         {(fixture.type === 'moving-head' || fixture.type === 'par' || fixture.type === 'wash' ||
           fixture.type === 'spot' || fixture.type === 'beam' || fixture.type === 'laser' || fixture.type === 'generic') && (
           <select value={fixture.fixtureInstanceId || ''} onChange={e => up({ fixtureInstanceId: e.target.value || undefined })}
-            className="w-full h-5 rounded bg-muted/30 border border-border/30 text-[9px] px-1 text-foreground">
+            className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-[16px] sm:text-[9px] px-1 text-foreground">
             <option value="">— None —</option>
             {fixtureStore.instances.map((inst: any) => (
               <option key={inst.id} value={inst.id}>{inst.name}</option>
@@ -830,7 +830,7 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
         )}
         {(fixture.type === 'wled-strip' || fixture.type === 'wled-matrix') && (
           <select value={fixture.wledDeviceId || ''} onChange={e => up({ wledDeviceId: e.target.value || undefined })}
-            className="w-full h-5 rounded bg-muted/30 border border-border/30 text-[9px] px-1 text-foreground">
+            className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-[16px] sm:text-[9px] px-1 text-foreground">
             <option value="">— None —</option>
             {wledStore.devices.map((d: any) => (
               <option key={d.id} value={d.id}>{d.name} ({d.ip})</option>
@@ -848,7 +848,7 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
             </select>
             {fixture.hueBridgeId && hueStore.lights[fixture.hueBridgeId] && (
               <select value={fixture.hueLightId || ''} onChange={e => up({ hueLightId: e.target.value || undefined })}
-                className="w-full h-5 rounded bg-muted/30 border border-border/30 text-[9px] px-1 text-foreground">
+                className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-[16px] sm:text-[9px] px-1 text-foreground">
                 <option value="">— Light —</option>
                 {hueStore.lights[fixture.hueBridgeId].map((l: any) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
@@ -859,7 +859,7 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
         )}
         {fixture.type === 'magic-bulb' && (
           <select value={fixture.magicDeviceId || ''} onChange={e => up({ magicDeviceId: e.target.value || undefined })}
-            className="w-full h-5 rounded bg-muted/30 border border-border/30 text-[9px] px-1 text-foreground">
+            className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-[16px] sm:text-[9px] px-1 text-foreground">
             <option value="">— None —</option>
             {magicStore.devices.map((d: any) => (
               <option key={d.id} value={d.id}>{d.name} ({d.address})</option>
@@ -904,7 +904,7 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
             <label className="text-[7px] uppercase text-muted-foreground">Orient</label>
             <select value={fixture.stripOrientation || 'horizontal'}
               onChange={e => up({ stripOrientation: e.target.value as any })}
-              className="w-full h-5 rounded bg-muted/30 border border-border/30 text-[9px] px-1 text-foreground">
+              className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-[16px] sm:text-[9px] px-1 text-foreground">
               <option value="horizontal">Horiz</option>
               <option value="vertical">Vert</option>
             </select>
@@ -930,7 +930,7 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
             <label className="text-[7px] uppercase text-muted-foreground">Orient</label>
             <select value={fixture.matrixOrientation || 'vertical'}
               onChange={e => up({ matrixOrientation: e.target.value as any })}
-              className="w-full h-5 rounded bg-muted/30 border border-border/30 text-[9px] px-1 text-foreground">
+              className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-[16px] sm:text-[9px] px-1 text-foreground">
               <option value="vertical">Vert</option>
               <option value="horizontal">Horiz</option>
             </select>
