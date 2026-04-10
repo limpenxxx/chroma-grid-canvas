@@ -359,6 +359,22 @@ export function Devices() {
                           </div>
                         </div>
 
+                        {/* Input / Connection */}
+                        {def.connectors && def.connectors.length > 0 && (
+                          <div className="mb-2">
+                            <label className="text-[7px] uppercase text-muted-foreground">Input</label>
+                            <select value={inst.inputMode || def.connectors[0]}
+                              onChange={e => store.updateInstance(inst.id, { inputMode: e.target.value as any })}
+                              className="w-full h-6 rounded bg-muted/30 border border-border/30 text-[10px] px-1 text-foreground">
+                              {def.connectors.map(c => (
+                                <option key={c} value={c}>
+                                  {c === '3-pin' ? '3-Pin DMX' : c === '5-pin' ? '5-Pin DMX' : c === 'artnet' ? 'ArtNet' : c === 'sacn' ? 'sACN' : c === 'wireless' ? 'Wireless' : c}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
                         {/* DMX Settings */}
                         <div className="grid grid-cols-3 gap-2">
                           <div>

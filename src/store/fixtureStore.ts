@@ -337,9 +337,10 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     id: 'sund-dm-rgb400',
     manufacturer: 'SunD',
     model: 'DM-RGB400',
-    type: 'other',
+    type: 'laser',
     category: 'dmx',
     colorSystem: 'rgb',
+    connectors: ['3-pin'],
     createdAt: 0,
     modes: [{
       id: 'sund-std', name: 'DMX Standard (12ch)', channelCount: 12,
