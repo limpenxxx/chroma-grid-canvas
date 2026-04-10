@@ -36,6 +36,12 @@ export interface ArpColorStep {
   dimmer: number;   // 0-255
 }
 
+export interface ArpMatrixCell {
+  on: boolean;
+  color?: { r: number; g: number; b: number };
+  dimmer?: number; // 0-255
+}
+
 export interface ArpConfig {
   running: boolean;
   pattern: ArpPattern;
@@ -47,6 +53,10 @@ export interface ArpConfig {
   steps: ArpColorStep[];   // color sequence (cycles through)
   intensity: number;       // master intensity 0-255
   tailLength: number;      // for chase: how many fixtures trail (1-8)
+  // Matrix pattern grid: rows = devices, cols = time steps
+  matrixRows: number;      // number of device rows (usually = linked fixtures)
+  matrixCols: number;      // number of time step columns
+  matrixGrid: ArpMatrixCell[][]; // [row][col]
 }
 
 export const ARP_PATTERNS: { value: ArpPattern; label: string }[] = [
