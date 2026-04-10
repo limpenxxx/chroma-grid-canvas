@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+// @ts-ignore - ScenePresets import
+import { ScenePresets } from './ScenePresets';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Play, Square, GripVertical, Palette, SlidersHorizontal,
@@ -3559,6 +3561,11 @@ export function LiveDJ() {
           </div>
 
           <div className="flex-1 flex overflow-hidden">
+            {/* Scene Presets */}
+            <div className="px-3 py-2 border-b border-border/10 overflow-x-auto">
+              <ScenePresets />
+            </div>
+
             {/* Widget surface */}
             <div className="flex-1 relative overflow-hidden" ref={surfaceRef}
               onClick={(e) => {
