@@ -180,7 +180,7 @@ export function computeArpFrame(
     stepDuration = 1 / config.speed;
   }
 
-  const totalSteps = config.pattern === 'up-down' ? Math.max(1, deviceCount * 2 - 2) : deviceCount;
+  const totalSteps = config.pattern === 'matrix' ? (config.matrixCols || 8) : config.pattern === 'up-down' ? Math.max(1, deviceCount * 2 - 2) : deviceCount;
   const cycleTime = stepDuration * totalSteps;
   const t = cycleTime > 0 ? (timeSeconds % cycleTime) / cycleTime : 0;
   const currentStepFloat = t * totalSteps;
