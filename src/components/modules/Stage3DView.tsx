@@ -743,7 +743,7 @@ function SidePanel() {
               <label className="text-[8px] uppercase text-muted-foreground w-10">{dim}</label>
               <Input type="number" step={0.5} min={1} max={100} value={store.room[dim]}
                 onChange={e => store.setRoom({ [dim]: Number(e.target.value) })}
-                className="h-7 sm:h-5 text-[16px] sm:text-[10px] bg-muted/30 border-border/30 font-mono flex-1" />
+                className="h-7 sm:h-5 text-sm sm:text-[10px] bg-muted/30 border-border/30 font-mono flex-1" />
               <span className="text-[8px] text-muted-foreground">m</span>
             </div>
           ))}
@@ -813,7 +813,7 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
           className="text-destructive hover:text-destructive/80"><Trash2 size={12} /></button>
       </div>
       <Input value={fixture.name} onChange={e => up({ name: e.target.value })}
-        className="h-7 sm:h-5 text-[16px] sm:text-[10px] bg-muted/30 border-border/30" />
+        className="h-7 sm:h-5 text-sm sm:text-[10px] bg-muted/30 border-border/30" />
 
       {/* Link to system fixture */}
       <div>
@@ -821,7 +821,7 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
         {(fixture.type === 'moving-head' || fixture.type === 'par' || fixture.type === 'wash' ||
           fixture.type === 'spot' || fixture.type === 'beam' || fixture.type === 'laser' || fixture.type === 'generic') && (
           <select value={fixture.fixtureInstanceId || ''} onChange={e => up({ fixtureInstanceId: e.target.value || undefined })}
-            className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-[16px] sm:text-[9px] px-1 text-foreground">
+            className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-sm sm:text-[9px] px-1 text-foreground">
             <option value="">— None —</option>
             {fixtureStore.instances.map((inst: any) => (
               <option key={inst.id} value={inst.id}>{inst.name}</option>
@@ -830,7 +830,7 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
         )}
         {(fixture.type === 'wled-strip' || fixture.type === 'wled-matrix') && (
           <select value={fixture.wledDeviceId || ''} onChange={e => up({ wledDeviceId: e.target.value || undefined })}
-            className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-[16px] sm:text-[9px] px-1 text-foreground">
+            className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-sm sm:text-[9px] px-1 text-foreground">
             <option value="">— None —</option>
             {wledStore.devices.map((d: any) => (
               <option key={d.id} value={d.id}>{d.name} ({d.ip})</option>
@@ -848,7 +848,7 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
             </select>
             {fixture.hueBridgeId && hueStore.lights[fixture.hueBridgeId] && (
               <select value={fixture.hueLightId || ''} onChange={e => up({ hueLightId: e.target.value || undefined })}
-                className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-[16px] sm:text-[9px] px-1 text-foreground">
+                className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-sm sm:text-[9px] px-1 text-foreground">
                 <option value="">— Light —</option>
                 {hueStore.lights[fixture.hueBridgeId].map((l: any) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
@@ -859,7 +859,7 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
         )}
         {fixture.type === 'magic-bulb' && (
           <select value={fixture.magicDeviceId || ''} onChange={e => up({ magicDeviceId: e.target.value || undefined })}
-            className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-[16px] sm:text-[9px] px-1 text-foreground">
+            className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-sm sm:text-[9px] px-1 text-foreground">
             <option value="">— None —</option>
             {magicStore.devices.map((d: any) => (
               <option key={d.id} value={d.id}>{d.name} ({d.address})</option>
@@ -875,7 +875,7 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
             <label className="text-[7px] uppercase text-muted-foreground">{axis}</label>
             <Input type="number" step={0.1} value={fixture[axis]}
               onChange={e => up({ [axis]: Number(e.target.value) })}
-              className="h-7 sm:h-5 text-[16px] sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
+              className="h-7 sm:h-5 text-sm sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
           </div>
         ))}
       </div>
@@ -886,7 +886,7 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
             <label className="text-[7px] uppercase text-muted-foreground">{axis.replace('rot', 'R')}</label>
             <Input type="number" step={5} value={fixture[axis]}
               onChange={e => up({ [axis]: Number(e.target.value) })}
-              className="h-7 sm:h-5 text-[16px] sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
+              className="h-7 sm:h-5 text-sm sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
           </div>
         ))}
       </div>
@@ -898,13 +898,13 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
             <label className="text-[7px] uppercase text-muted-foreground">Length (m)</label>
             <Input type="number" step={0.1} value={fixture.stripLength || 2}
               onChange={e => up({ stripLength: Number(e.target.value) })}
-              className="h-7 sm:h-5 text-[16px] sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
+              className="h-7 sm:h-5 text-sm sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
           </div>
           <div>
             <label className="text-[7px] uppercase text-muted-foreground">Orient</label>
             <select value={fixture.stripOrientation || 'horizontal'}
               onChange={e => up({ stripOrientation: e.target.value as any })}
-              className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-[16px] sm:text-[9px] px-1 text-foreground">
+              className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-sm sm:text-[9px] px-1 text-foreground">
               <option value="horizontal">Horiz</option>
               <option value="vertical">Vert</option>
             </select>
@@ -918,19 +918,19 @@ function FixtureProps({ fixture, store, fixtureStore, wledStore, hueStore, magic
             <label className="text-[7px] uppercase text-muted-foreground">W</label>
             <Input type="number" value={fixture.matrixW || 16}
               onChange={e => up({ matrixW: Number(e.target.value) })}
-              className="h-7 sm:h-5 text-[16px] sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
+              className="h-7 sm:h-5 text-sm sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
           </div>
           <div>
             <label className="text-[7px] uppercase text-muted-foreground">H</label>
             <Input type="number" value={fixture.matrixH || 16}
               onChange={e => up({ matrixH: Number(e.target.value) })}
-              className="h-7 sm:h-5 text-[16px] sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
+              className="h-7 sm:h-5 text-sm sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
           </div>
           <div>
             <label className="text-[7px] uppercase text-muted-foreground">Orient</label>
             <select value={fixture.matrixOrientation || 'vertical'}
               onChange={e => up({ matrixOrientation: e.target.value as any })}
-              className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-[16px] sm:text-[9px] px-1 text-foreground">
+              className="w-full h-7 sm:h-5 rounded bg-muted/30 border border-border/30 text-sm sm:text-[9px] px-1 text-foreground">
               <option value="vertical">Vert</option>
               <option value="horizontal">Horiz</option>
             </select>
@@ -951,7 +951,7 @@ function PropProps({ prop, store }: { prop: StageProp; store: any }) {
           className="text-destructive hover:text-destructive/80"><Trash2 size={12} /></button>
       </div>
       <Input value={prop.name} onChange={e => up({ name: e.target.value })}
-        className="h-7 sm:h-5 text-[16px] sm:text-[10px] bg-muted/30 border-border/30" />
+        className="h-7 sm:h-5 text-sm sm:text-[10px] bg-muted/30 border-border/30" />
       {/* Position */}
       <div className="grid grid-cols-3 gap-1">
         {(['x', 'y', 'z'] as const).map(axis => (
@@ -959,7 +959,7 @@ function PropProps({ prop, store }: { prop: StageProp; store: any }) {
             <label className="text-[7px] uppercase text-muted-foreground">{axis}</label>
             <Input type="number" step={0.1} value={prop[axis]}
               onChange={e => up({ [axis]: Number(e.target.value) })}
-              className="h-7 sm:h-5 text-[16px] sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
+              className="h-7 sm:h-5 text-sm sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
           </div>
         ))}
       </div>
@@ -970,7 +970,7 @@ function PropProps({ prop, store }: { prop: StageProp; store: any }) {
             <label className="text-[7px] uppercase text-muted-foreground">{dim[0].toUpperCase()}</label>
             <Input type="number" step={0.1} min={0.01} value={prop[dim]}
               onChange={e => up({ [dim]: Number(e.target.value) })}
-              className="h-7 sm:h-5 text-[16px] sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
+              className="h-7 sm:h-5 text-sm sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
           </div>
         ))}
       </div>
@@ -981,7 +981,7 @@ function PropProps({ prop, store }: { prop: StageProp; store: any }) {
             <label className="text-[7px] uppercase text-muted-foreground">{axis.replace('rot', 'R')}</label>
             <Input type="number" step={5} value={prop[axis]}
               onChange={e => up({ [axis]: Number(e.target.value) })}
-              className="h-7 sm:h-5 text-[16px] sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
+              className="h-7 sm:h-5 text-sm sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
           </div>
         ))}
       </div>
@@ -1012,14 +1012,14 @@ function TrussProps({ truss, store }: { truss: TrussElement; store: any }) {
           className="text-destructive hover:text-destructive/80"><Trash2 size={12} /></button>
       </div>
       <Input value={truss.name} onChange={e => up({ name: e.target.value })}
-        className="h-7 sm:h-5 text-[16px] sm:text-[10px] bg-muted/30 border-border/30" />
+        className="h-7 sm:h-5 text-sm sm:text-[10px] bg-muted/30 border-border/30" />
       <div className="grid grid-cols-3 gap-1">
         {(['x', 'y', 'z'] as const).map(axis => (
           <div key={axis}>
             <label className="text-[7px] uppercase text-muted-foreground">{axis}</label>
             <Input type="number" step={0.1} value={truss[axis]}
               onChange={e => up({ [axis]: Number(e.target.value) })}
-              className="h-7 sm:h-5 text-[16px] sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
+              className="h-7 sm:h-5 text-sm sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
           </div>
         ))}
       </div>
@@ -1028,13 +1028,13 @@ function TrussProps({ truss, store }: { truss: TrussElement; store: any }) {
           <label className="text-[7px] uppercase text-muted-foreground">Length</label>
           <Input type="number" step={0.5} min={0.5} value={truss.length}
             onChange={e => up({ length: Number(e.target.value) })}
-            className="h-7 sm:h-5 text-[16px] sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
+            className="h-7 sm:h-5 text-sm sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
         </div>
         <div>
           <label className="text-[7px] uppercase text-muted-foreground">Rot Y</label>
           <Input type="number" step={5} value={truss.rotY}
             onChange={e => up({ rotY: Number(e.target.value) })}
-            className="h-7 sm:h-5 text-[16px] sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
+            className="h-7 sm:h-5 text-sm sm:text-[9px] bg-muted/30 border-border/30 font-mono" />
         </div>
       </div>
     </div>
