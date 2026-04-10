@@ -964,7 +964,10 @@ async function outputLoop() {
   // DDP every cycle (25fps) — fast pixel protocol for WLED
   outputDdp();
 
-  // WLED JSON API every cycle
+  // DNRGB every cycle (25fps) — WLED realtime, auto-releases on stop
+  outputDnrgb();
+
+  // WLED JSON API every cycle (only for devices set to 'json' protocol)
   await outputWled();
 
   // Hue every 3rd cycle (~8fps, within Hue rate limits)
