@@ -324,6 +324,57 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
       ],
     }],
   },
+  // ── SunD DM-RGB400 Laser ──
+  {
+    id: 'sund-dm-rgb400',
+    manufacturer: 'SunD',
+    model: 'DM-RGB400',
+    type: 'other',
+    category: 'dmx',
+    colorSystem: 'rgb',
+    createdAt: 0,
+    modes: [{
+      id: 'sund-std', name: 'DMX Standard (12ch)', channelCount: 12,
+      channels: [
+        {
+          id: 'sund-c1', number: 1, name: 'Mode', function: 'macro', defaultValue: 150, min: 0, max: 255,
+          capabilities: [
+            { id: 'sund-c1-0', dmxMin: 0,   dmxMax: 49,  label: 'Sound Active',     type: 'macro' },
+            { id: 'sund-c1-1', dmxMin: 50,  dmxMax: 99,  label: 'Auto Mode',        type: 'macro' },
+            { id: 'sund-c1-2', dmxMin: 100, dmxMax: 149, label: 'Static Patterns',  type: 'macro' },
+            { id: 'sund-c1-3', dmxMin: 150, dmxMax: 255, label: 'Dynamic Patterns', type: 'macro' },
+          ],
+        },
+        { id: 'sund-c2',  number: 2,  name: 'Pattern Select',  function: 'macro',   defaultValue: 0, min: 0, max: 255 },
+        { id: 'sund-c3',  number: 3,  name: 'Strobe',          function: 'strobe',  defaultValue: 0, min: 0, max: 255 },
+        { id: 'sund-c4',  number: 4,  name: 'Drawing Speed',   function: 'speed',   defaultValue: 0, min: 0, max: 255 },
+        { id: 'sund-c5',  number: 5,  name: 'Horizontal (X)',  function: 'pan',     defaultValue: 128, min: 0, max: 255 },
+        { id: 'sund-c6',  number: 6,  name: 'Vertical (Y)',    function: 'tilt',    defaultValue: 128, min: 0, max: 255 },
+        { id: 'sund-c7',  number: 7,  name: 'Zoom',            function: 'zoom',    defaultValue: 128, min: 0, max: 255 },
+        {
+          id: 'sund-c8', number: 8, name: 'Color Mode', function: 'color-wheel', defaultValue: 0, min: 0, max: 255,
+          capabilities: [
+            { id: 'sund-c8-0', dmxMin: 0,   dmxMax: 49,  label: 'Red',          type: 'color', color: '#ff0000' },
+            { id: 'sund-c8-1', dmxMin: 50,  dmxMax: 99,  label: 'Green',        type: 'color', color: '#00ff00' },
+            { id: 'sund-c8-2', dmxMin: 100, dmxMax: 149, label: 'Blue',         type: 'color', color: '#0000ff' },
+            { id: 'sund-c8-3', dmxMin: 150, dmxMax: 199, label: 'Yellow',       type: 'color', color: '#ffff00' },
+            { id: 'sund-c8-4', dmxMin: 200, dmxMax: 224, label: 'Cyan',         type: 'color', color: '#00ffff' },
+            { id: 'sund-c8-5', dmxMin: 225, dmxMax: 255, label: 'Multi-Color',  type: 'color', color: '#ffffff' },
+          ],
+        },
+        {
+          id: 'sund-c9', number: 9, name: 'Reset', function: 'custom', defaultValue: 0, min: 0, max: 255,
+          capabilities: [
+            { id: 'sund-c9-0', dmxMin: 0,   dmxMax: 200, label: 'Safe',  type: 'custom' },
+            { id: 'sund-c9-1', dmxMin: 201, dmxMax: 255, label: 'Reset', type: 'custom' },
+          ],
+        },
+        { id: 'sund-c10', number: 10, name: 'X Rotation', function: 'custom', defaultValue: 128, min: 0, max: 255 },
+        { id: 'sund-c11', number: 11, name: 'Y Rotation', function: 'custom', defaultValue: 128, min: 0, max: 255 },
+        { id: 'sund-c12', number: 12, name: 'Z Rotation', function: 'custom', defaultValue: 128, min: 0, max: 255 },
+      ],
+    }],
+  },
   // ── WLED Built-in fixtures ──
   {
     id: 'wled-strip-60',
