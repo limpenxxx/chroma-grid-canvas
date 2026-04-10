@@ -30,6 +30,7 @@ import { ProjectionMapping } from './ProjectionMapping';
 import { StageMap } from './StageMap';
 import { AILightShow } from './AILightShow';
 import { useIOStore } from './IOSetup';
+import { type ArpConfig, createDefaultArpConfig, computeArpFrame, ArpeggiatorPreview, ARP_PATTERNS, BPM_DIVISIONS, ARP_PRESETS, type ArpColorStep, type ArpEngineState } from './ArpeggiatorWidget';
 
 // ── Types ──
 
@@ -40,7 +41,7 @@ interface FixtureAssignment {
   mode: ControlMode;
 }
 
-type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset' | 'audio-reactive' | 'tap-bpm' | 'eq-trigger';
+type WidgetType = 'button' | 'slider' | 'color-wheel' | 'xy-pad' | 'preset' | 'fixed-color' | 'media-trigger' | 'vfx' | 'wled-preset' | 'wled-fixture' | 'dmx-reset' | 'audio-reactive' | 'tap-bpm' | 'eq-trigger' | 'arpeggiator';
 
 // ── Audio Reactive Effect Types ──
 type AudioReactiveEffectType =
@@ -231,6 +232,8 @@ interface DJWidget {
   audioReactive?: AudioReactiveConfig;
   // EQ Trigger widget
   eqTriggerZones?: EqTriggerZone[];
+  // Arpeggiator widget
+  arpConfig?: ArpConfig;
 }
 
 type ColorProgramMode = 'static' | 'switch' | 'fade';
@@ -328,6 +331,7 @@ const WIDGET_PRESETS: { type: WidgetType; label: string; icon: typeof Zap; w: nu
   { type: 'audio-reactive', label: 'Audio Reactive', icon: Radio, w: 260, h: 320 },
   { type: 'tap-bpm', label: 'Tap / Audio In', icon: Activity, w: 220, h: 200 },
   { type: 'eq-trigger', label: 'EQ Trigger', icon: Activity, w: 320, h: 280 },
+  { type: 'arpeggiator', label: 'Arpeggiator', icon: Music, w: 260, h: 200 },
 ];
 
 // ── Color distance helper (Euclidean in RGB space) ──
@@ -2771,6 +2775,7 @@ export function LiveDJ() {
       wledFixtureBrightness: type === 'wled-fixture' ? 128 : undefined,
       audioReactive: type === 'audio-reactive' ? { running: false, effects: [], globalDecay: 180, sensitivity: 160 } : undefined,
       eqTriggerZones: type === 'eq-trigger' ? [] : undefined,
+      arpConfig: type === 'arpeggiator' ? createDefaultArpConfig() : undefined,
     }]);
   };
 
