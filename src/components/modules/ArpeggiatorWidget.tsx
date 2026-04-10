@@ -21,7 +21,8 @@ export type ArpPattern =
   | 'all-flash'    // all on simultaneously, then off
   | 'even-odd'     // alternating even/odd
   | 'chase'        // one at a time with fade tail
-  | 'scatter';     // random subset each step
+  | 'scatter'      // random subset each step
+  | 'matrix';      // custom grid pattern (rows=devices, cols=steps)
 
 export type ArpChannel = 'dimmer' | 'rgb' | 'rgbw';
 
