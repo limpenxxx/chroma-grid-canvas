@@ -165,8 +165,6 @@ function Truss3D({ truss }: { truss: TrussElement }) {
 
 // Stage props: cubes, pipes, platforms, risers, screens — simple flat-shaded geometry
 function StageProp3D({ prop }: { prop: StageProp }) {
-  if (!prop.visible) return null;
-
   const geometry = useMemo(() => {
     switch (prop.type) {
       case 'pipe':
@@ -180,6 +178,8 @@ function StageProp3D({ prop }: { prop: StageProp }) {
         return <boxGeometry args={[prop.width, prop.height, prop.depth]} />;
     }
   }, [prop.type, prop.width, prop.height, prop.depth]);
+
+  if (!prop.visible) return null;
 
   return (
     <group
