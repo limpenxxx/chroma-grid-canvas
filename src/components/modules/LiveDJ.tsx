@@ -3274,6 +3274,7 @@ export function LiveDJ() {
   const wledDeviceVirtualFixtures = wledStore.devices.map(wledDeviceToVirtual);
   const wledSegmentVirtualFixtures = wledStore.fixtures.map(wledFixtureToVirtual);
   const allFixturesWithDefs = [...fixturesWithDefs, ...wledDeviceVirtualFixtures, ...wledSegmentVirtualFixtures];
+  allFixturesWithDefsRef.current = allFixturesWithDefs;
 
   const selectedWidgetData = widgets.find(w => w.id === selectedWidget);
 
