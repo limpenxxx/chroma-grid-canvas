@@ -639,7 +639,7 @@ function SidePanel() {
   );
 
   return (
-    <div className="w-56 border-l border-border/20 bg-card/40 overflow-y-auto text-xs flex flex-col">
+    <div className="w-full sm:w-56 max-h-[40vh] sm:max-h-none border-t sm:border-t-0 sm:border-l border-border/20 bg-card/40 overflow-y-auto text-xs flex flex-col">
       {/* ── Add Buttons ── */}
       <div className="flex gap-1 p-2 border-b border-border/20">
         <button onClick={() => setAddingType(addingType === 'fixture' ? null : 'fixture')}
