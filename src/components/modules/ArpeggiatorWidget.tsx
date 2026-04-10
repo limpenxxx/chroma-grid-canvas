@@ -275,6 +275,22 @@ export function computeArpFrame(
       }
       break;
     }
+    case 'matrix': {
+      // Matrix pattern: rows = devices, cols = time steps
+      const grid = config.matrixGrid;
+      const matrixCols = config.matrixCols || 8;
+      const colIdx = currentStep % matrixCols;
+      for (let row = 0; row < Math.min(deviceCount, grid.length); row++) {
+        const cell = grid[row]?.[colIdx];
+        if (cell?.on) {
+          const cellColor = cell.color
+            ? { r: cell.color.r, g: cell.color.g, b: cell.color.b, w: 0, dimmer: cell.dimmer ?? 255 }
+            : getStepColor(colIdx);
+          outputs[row] = applyEnvelope(cellColor, envelope, intensityScale);
+        }
+      }
+      break;
+    }
   }
 
   return {
