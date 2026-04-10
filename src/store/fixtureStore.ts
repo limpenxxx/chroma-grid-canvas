@@ -272,6 +272,7 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
     type: 'moving-head',
     category: 'dmx',
     colorSystem: 'rgbw',
+    connectors: ['5-pin', 'artnet'],
     createdAt: 0,
     modes: [{
       id: 'mdn-std', name: 'Standard (19ch)', channelCount: 19,
