@@ -1935,7 +1935,51 @@ function ControlWidget({
         );
       })()}
 
-      {/* EQ TRIGGER WIDGET */}
+      {/* ARPEGGIATOR WIDGET */}
+      {widget.type === 'arpeggiator' && (() => {
+        const arp = widget.arpConfig || createDefaultArpConfig();
+        return (
+          <div className="w-full h-full rounded-lg control-glossy border border-border/30 flex flex-col overflow-hidden"
+            style={bgStyle}
+            onClick={onSelect}>
+            <div className="px-2 py-1 flex items-center gap-1.5 border-b border-border/20 shrink-0" style={{ background: 'rgba(255,100,0,0.08)' }}>
+              <Music size={10} className="text-orange-400" />
+              <span className="text-[9px] font-semibold truncate flex-1 text-orange-300">{widget.label}</span>
+              <button
+                onClick={e => { e.stopPropagation(); onUpdate({ arpConfig: { ...arp, running: !arp.running } }); }}
+                className={`w-5 h-5 rounded flex items-center justify-center transition-all ${
+                  arp.running ? 'bg-green-500/20 text-green-400' : 'bg-muted/20 text-muted-foreground'
+                }`}>
+                {arp.running ? <Square size={8} /> : <Play size={8} />}
+              </button>
+            </div>
+            <div className="flex-1 p-1.5 flex flex-col gap-1 overflow-hidden">
+              <div className="flex items-center gap-1 text-[7px] text-muted-foreground">
+                <span className="font-mono">{ARP_PATTERNS.find(p => p.value === arp.pattern)?.label}</span>
+                <span>•</span>
+                <span>{arp.syncMode === 'bpm' ? `${BPM_DIVISIONS.find(d => d.value === arp.bpmDivision)?.label || '1 beat'}` : arp.syncMode === 'audio' ? '🎙 Audio' : `${arp.speed.toFixed(1)} Hz`}</span>
+                <span>•</span>
+                <span>{widget.linkedFixtureIds.length} dev</span>
+              </div>
+              <ArpeggiatorPreview
+                config={arp}
+                bpm={bs?.bpm || 120}
+                deviceCount={Math.max(widget.linkedFixtureIds.length, 4)}
+                audioLevel={bs?.audioLevel || 0}
+              />
+              {/* Color steps preview */}
+              <div className="flex gap-0.5 mt-auto">
+                {arp.steps.map((s, i) => (
+                  <div key={i} className="flex-1 h-3 rounded-sm border border-border/10"
+                    style={{ backgroundColor: `rgb(${s.r},${s.g},${s.b})`, opacity: s.dimmer / 255 }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+
       {widget.type === 'eq-trigger' && (() => {
         const zones = widget.eqTriggerZones || [];
         const fixtureList = fixtureData.map(f => ({
