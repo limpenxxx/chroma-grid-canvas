@@ -29,6 +29,7 @@ type Tab = 'instances' | 'library' | 'editor' | 'wled' | 'hue' | 'magichome' | '
 
 export function Devices() {
   const store = useFixtureStore();
+  const liveDmxLevels = useLiveDmxLevels();
   const wledStore = useWledStore();
   const hueStore = useHueStore();
   const magicStore = useMagicHomeStore();
