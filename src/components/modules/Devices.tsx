@@ -19,6 +19,7 @@ import { WledPanel } from './WledPanel';
 import { HuePanel } from './HuePanel';
 import { MagicHomePanel } from './MagicHomePanel';
 import { DmxMixer } from './DmxMixer';
+import { useLiveDmxLevels } from '@/hooks/useLiveDmxLevels';
 import { IOSetup } from './IOSetup';
 import { FixtureEditor } from './FixtureEditor';
 

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { AudioVisualizerEngine, PRESET_LABELS, type VisualizerPreset } from '@/lib/audioVisualizer';
 import { DmxMixer } from './DmxMixer';
+import { useLiveDmxLevels } from '@/hooks/useLiveDmxLevels';
 import { EqTriggerWidget, type EqTriggerZone, type EqColorOutput } from './EqTriggerWidget';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
