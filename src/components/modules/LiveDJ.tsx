@@ -5802,12 +5802,12 @@ export function LiveDJ() {
                                 <select value={editCell.fixtureInstanceId || ''}
                                   onChange={e => {
                                     const id = e.target.value;
-                                    const inst = allFixturesWithDefs.find(f => f.inst.id === id && f.def.category === 'hue');
+                                    const inst = allFixturesWithDefs.find(f => f.inst.id === id && (f.def.category as string) === 'hue');
                                     updateCell(editCellIdx, { fixtureInstanceId: id, label: editCell.label || inst?.inst.name });
                                   }}
                                   className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
                                   <option value="">Välj Hue...</option>
-                                  {allFixturesWithDefs.filter(f => f.def.category === 'hue').map(({ inst }) => (
+                                  {allFixturesWithDefs.filter(f => (f.def.category as string) === 'hue').map(({ inst }) => (
                                     <option key={inst.id} value={inst.id}>💡 {inst.name}</option>
                                   ))}
                                 </select>
@@ -5820,12 +5820,12 @@ export function LiveDJ() {
                                 <select value={editCell.fixtureInstanceId || ''}
                                   onChange={e => {
                                     const id = e.target.value;
-                                    const inst = allFixturesWithDefs.find(f => f.inst.id === id && f.def.category === 'magichome');
+                                    const inst = allFixturesWithDefs.find(f => f.inst.id === id && (f.def.category as string) === 'magichome');
                                     updateCell(editCellIdx, { fixtureInstanceId: id, label: editCell.label || inst?.inst.name });
                                   }}
                                   className="w-full h-6 rounded bg-muted/20 border border-border/20 text-[10px] px-1 text-foreground mt-0.5">
                                   <option value="">Välj MagicHome...</option>
-                                  {allFixturesWithDefs.filter(f => f.def.category === 'magichome').map(({ inst }) => (
+                                  {allFixturesWithDefs.filter(f => (f.def.category as string) === 'magichome').map(({ inst }) => (
                                     <option key={inst.id} value={inst.id}>💡 {inst.name}</option>
                                   ))}
                                 </select>
