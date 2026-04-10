@@ -257,6 +257,73 @@ const BUILT_IN_FIXTURES: FixtureDefinition[] = [
       ],
     }],
   },
+  // ── Ayrton MagicDot-Neo ──
+  {
+    id: 'ayrton-magicdot-neo',
+    manufacturer: 'Ayrton',
+    model: 'MagicDot-Neo',
+    type: 'moving-head',
+    category: 'dmx',
+    colorSystem: 'rgbw',
+    createdAt: 0,
+    modes: [{
+      id: 'mdn-std', name: 'Standard (19ch)', channelCount: 19,
+      channels: [
+        { id: 'mdn-c1',  number: 1,  name: 'Pan',                 function: 'pan',         defaultValue: 128, min: 0, max: 255 },
+        { id: 'mdn-c2',  number: 2,  name: 'Pan Fine',            function: 'pan-fine',    defaultValue: 0,   min: 0, max: 255 },
+        { id: 'mdn-c3',  number: 3,  name: 'Tilt',                function: 'tilt',        defaultValue: 128, min: 0, max: 255 },
+        { id: 'mdn-c4',  number: 4,  name: 'Tilt Fine',           function: 'tilt-fine',   defaultValue: 0,   min: 0, max: 255 },
+        { id: 'mdn-c5',  number: 5,  name: 'Pan/Tilt Speed',      function: 'speed',       defaultValue: 0,   min: 0, max: 255 },
+        { id: 'mdn-c6',  number: 6,  name: 'Master Dimmer',       function: 'dimmer',      defaultValue: 0,   min: 0, max: 255 },
+        {
+          id: 'mdn-c7',  number: 7,  name: 'Shutter/Strobe',     function: 'shutter',     defaultValue: 0,   min: 0, max: 255,
+          capabilities: [
+            { id: 'mdn-c7-0', dmxMin: 0,   dmxMax: 3,   label: 'Closed',          type: 'custom' },
+            { id: 'mdn-c7-1', dmxMin: 4,   dmxMax: 103, label: 'Strobe Slow→Fast', type: 'custom' },
+            { id: 'mdn-c7-2', dmxMin: 104, dmxMax: 107, label: 'Open',            type: 'custom' },
+            { id: 'mdn-c7-3', dmxMin: 108, dmxMax: 207, label: 'Pulse Effects',   type: 'custom' },
+            { id: 'mdn-c7-4', dmxMin: 208, dmxMax: 212, label: 'Open',            type: 'custom' },
+            { id: 'mdn-c7-5', dmxMin: 213, dmxMax: 251, label: 'Random Strobe',   type: 'custom' },
+            { id: 'mdn-c7-6', dmxMin: 252, dmxMax: 255, label: 'Open',            type: 'custom' },
+          ],
+        },
+        { id: 'mdn-c8',  number: 8,  name: 'Red',                 function: 'red',         defaultValue: 0,   min: 0, max: 255 },
+        { id: 'mdn-c9',  number: 9,  name: 'Green',               function: 'green',       defaultValue: 0,   min: 0, max: 255 },
+        { id: 'mdn-c10', number: 10, name: 'Blue',                function: 'blue',        defaultValue: 0,   min: 0, max: 255 },
+        { id: 'mdn-c11', number: 11, name: 'White',               function: 'white',       defaultValue: 0,   min: 0, max: 255 },
+        {
+          id: 'mdn-c12', number: 12, name: 'Continuous Pan Rot',  function: 'custom',      defaultValue: 0,   min: 0, max: 255,
+          capabilities: [
+            { id: 'mdn-c12-0', dmxMin: 0,   dmxMax: 127, label: 'No Function',        type: 'custom' },
+            { id: 'mdn-c12-1', dmxMin: 128, dmxMax: 191, label: 'CW Fast→Slow',       type: 'custom' },
+            { id: 'mdn-c12-2', dmxMin: 192, dmxMax: 255, label: 'CCW Slow→Fast',      type: 'custom' },
+          ],
+        },
+        { id: 'mdn-c13', number: 13, name: 'Color Macros',        function: 'color-wheel', defaultValue: 0,   min: 0, max: 255 },
+        {
+          id: 'mdn-c14', number: 14, name: 'Continuous Tilt Rot', function: 'custom',      defaultValue: 0,   min: 0, max: 255,
+          capabilities: [
+            { id: 'mdn-c14-0', dmxMin: 0,   dmxMax: 127, label: 'No Function',        type: 'custom' },
+            { id: 'mdn-c14-1', dmxMin: 128, dmxMax: 191, label: 'CW Fast→Slow',       type: 'custom' },
+            { id: 'mdn-c14-2', dmxMin: 192, dmxMax: 255, label: 'CCW Slow→Fast',      type: 'custom' },
+          ],
+        },
+        { id: 'mdn-c15', number: 15, name: 'Color Macro Speed',   function: 'speed',       defaultValue: 0,   min: 0, max: 255 },
+        { id: 'mdn-c16', number: 16, name: 'Color Crossfade',     function: 'custom',      defaultValue: 0,   min: 0, max: 255 },
+        { id: 'mdn-c17', number: 17, name: 'Internal Programs',   function: 'macro',       defaultValue: 0,   min: 0, max: 255 },
+        { id: 'mdn-c18', number: 18, name: 'Program Speed',       function: 'speed',       defaultValue: 0,   min: 0, max: 255 },
+        {
+          id: 'mdn-c19', number: 19, name: 'Control/Reset',       function: 'custom',      defaultValue: 0,   min: 0, max: 255,
+          capabilities: [
+            { id: 'mdn-c19-0', dmxMin: 0,   dmxMax: 79,  label: 'Safe / No Function', type: 'custom' },
+            { id: 'mdn-c19-1', dmxMin: 80,  dmxMax: 99,  label: 'Motor Reset',        type: 'custom' },
+            { id: 'mdn-c19-2', dmxMin: 100, dmxMax: 119, label: 'Display Off',        type: 'custom' },
+            { id: 'mdn-c19-3', dmxMin: 120, dmxMax: 255, label: 'Calibration/Other',  type: 'custom' },
+          ],
+        },
+      ],
+    }],
+  },
   // ── WLED Built-in fixtures ──
   {
     id: 'wled-strip-60',
