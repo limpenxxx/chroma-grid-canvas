@@ -5660,7 +5660,8 @@ export function LiveDJ() {
                     const cols = selectedWidgetData.matrixCols || 4;
                     const rows = selectedWidgetData.matrixRows || 4;
                     const cells = selectedWidgetData.matrixCells || [];
-                    const [editCellIdx, setEditCellIdx] = useState<number | null>(null);
+                    const editCellIdx = matrixEditCellIdx;
+                    const setEditCellIdx = setMatrixEditCellIdx;
 
                     const resizeMatrix = (newCols: number, newRows: number) => {
                       const total = newCols * newRows;
