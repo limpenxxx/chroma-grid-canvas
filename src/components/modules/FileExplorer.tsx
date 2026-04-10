@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   FolderOpen, Upload, Download, FileVideo, Image, FileJson, Trash2, Eye,
-  Plus, Film, Lightbulb, X,
+  Plus, Film, Lightbulb, X, Globe, Search, Loader2, ChevronRight, ChevronLeft,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,13 @@ import { useMediaStore, type MediaItem } from '@/store/mediaStore';
 import { useFixtureStore, type FixtureDefinition } from '@/store/fixtureStore';
 import { parseGdtfFile } from '@/lib/gdtfParser';
 import { parseQxfFile } from '@/lib/qlcPlusParser';
+import {
+  fetchOflManufacturers,
+  fetchOflManufacturer,
+  fetchOflFixture,
+  parseOflJson,
+  type OflManufacturerInfo,
+} from '@/lib/oflParser';
 import { toast } from 'sonner';
 
 /* ────────── helpers ────────── */
@@ -23,19 +30,6 @@ function downloadFile(data: string, filename: string, mime = 'application/json')
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
-}
-
-function pickFile(accept: string): Promise<File> {
-  return new Promise((resolve, reject) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = accept;
-    input.onchange = () => {
-      if (input.files?.[0]) resolve(input.files[0]);
-      else reject(new Error('cancelled'));
-    };
-    input.click();
-  });
 }
 
 function pickFiles(accept: string): Promise<FileList> {
@@ -79,6 +73,162 @@ interface LocalFile {
   addedAt: number;
 }
 
+/* ────────── Online Fixture Browser ────────── */
+
+function OnlineFixtureBrowser({ onClose }: { onClose: () => void }) {
+  const fixtureStore = useFixtureStore();
+  const [manufacturers, setManufacturers] = useState<Record<string, { name: string }> | null>(null);
+  const [filteredMfrs, setFilteredMfrs] = useState<[string, string][]>([]);
+  const [search, setSearch] = useState('');
+  const [selectedMfr, setSelectedMfr] = useState<OflManufacturerInfo | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [importing, setImporting] = useState<string | null>(null);
+
+  // Load manufacturers on mount
+  useEffect(() => {
+    setLoading(true);
+    fetchOflManufacturers()
+      .then((data) => {
+        setManufacturers(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        toast.error('Failed to load fixture library');
+        setLoading(false);
+      });
+  }, []);
+
+  // Filter manufacturers
+  useEffect(() => {
+    if (!manufacturers) return;
+    const lower = search.toLowerCase();
+    const entries = Object.entries(manufacturers)
+      .map(([key, val]) => [key, val.name] as [string, string])
+      .filter(([key, name]) => !search || name.toLowerCase().includes(lower) || key.includes(lower))
+      .sort((a, b) => a[1].localeCompare(b[1]));
+    setFilteredMfrs(entries);
+  }, [manufacturers, search]);
+
+  const selectManufacturer = useCallback(async (key: string) => {
+    setLoading(true);
+    try {
+      const info = await fetchOflManufacturer(key);
+      setSelectedMfr(info);
+    } catch {
+      toast.error('Failed to load manufacturer');
+    }
+    setLoading(false);
+  }, []);
+
+  const importFixture = useCallback(async (mfrKey: string, fixtureKey: string, fixtureName: string) => {
+    setImporting(fixtureKey);
+    try {
+      const json = await fetchOflFixture(mfrKey, fixtureKey);
+      const mfrName = selectedMfr?.name || mfrKey;
+      const def = parseOflJson(json, mfrName);
+      if (def) {
+        fixtureStore.addDefinition(def);
+        toast.success(`Imported: ${mfrName} ${fixtureName} (${def.modes.length} modes)`);
+      } else {
+        toast.error('Could not parse fixture');
+      }
+    } catch {
+      toast.error('Failed to download fixture');
+    }
+    setImporting(null);
+  }, [selectedMfr, fixtureStore]);
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center gap-2 pb-2 border-b border-border/20">
+        {selectedMfr && (
+          <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setSelectedMfr(null)}>
+            <ChevronLeft size={14} />
+          </Button>
+        )}
+        <Globe size={14} className="text-primary shrink-0" />
+        <span className="text-xs font-medium truncate">
+          {selectedMfr ? selectedMfr.name : 'Open Fixture Library'}
+        </span>
+        <span className="text-[9px] text-muted-foreground">({selectedMfr ? `${selectedMfr.fixtures.length} fixtures` : '1000+ manufacturers'})</span>
+        <div className="flex-1" />
+        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={onClose}>
+          <X size={14} />
+        </Button>
+      </div>
+
+      {/* Search */}
+      {!selectedMfr && (
+        <div className="relative mt-2">
+          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search manufacturers... (Ayrton, Chauvet, Robe...)"
+            className="h-7 text-[11px] pl-7 bg-muted/10 border-border/20"
+          />
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto mt-2 space-y-0.5">
+        {loading ? (
+          <div className="flex items-center justify-center py-12 text-muted-foreground/40">
+            <Loader2 size={18} className="animate-spin" />
+          </div>
+        ) : selectedMfr ? (
+          /* ── Fixture list ── */
+          selectedMfr.fixtures.length === 0 ? (
+            <div className="text-muted-foreground/40 text-center py-8 text-xs">No fixtures found</div>
+          ) : (
+            selectedMfr.fixtures.map((fix) => (
+              <div key={fix.key} className="flex items-center gap-2 p-1.5 rounded border border-border/10 hover:border-primary/30 bg-muted/5 hover:bg-muted/15 transition-all group">
+                <div className="w-6 h-6 rounded bg-muted/20 flex items-center justify-center text-[10px] shrink-0">
+                  {fix.categories.some(c => c.includes('Moving')) ? '◎' : fix.categories.some(c => c.includes('Strip') || c.includes('Bar')) ? '▬' : '●'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-medium truncate">{fix.name}</div>
+                  <div className="text-[9px] text-muted-foreground/50 truncate">{fix.categories.join(', ')}</div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 text-[9px] gap-1 shrink-0"
+                  disabled={importing === fix.key}
+                  onClick={() => importFixture(selectedMfr.key, fix.key, fix.name)}
+                >
+                  {importing === fix.key ? <Loader2 size={10} className="animate-spin" /> : <Download size={10} />}
+                  Import
+                </Button>
+              </div>
+            ))
+          )
+        ) : (
+          /* ── Manufacturer list ── */
+          filteredMfrs.length === 0 ? (
+            <div className="text-muted-foreground/40 text-center py-8 text-xs">No manufacturers found</div>
+          ) : (
+            filteredMfrs.map(([key, name]) => (
+              <button
+                key={key}
+                className="w-full flex items-center gap-2 p-1.5 rounded border border-border/10 hover:border-primary/30 bg-muted/5 hover:bg-muted/15 transition-all text-left"
+                onClick={() => selectManufacturer(key)}
+              >
+                <div className="w-6 h-6 rounded bg-muted/20 flex items-center justify-center text-[10px] shrink-0 font-bold text-primary">
+                  {name[0]?.toUpperCase()}
+                </div>
+                <span className="text-[11px] font-medium truncate flex-1">{name}</span>
+                <ChevronRight size={12} className="text-muted-foreground/30 shrink-0" />
+              </button>
+            ))
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ────────── component ────────── */
 
 export function FileExplorer() {
@@ -87,6 +237,7 @@ export function FileExplorer() {
   const [previewSrc, setPreviewSrc] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<'video' | 'image'>('image');
   const [localFiles, setLocalFiles] = useState<LocalFile[]>([]);
+  const [showOnlineBrowser, setShowOnlineBrowser] = useState(false);
 
   /* ── Import media files ── */
   const importMedia = async () => {
@@ -186,7 +337,6 @@ export function FileExplorer() {
   const exportMediaList = () => {
     const items = mediaStore.items;
     if (items.length === 0) { toast.error('No media items to export'); return; }
-    // Export metadata only (src is data URL, too large)
     const meta = items.map(({ id, name, type, sourceType, externalUrl, duration }) => ({
       id, name, type, sourceType, externalUrl, duration,
     }));
@@ -209,6 +359,15 @@ export function FileExplorer() {
 
   const allMediaItems = mediaStore.items;
   const fixtureDefs = fixtureStore.definitions;
+
+  // Show online browser full-screen overlay
+  if (showOnlineBrowser) {
+    return (
+      <div className="h-full flex flex-col p-3">
+        <OnlineFixtureBrowser onClose={() => setShowOnlineBrowser(false)} />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col gap-2 p-3">
@@ -241,7 +400,6 @@ export function FileExplorer() {
             ) : (
               allMediaItems.map((item) => (
                 <div key={item.id} className="flex items-center gap-2 p-2 rounded-lg border border-border/20 hover:border-primary/30 bg-muted/10 hover:bg-muted/20 transition-all group">
-                  {/* Thumbnail */}
                   <div className="w-10 h-10 rounded bg-muted/30 flex items-center justify-center shrink-0 overflow-hidden">
                     {item.type === 'video' ? (
                       <FileVideo size={16} className="text-blue-400" />
@@ -278,21 +436,28 @@ export function FileExplorer() {
         <TabsContent value="fixtures" className="flex-1 flex flex-col gap-2 mt-2">
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1" onClick={importFixtures}>
-              <Upload size={12} /> Import (JSON / GDTF)
+              <Upload size={12} /> Import
             </Button>
             <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1" onClick={exportFixtures}>
-              <Download size={12} /> Export All
+              <Download size={12} /> Export
+            </Button>
+            <Button size="sm" variant="default" className="h-7 text-[10px] gap-1" onClick={() => setShowOnlineBrowser(true)}>
+              <Globe size={12} /> Online Library
             </Button>
             <div className="flex-1" />
             <Badge variant="outline" className="text-[9px] font-mono">
-              {fixtureDefs.length} definitions
+              {fixtureDefs.length} defs
             </Badge>
+          </div>
+
+          <div className="text-[9px] text-muted-foreground/50 px-1">
+            Supports: JSON, GDTF (.gdtf), QLC+ (.qxf) — multi-file import
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-1">
             {fixtureDefs.length === 0 ? (
               <div className="text-muted-foreground/40 text-center py-12 text-xs">
-                No fixture definitions. Create fixtures in the Fixture Editor or import JSON files.
+                No fixture definitions. Import files or browse the Online Library.
               </div>
             ) : (
               fixtureDefs.map((def) => (
