@@ -271,6 +271,11 @@ export function engineWledRefresh(deviceId: string, ip: string): Promise<any> {
   return engineRequest({ type: 'wled-refresh', deviceId, ip }, 'wled-refresh-result', 5000);
 }
 
+/** Fetch WLED preset list via engine */
+export function engineWledPresets(ip: string): Promise<{ data: any }> {
+  return engineRequest({ type: 'wled-presets', ip }, 'wled-presets-result', 5000);
+}
+
 // ── MagicHome engine commands ──
 
 /** Discover MagicHome devices via engine proxy */
