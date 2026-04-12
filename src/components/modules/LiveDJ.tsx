@@ -1577,7 +1577,7 @@ function ControlWidget({
             const wf = fixtureData.find(f => f.inst.id === fid);
             if (wf?.def.wledConfig?.ip) targetIps.add(wf.def.wledConfig.ip);
           });
-          await Promise.all([...targetIps].map(ip => setWledPreset(ip, presetId)));
+          [...targetIps].forEach(ip => sendWledOutput(ip, { ps: presetId }));
         };
 
         const fetchPresetsFromDevice = async () => {
