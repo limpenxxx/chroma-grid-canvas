@@ -122,10 +122,17 @@ export function sendDmxBatch(universe: number, channels: Record<number, number>)
   }
 }
 
-/** Send WLED pixel data to the engine for output */
+/** Send WLED JSON API payload to the engine (permanent — overwrites WLED preset) */
 export function sendWledOutput(ip: string, payload: Record<string, unknown>) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'wled-output', ip, payload }));
+  }
+}
+
+/** Send WLED DNRGB realtime pixel data to the engine (temporary — auto-releases) */
+export function sendWledRealtime(ip: string, pixels: number[], timeout?: number) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'wled-realtime', ip, pixels, timeout: timeout || 0 }));
   }
 }
 
@@ -134,6 +141,50 @@ export function sendDdpPixels(ip: string, pixels: number[]) {
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: 'ddp-output', ip, pixels }));
   }
+}
+
+/**
+ * Smart WLED color routing — sends color to a WLED device via the engine
+ * using the correct protocol (dnrgb, ddp, or json).
+ */
+export function sendWledColor(
+  ip: string,
+  r: number, g: number, b: number,
+  protocol: 'dnrgb' | 'ddp' | 'json' = 'dnrgb',
+  ledCount: number = 1,
+  segmentId: number = 0,
+  timeout?: number,
+) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+  if (protocol === 'json') {
+    // JSON API: permanent, sets segment color
+    sendWledOutput(ip, { on: true, seg: [{ id: segmentId, col: [[r, g, b]] }] });
+  } else if (protocol === 'ddp') {
+    // DDP: temporary, pixel-level
+    const pixels: number[] = [];
+    for (let i = 0; i < ledCount; i++) pixels.push(r, g, b);
+    sendDdpPixels(ip, pixels);
+  } else {
+    // DNRGB: temporary, pixel-level (default)
+    const pixels: number[] = [];
+    for (let i = 0; i < ledCount; i++) pixels.push(r, g, b);
+    sendWledRealtime(ip, pixels, timeout);
+  }
+}
+
+/**
+ * Smart WLED brightness routing — sends brightness via the engine.
+ */
+export function sendWledBrightness(
+  ip: string,
+  bri: number,
+  on: boolean = true,
+  protocol: 'dnrgb' | 'ddp' | 'json' = 'dnrgb',
+  segmentId: number = 0,
+) {
+  // Brightness control always uses JSON API (DNRGB is pixel-level only)
+  sendWledOutput(ip, { on, bri: Math.max(0, Math.min(255, bri)), seg: [{ id: segmentId }] });
 }
 
 /** Register a Hue bridge with the engine */
