@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { onEngineStatus, type EngineStatus, broadcastState, isSyncingFromRemote, onSyncState, sendRawMessage } from '@/lib/wsSync';
+import { onEngineStatus, type EngineStatus, broadcastState, isSyncingFromRemote, onSyncState, sendRawMessage, engineRequest } from '@/lib/wsSync';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { VfxOutputControl } from './VfxOutputWindow';
@@ -272,7 +272,25 @@ export function IOSetup() {
           <div className="text-[9px] uppercase tracking-widest font-semibold" style={{ color: '#ff6600' }}>
             🌐 Nätverksgränssnitt (NIC)
           </div>
-          <Button variant="ghost" size="sm" className="h-6 text-[9px] gap-1 text-muted-foreground">
+          <Button variant="ghost" size="sm" className="h-6 text-[9px] gap-1 text-muted-foreground"
+            onClick={() => {
+              // Request a fresh hw-scan from engine which includes NIC list
+              engineRequest({ type: 'hw-scan' }, 'hw-scan-result', 10000)
+                .then((result: any) => {
+                  if (result?.nics) {
+                    store.setNetworkInterfaces(result.nics.map((n: any) => ({
+                      name: n.name,
+                      address: n.address || n.ip || '',
+                      mac: n.mac || '',
+                      internal: n.internal || false,
+                      operstate: n.operstate,
+                    })));
+                  }
+                })
+                .catch(() => {});
+              // Also ask for engine-status which includes networkInterfaces
+              sendRawMessage({ type: 'get-status' });
+            }}>
             <RefreshCw size={10} /> Uppdatera
           </Button>
         </div>
