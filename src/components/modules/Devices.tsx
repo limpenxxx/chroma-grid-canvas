@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Trash2, Upload, Download, Search, Edit2, Save, X, ChevronDown, ChevronRight, Copy, Wifi
@@ -43,6 +43,10 @@ export function Devices() {
   const [newInstAddr, setNewInstAddr] = useState(1);
   const [newInstUniverse, setNewInstUniverse] = useState(1);
   const importRef = useRef<HTMLInputElement>(null);
+  const DEF_PAGE_SIZE = 30;
+  const [visibleDefCount, setVisibleDefCount] = useState(DEF_PAGE_SIZE);
+
+  useEffect(() => { setVisibleDefCount(DEF_PAGE_SIZE); }, [search]);
 
   // Filter
   const filteredDefs = store.definitions.filter(d =>
@@ -681,7 +685,10 @@ export function Devices() {
             <Plus size={12} /> Create New Fixture Definition
           </Button>
 
-          {filteredDefs.map(def => (
+          {filteredDefs.slice(0, visibleDefCount).map(def => {
+            const MAX_BADGES = 12;
+            const extraModes = def.modes.length - MAX_BADGES;
+            return (
             <div key={def.id} className="glass-panel p-3 space-y-2">
               <div className="flex items-center gap-2">
                 <span className="text-lg">{getFixtureTypeIcon(def.type)}</span>
@@ -711,14 +718,27 @@ export function Devices() {
               </div>
               {/* Mode summary */}
               <div className="flex flex-wrap gap-1">
-                {def.modes.map(m => (
+                {def.modes.slice(0, MAX_BADGES).map(m => (
                   <span key={m.id} className="text-[8px] px-1.5 py-0.5 rounded bg-muted/40 text-muted-foreground">
                     {m.name}: {m.channelCount}ch
                   </span>
                 ))}
+                {extraModes > 0 && (
+                  <span className="text-[8px] px-1.5 py-0.5 rounded bg-primary/20 text-primary">
+                    +{extraModes} till
+                  </span>
+                )}
               </div>
             </div>
-          ))}
+            );
+          })}
+
+          {visibleDefCount < filteredDefs.length && (
+            <Button variant="outline" size="sm" className="h-7 text-[10px] w-full mt-2"
+              onClick={() => setVisibleDefCount(c => c + DEF_PAGE_SIZE)}>
+              Visa fler ({filteredDefs.length - visibleDefCount} kvar)
+            </Button>
+          )}
         </div>
       )}
 
