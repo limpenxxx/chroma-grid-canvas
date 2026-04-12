@@ -165,6 +165,19 @@ function httpRequest(url, method = 'GET', body = null, timeout = 3000) {
   });
 }
 
+// Simple RGB to CIE xy conversion for Hue Entertainment HTTP fallback
+function rgbToXySimple(r, g, b) {
+  let R = r / 255, G = g / 255, B = b / 255;
+  R = R > 0.04045 ? Math.pow((R + 0.055) / 1.055, 2.4) : R / 12.92;
+  G = G > 0.04045 ? Math.pow((G + 0.055) / 1.055, 2.4) : G / 12.92;
+  B = B > 0.04045 ? Math.pow((B + 0.055) / 1.055, 2.4) : B / 12.92;
+  const X = R * 0.664511 + G * 0.154324 + B * 0.162028;
+  const Y = R * 0.283881 + G * 0.668433 + B * 0.047685;
+  const Z = R * 0.000088 + G * 0.072310 + B * 0.986039;
+  const sum = X + Y + Z;
+  return sum === 0 ? [0.3127, 0.3290] : [X / sum, Y / sum];
+}
+
 // ══════════════════════════════════════════════════════════════
 // Hardware Output: WLED
 // ══════════════════════════════════════════════════════════════
