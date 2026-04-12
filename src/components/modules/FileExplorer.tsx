@@ -110,6 +110,7 @@ function OnlineFixtureBrowser({ onClose }: { onClose: () => void }) {
       .filter(([key, name]) => !search || name.toLowerCase().includes(lower) || key.includes(lower))
       .sort((a, b) => a[1].localeCompare(b[1]));
     setFilteredMfrs(entries);
+    setVisibleCount(MFR_PAGE_SIZE);
   }, [manufacturers, search]);
 
   const selectManufacturer = useCallback(async (key: string) => {
@@ -212,7 +213,8 @@ function OnlineFixtureBrowser({ onClose }: { onClose: () => void }) {
           filteredMfrs.length === 0 ? (
             <div className="text-muted-foreground/40 text-center py-8 text-xs">No manufacturers found</div>
           ) : (
-            filteredMfrs.map(([key, name]) => (
+            <>
+            {filteredMfrs.slice(0, visibleCount).map(([key, name]) => (
               <button
                 key={key}
                 className="w-full flex items-center gap-2 p-1.5 rounded border border-border/10 hover:border-primary/30 bg-muted/5 hover:bg-muted/15 transition-all text-left"
@@ -224,7 +226,16 @@ function OnlineFixtureBrowser({ onClose }: { onClose: () => void }) {
                 <span className="text-[11px] font-medium truncate flex-1">{name}</span>
                 <ChevronRight size={12} className="text-muted-foreground/30 shrink-0" />
               </button>
-            ))
+            ))}
+            {visibleCount < filteredMfrs.length && (
+              <button
+                className="w-full py-2 text-[10px] text-primary hover:text-primary/80 font-medium"
+                onClick={() => setVisibleCount(c => c + MFR_PAGE_SIZE)}
+              >
+                Show more ({filteredMfrs.length - visibleCount} remaining)
+              </button>
+            )}
+            </>
           )
         )}
       </div>
