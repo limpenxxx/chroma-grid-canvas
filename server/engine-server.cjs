@@ -1040,6 +1040,7 @@ function handleMessage(ws, msg) {
       // Fetch lights, groups, scenes, config from a paired bridge
       const { bridgeId, ip, apiKey, reqId } = msg;
       if (!ip || !apiKey) break;
+      console.log(`[HUE] Refreshing bridge ${bridgeId} at ${ip}...`);
       (async () => {
         try {
           const [lights, groups, scenes, config] = await Promise.all([
@@ -1048,8 +1049,12 @@ function handleMessage(ws, msg) {
             httpRequest(`http://${ip}/api/${apiKey}/scenes`, 'GET', null, 5000),
             httpRequest(`http://${ip}/api/${apiKey}/config`, 'GET', null, 5000),
           ]);
+          const lightCount = lights ? Object.keys(lights).length : 0;
+          const groupCount = groups ? Object.keys(groups).length : 0;
+          console.log(`[HUE] ✓ Bridge ${ip} — ${lightCount} lights, ${groupCount} groups`);
           ws.send(JSON.stringify({ type: 'hue-refresh-result', reqId, bridgeId, lights, groups, scenes, config }));
         } catch (err) {
+          console.error(`[HUE] ✗ Bridge ${ip} refresh failed — ${err.message}`);
           ws.send(JSON.stringify({ type: 'hue-refresh-result', reqId, bridgeId, error: String(err) }));
         }
       })();
