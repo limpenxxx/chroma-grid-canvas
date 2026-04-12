@@ -25,11 +25,25 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
+// ── MIDI (optional: install with `npm install midi` on the server) ──
+let midiLib = null;
+let midiInputs = []; // Array of { port, input, name }
+try {
+  midiLib = require('midi');
+  console.log('[MIDI] node-midi loaded ✓');
+} catch {
+  console.log('[MIDI] node-midi not installed — Engine USB-MIDI disabled. Install with: npm install midi');
+}
+
 const PORT = parseInt(process.env.PORT || '9100', 10);
 const STATE_FILE = path.join(__dirname, '.engine-state.json');
 const OUTPUT_INTERVAL = 40;  // 25fps hardware output
 const HUE_INTERVAL = 100;   // Hue rate limit: ~10/sec per light
 const SAVE_INTERVAL = 5000;  // persist state every 5s
+const MIDI_POLL_INTERVAL = 5000; // re-scan MIDI devices every 5s
+
+// ── MIDI engine state ──
+let midiDeviceList = []; // [{ port, name, open }]
 
 // ══════════════════════════════════════════════════════════════
 // State
@@ -69,6 +83,88 @@ const lastSent = {
 };
 
 let dirty = false; // true when state changed since last save
+
+// ══════════════════════════════════════════════════════════════
+// Engine MIDI — USB MIDI input via node-midi
+// ══════════════════════════════════════════════════════════════
+
+function midiScanDevices() {
+  if (!midiLib) return;
+  try {
+    const probe = new midiLib.Input();
+    const count = probe.getPortCount();
+    const newList = [];
+    for (let i = 0; i < count; i++) {
+      newList.push({ port: i, name: probe.getPortName(i) });
+    }
+    probe.closePort();
+
+    // Compare with current list
+    const currentNames = new Set(midiDeviceList.map(d => d.name));
+    const newNames = new Set(newList.map(d => d.name));
+
+    // Close removed devices
+    for (const existing of midiInputs) {
+      if (!newNames.has(existing.name)) {
+        console.log(`[MIDI] Device removed: ${existing.name}`);
+        try { existing.input.closePort(); } catch {}
+      }
+    }
+    midiInputs = midiInputs.filter(d => newNames.has(d.name));
+
+    // Open new devices
+    for (const dev of newList) {
+      if (!currentNames.has(dev.name)) {
+        console.log(`[MIDI] New device: ${dev.name} (port ${dev.port})`);
+        openMidiPort(dev.port, dev.name);
+      }
+    }
+
+    midiDeviceList = newList.map(d => ({
+      port: d.port,
+      name: d.name,
+      open: midiInputs.some(m => m.name === d.name),
+    }));
+  } catch (err) {
+    console.error('[MIDI] Scan error:', err.message);
+  }
+}
+
+function openMidiPort(portIndex, name) {
+  if (!midiLib) return;
+  try {
+    const input = new midiLib.Input();
+    input.on('message', (deltaTime, message) => {
+      if (!message || message.length < 3) return;
+      const status = message[0];
+      const channel = status & 0x0F;
+      const msgType = status & 0xF0;
+      const note = message[1];
+      const velocity = message[2];
+
+      let type = null;
+      if (msgType === 0x90 && velocity > 0) type = 'noteon';
+      else if (msgType === 0x80 || (msgType === 0x90 && velocity === 0)) type = 'noteoff';
+      else if (msgType === 0xB0) type = 'cc';
+      if (!type) return;
+
+      const event = { type, channel, note, velocity, timestamp: Date.now(), source: 'engine', deviceName: name };
+      // Broadcast to all connected browsers
+      broadcastToAll({ type: 'engine-midi', event });
+    });
+    input.openPort(portIndex);
+    midiInputs.push({ port: portIndex, input, name });
+    console.log(`[MIDI] ✓ Opened port ${portIndex}: ${name}`);
+  } catch (err) {
+    console.error(`[MIDI] Failed to open port ${portIndex} (${name}):`, err.message);
+  }
+}
+
+// Start MIDI scanning
+if (midiLib) {
+  midiScanDevices();
+  setInterval(midiScanDevices, MIDI_POLL_INTERVAL);
+}
 
 // ══════════════════════════════════════════════════════════════
 // State persistence
@@ -913,6 +1009,31 @@ function handleMessage(ws, msg) {
         magicDevices: Object.keys(state.magic),
         masterDimmer: state.masterDimmer,
         blackout: state.blackout,
+        midiDevices: midiDeviceList,
+        midiAvailable: !!midiLib,
+      }));
+      break;
+    }
+
+    // ── MIDI device query ──
+    case 'midi-list-devices': {
+      ws.send(JSON.stringify({
+        type: 'midi-devices',
+        reqId: msg.reqId,
+        devices: midiDeviceList,
+        available: !!midiLib,
+      }));
+      break;
+    }
+
+    // ── MIDI rescan ──
+    case 'midi-rescan': {
+      midiScanDevices();
+      ws.send(JSON.stringify({
+        type: 'midi-devices',
+        reqId: msg.reqId,
+        devices: midiDeviceList,
+        available: !!midiLib,
       }));
       break;
     }
