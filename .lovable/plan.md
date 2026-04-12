@@ -2,49 +2,47 @@
 
 ## Analys
 
-Tre separata problem identifierade:
+Systemet har tre samverkande prestandaproblem:
 
-1. **Engine startade inte** — du skrev `ode` istället för `node` (stavfel). Efter att du dödat processen på port 9100 kördes aldrig engine igen.
+### 1. `backdrop-blur` på 290+ element (STÖRSTA problemet)
+CSS-klassen `glass-panel` använder `backdrop-blur-xl` och appliceras på ~290 ställen i 16 filer. Varje element med `backdrop-blur` tvingar GPU:n att sampla och sudda alla pixlar bakom sig **varje frame**. Över animerade canvaser (VFX, Projection Mapping, Stage3D) multipliceras kostnaden dramatiskt.
 
-2. **Systemd-tjänster saknas** — du har aldrig kört `scripts/install-chroma-service.sh`, därför finns inte `chroma-engine.service`.
+### 2. 5+ simultana RAF-loopar i LiveDJ
+LiveDJ.tsx kör minst 5 parallella `requestAnimationFrame`-loopar:
+- VFX preview-canvas (rad 564)
+- Pattern-animation (rad 717)
+- Färgprogram (rad 765)
+- EQ Trigger-motor (rad 3829)
+- Arpeggiator-motor (rad 3917)
 
-3. **`get-status`-meddelande hanteras inte** — IOSetup skickar `{ type: 'get-status' }` vid klick på Uppdatera, men engine-servern har ingen case för det i `handleMessage()`. NIC-listan skickas bara vid initial WebSocket-anslutning (som `engine-status`) eller via `hw-scan`. Det förklarar varför NIC-listan kan vara tom även när engine är igång.
-
-4. **Potentiell portkonflikt** — `sync-server.cjs` använder också port 9100. Om den startas av misstag blockerar den engine-servern.
+### 3. RAF-loopar rivs ner vid varje state-ändring
+EQ Trigger-loopens dependency array inkluderar `widgets`, `bpmState.bpm`, `allFixturesWithDefs`, `wledStore.devices` etc. Varje ändring i dessa skapar en ny loop — exakt samma problem som fixades i ProjectionMapping.
 
 ---
 
 ## Plan
 
-### Steg 1 — Lägg till `get-status`-hantering i engine-servern
+### Steg 1 — Ta bort `backdrop-blur` från glass-panel (störst effekt)
+Ändra `src/index.css`:
+- `glass-panel`: byt `backdrop-blur-xl` → ingen blur, öka opacitet till `bg-card/80`
+- `glass-panel-strong`: byt `backdrop-blur-2xl` → ingen blur, `bg-card/90`
 
-Lägger till en `case 'get-status'` i `handleMessage()` i `server/engine-server.cjs` som svarar med samma `engine-status`-meddelande (inklusive NIC-lista) som skickas vid anslutning. Detta gör att Uppdatera-knappen i I/O Setup alltid fungerar.
+Behåller det mörka utseendet men utan GPU-kostnaden. Dialoger som redan använder `backdrop-blur-sm` på en overlay (modal) behålls — de visas bara tillfälligt.
 
-### Steg 2 — Graceful port-conflict i engine-servern
+### Steg 2 — Stabilisera EQ Trigger + Arpeggiator RAF-loopar med refs
+Samma mönster som ProjectionMapping-fixen: läs `widgets`, `bpmState`, `allFixturesWithDefs` etc. via `useRef` istället för som useEffect-dependencies. Loopen skapas en gång och rivs aldrig ner.
 
-Lägger till en `wss.on('error')` handler som fångar `EADDRINUSE` och skriver ut ett tydligt felmeddelande med instruktioner (`sudo lsof -i :9100` och `kill`) istället för att krascha med en ohanterlig stack trace.
-
-### Steg 3 — Uppdatera installationsskriptet med WatchdogSec
-
-Lägger till `WatchdogSec=30` och `NotifyAccess=main` i engine-tjänstens systemd-unit (från den tidigare granskningens punkt 9).
-
-### Steg 4 — Uppdatera INSTALL-UBUNTU.md
-
-Förtydligar manuell start-sektion och lägger till en snabbstart-sektion högst upp med exakt kommandosekvens:
-```
-node server/engine-server.cjs &
-npm run dev -- --host 0.0.0.0
-```
+### Steg 3 — Stabilisera VFX preview-loopen
+VFX-canvasens RAF-loop (rad 564) beror på 8 dependencies. Flytta till ref-mönster.
 
 ---
 
 ## Tekniska detaljer
 
-**Fil: `server/engine-server.cjs`**
-- Ny `case 'get-status'` i `handleMessage()` (~rad 828) som återanvänder samma NIC-scan-logik som redan körs vid `wss.on('connection')`.
-- Refaktorera NIC-scan till en separat funktion `scanNics()` som anropas från både connection-handler och `get-status`.
-- Lägg till `wss.on('error', ...)` efter rad 702 för att fånga `EADDRINUSE`.
+**Fil: `src/index.css`** — Ändra 2 CSS-klasser, ta bort `backdrop-blur-xl` och `backdrop-blur-2xl`.
 
-**Fil: `scripts/install-chroma-service.sh`**
-- Lägg till `WatchdogSec=30` i `[Service]`-sektionen för chroma-engine.
+**Fil: `src/components/modules/LiveDJ.tsx`** — Tre RAF useEffects stabiliseras med refs:
+1. EQ Trigger engine (~rad 3579-3831): widgets, bpmState, fixtures → refs
+2. Arpeggiator engine (~rad 3848-3919): widgets, bpmState → refs  
+3. VFX preview canvas (~rad 540-568): fx, arConfig, bpm → refs
 
