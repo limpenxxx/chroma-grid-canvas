@@ -38,7 +38,7 @@ try {
 const PORT = parseInt(process.env.PORT || '9100', 10);
 const STATE_FILE = path.join(__dirname, '.engine-state.json');
 const OUTPUT_INTERVAL = 40;  // 25fps hardware output
-const HUE_INTERVAL = 100;   // Hue rate limit: ~10/sec per light
+// (Hue cycle controlled by outputCycle % 3 in outputLoop)
 const SAVE_INTERVAL = 5000;  // persist state every 5s
 const MIDI_POLL_INTERVAL = 5000; // re-scan MIDI devices every 5s
 
@@ -211,6 +211,8 @@ function loadState() {
       if (data.fixtures) state.fixtures = data.fixtures;
       if (data.stage) state.stage = data.stage;
       if (data.wledDevices) state.wledDevices = data.wledDevices;
+      // Restore I/O config (NIC bindings, universes, USB ports)
+      if (data.ioConfig) state.ioConfig = { ...state.ioConfig, ...data.ioConfig };
       // Restore DMX universes
       if (data.dmx) {
         for (const [uni, arr] of Object.entries(data.dmx)) {
@@ -241,12 +243,16 @@ function saveState() {
       fixtures: state.fixtures,
       stage: state.stage,
       wledDevices: state.wledDevices,
+      ioConfig: state.ioConfig,
     };
     // Convert Uint8Arrays to regular arrays for JSON
     for (const [uni, buf] of Object.entries(state.dmx)) {
       serializable.dmx[uni] = Array.from(buf);
     }
-    fs.writeFileSync(STATE_FILE, JSON.stringify(serializable), 'utf8');
+    // Atomic write: write to temp file then rename
+    const tmp = STATE_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(serializable), 'utf8');
+    fs.renameSync(tmp, STATE_FILE);
   } catch (e) {
     console.error('[ENGINE] Failed to save state:', e.message);
   }
@@ -1794,19 +1800,8 @@ function handleMessage(ws, msg) {
         // Entertainment config ID as null-terminated string (variable length)
         // For v1 API, we just omit this or use the group ID
         // Each light channel: 1 byte type (0=light) + 2 bytes id + 2 bytes R + 2 bytes G + 2 bytes B
+        // Each light channel: type(1) + id(2) + R(2) + G(2) + B(2) = 9 bytes
         const channelBufs = channels.map(ch => {
-          const buf = Buffer.alloc(7);
-          buf.writeUInt8(0x00, 0); // type: light
-          buf.writeUInt16BE(ch.channel || 0, 1); // channel id
-          buf.writeUInt16BE(Math.round((ch.r / 255) * 65535), 3); // R (16-bit)
-          buf.writeUInt16BE(Math.round((ch.g / 255) * 65535), 5); // G (16-bit)
-          // Only 7 bytes per spec: type(1) + id(2) + R(2) + G(2) = 7
-          // Actually need 9 bytes: type(1) + id(2) + R(2) + G(2) + B(2)
-          return buf;
-        });
-
-        // Rebuild with correct 9 bytes per channel
-        const channelBufs2 = channels.map(ch => {
           const buf = Buffer.alloc(9);
           buf.writeUInt8(0x00, 0); // type: light
           buf.writeUInt16BE(ch.channel || 0, 1);
@@ -1816,7 +1811,7 @@ function handleMessage(ws, msg) {
           return buf;
         });
 
-        const packet = Buffer.concat([header, ...channelBufs2]);
+        const packet = Buffer.concat([header, ...channelBufs]);
         try { ent.socket.send(packet); } catch {}
       } else {
         // HTTP fallback: send individual light commands (slower but works without DTLS)
@@ -1847,31 +1842,38 @@ function handleMessage(ws, msg) {
 // ══════════════════════════════════════════════════════════════
 
 let outputCycle = 0;
+let outputRunning = false;
 
 async function outputLoop() {
-  outputCycle++;
+  if (outputRunning) return; // overlap guard — skip if previous iteration still running
+  outputRunning = true;
+  try {
+    outputCycle++;
 
-  // ArtNet & sACN every cycle (25fps)
-  outputArtNet();
-  outputSacn();
+    // ArtNet & sACN every cycle (25fps)
+    outputArtNet();
+    outputSacn();
 
-  // DDP every cycle (25fps) — fast pixel protocol for WLED
-  outputDdp();
+    // DDP every cycle (25fps) — fast pixel protocol for WLED
+    outputDdp();
 
-  // DNRGB every cycle (25fps) — WLED realtime, auto-releases on stop
-  outputDnrgb();
+    // DNRGB every cycle (25fps) — WLED realtime, auto-releases on stop
+    outputDnrgb();
 
-  // WLED JSON API every cycle (only for devices set to 'json' protocol)
-  await outputWled();
+    // WLED JSON API every cycle (only for devices set to 'json' protocol)
+    await outputWled();
 
-  // Hue every 3rd cycle (~8fps, within Hue rate limits)
-  if (outputCycle % 3 === 0) {
-    await outputHue();
-  }
+    // Hue every 3rd cycle (~8fps, within Hue rate limits)
+    if (outputCycle % 3 === 0) {
+      await outputHue();
+    }
 
-  // MagicHome every 2nd cycle (~12fps)
-  if (outputCycle % 2 === 0) {
-    await outputMagic();
+    // MagicHome every 2nd cycle (~12fps)
+    if (outputCycle % 2 === 0) {
+      await outputMagic();
+    }
+  } finally {
+    outputRunning = false;
   }
 }
 
@@ -2008,26 +2010,31 @@ try {
 }
 
 // Periodically broadcast full Pioneer deck state to clients & prune stale decks
+// Artwork is sent separately only when it changes (see pioneer-artwork message)
 setInterval(() => {
   const now = Date.now();
   let changed = false;
   for (const [num, deck] of Object.entries(state.pioneerDecks)) {
     if (now - deck.lastSeen > 10000) {
-      // Mark offline after 10s silence
       if (deck.playing) {
         state.pioneerDecks[num] = { ...deck, playing: false };
         changed = true;
       }
     }
     if (now - deck.lastSeen > 60000) {
-      // Remove after 60s
       delete state.pioneerDecks[num];
       changed = true;
     }
   }
 
   if (Object.keys(state.pioneerDecks).length > 0) {
-    broadcastToAll({ type: 'pioneer-decks', decks: state.pioneerDecks });
+    // Strip artwork from periodic broadcast to save bandwidth
+    const decksLight = {};
+    for (const [num, deck] of Object.entries(state.pioneerDecks)) {
+      const { artworkUrl, ...rest } = deck;
+      decksLight[num] = rest;
+    }
+    broadcastToAll({ type: 'pioneer-decks', decks: decksLight });
   }
 }, 2000);
 
@@ -2078,6 +2085,10 @@ process.on('SIGINT', () => {
   clearInterval(outputTimer);
   clearInterval(saveTimer);
   clearInterval(dmxLevelsTimer);
+  if (typeof watchdogTimer !== 'undefined') clearInterval(watchdogTimer);
+  // Disconnect prolink-connect if active
+  try { if (typeof prolinkNetwork !== 'undefined' && prolinkNetwork) prolinkNetwork.disconnect(); } catch {}
+  sdNotify('STOPPING=1');
   saveState();
   artnetSocket.close();
   sacnSocket.close();
@@ -2089,6 +2100,10 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   clearInterval(outputTimer);
   clearInterval(saveTimer);
+  if (typeof watchdogTimer !== 'undefined') clearInterval(watchdogTimer);
+  // Disconnect prolink-connect if active
+  try { if (typeof prolinkNetwork !== 'undefined' && prolinkNetwork) prolinkNetwork.disconnect(); } catch {}
+  sdNotify('STOPPING=1');
   saveState();
   process.exit(0);
 });
