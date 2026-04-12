@@ -6,9 +6,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import {
-  setWledPower, setWledBrightness, setWledColor, setWledEffect, setWledPreset,
-} from '@/lib/wledApi';
+import { sendWledOutput } from '@/lib/wsSync';
 import { useWledStore, type WledDevice, type WledFixture, WLED_PROTOCOL_OPTIONS, type WledProtocol } from '@/store/wledStore';
 
 type SubTab = 'devices' | 'fixtures';
