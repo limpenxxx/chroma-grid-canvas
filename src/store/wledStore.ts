@@ -54,6 +54,7 @@ interface WledStore {
   // Device management
   addDevice: (ip: string, name?: string) => Promise<void>;
   removeDevice: (id: string) => void;
+  removeAllDevices: () => void;
   updateDevice: (id: string, updates: Partial<WledDevice>) => void;
   refreshDevice: (id: string) => Promise<void>;
   refreshAll: () => Promise<void>;
@@ -130,12 +131,20 @@ export const useWledStore = create<WledStore>()(
       removeDevice: (id) => {
         const device = get().devices.find((d) => d.id === id);
         if (device) {
-          removeWledDeviceFromEngine(id, device.ip);
+          try { removeWledDeviceFromEngine(id, device.ip); } catch {}
         }
         set((s) => ({
           devices: s.devices.filter((d) => d.id !== id),
           fixtures: s.fixtures.filter((f) => f.deviceId !== id),
         }));
+      },
+
+      removeAllDevices: () => {
+        const { devices } = get();
+        for (const d of devices) {
+          try { removeWledDeviceFromEngine(d.id, d.ip); } catch {}
+        }
+        set({ devices: [], fixtures: [] });
       },
 
       updateDevice: (id, updates) =>
