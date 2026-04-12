@@ -16,6 +16,7 @@ import { Devices } from '@/components/modules/Devices';
 import { LiveDJ } from '@/components/modules/LiveDJ';
 import { SystemLog } from '@/components/modules/SystemLog';
 import { FileExplorer } from '@/components/modules/FileExplorer';
+import { HardwareOverview } from '@/components/modules/HardwareOverview';
 import { Stage3DView } from '@/components/modules/Stage3DView';
 import { ShowRunner } from '@/components/modules/ShowRunner';
 import { EffectsEngine } from '@/components/modules/EffectsEngine';
@@ -34,6 +35,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
   effects: EffectsEngine,
   systemlog: SystemLog,
   files: FileExplorer,
+  hardware: HardwareOverview,
 };
 
 // Modules that should stay mounted (complex state that must survive navigation)
