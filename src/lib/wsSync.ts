@@ -285,7 +285,9 @@ function connect() {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
-        // Dispatch to raw message listeners first
+        // Handle request/response pattern first
+        _handleEngineResponse(msg);
+        // Dispatch to raw message listeners
         for (const listener of rawMessageListeners) {
           listener(msg);
         }
