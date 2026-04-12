@@ -17,6 +17,7 @@ export interface NetworkInterface {
   address: string;
   mac: string;
   internal: boolean;
+  operstate?: string; // 'up' | 'down' | 'unknown' — from /sys/class/net
 }
 
 export type OutputProtocol = 'artnet' | 'sacn' | 'usb-dmx' | 'ddp';
@@ -241,9 +242,11 @@ export function IOSetup() {
                 nics.filter((n) => !n.internal).map((nic) => {
                   const assignedOutputs = store.outputs.filter((o) => o.bindInterface === nic.address || o.bindInterface === nic.name);
                   return (
-                    <tr key={nic.address} className="border-b border-border/10">
+                    <tr key={nic.name + nic.address} className="border-b border-border/10">
                       <td className="p-2 font-mono font-semibold">{nic.name}</td>
-                      <td className="p-2 font-mono text-primary">{nic.address}</td>
+                      <td className="p-2 font-mono text-primary">
+                        {nic.address || <span className="text-muted-foreground/40 italic">Ej ansluten</span>}
+                      </td>
                       <td className="p-2 font-mono text-muted-foreground/50">{nic.mac || '—'}</td>
                       <td className="p-2">
                         {assignedOutputs.length > 0 ? (
