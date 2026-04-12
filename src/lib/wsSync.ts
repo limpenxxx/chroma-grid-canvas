@@ -38,6 +38,8 @@ export interface EngineStatus {
   masterDimmer?: number;
   blackout?: boolean;
   pioneerDecks?: Record<number, PioneerDeck>;
+  audioDevices?: Array<{ id: string; name: string; label: string }>;
+  audioAvailable?: boolean;
 }
 
 let ws: WebSocket | null = null;
@@ -371,6 +373,22 @@ export function onEngineMidi(listener: (event: EngineMidiEvent) => void): () => 
     }
   };
   return onEngineMessage(handler);
+}
+
+// ── Engine Audio commands ──
+
+export interface EngineAudioDevice {
+  id: string;
+  name: string;
+  label: string;
+}
+
+export function engineAudioListDevices(): Promise<{ devices: EngineAudioDevice[]; available: boolean }> {
+  return engineRequest({ type: 'audio-list-devices' }, 'audio-devices', 3000);
+}
+
+export function engineAudioPoll(deviceId: string): Promise<{ level: number; bpm?: number; deviceName?: string }> {
+  return engineRequest({ type: 'audio-poll', deviceId }, 'audio-poll-result', 3000);
 }
 
 // ── MagicHome engine commands ──

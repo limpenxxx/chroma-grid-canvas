@@ -31,7 +31,7 @@ import stokioLogo from '@/assets/stokio-logo-color.png';
 import { useMediaStore } from '@/store/mediaStore';
 import { useWledStore, type WledDevice, type WledFixture } from '@/store/wledStore';
 import { fetchWledPresets, isWledDeviceTargetId, wledDeviceToFixture } from '@/lib/wledUtils';
-import { sendDmxChannel, sendRawMessage, sendWledOutput, sendWledBrightness, engineWledAudioPoll, onPioneerData, type PioneerData } from '@/lib/wsSync';
+import { sendDmxChannel, sendRawMessage, sendWledOutput, sendWledBrightness, engineAudioListDevices, engineAudioPoll, engineWledAudioPoll, onPioneerData, type EngineAudioDevice, type PioneerData } from '@/lib/wsSync';
 import { ProjectionMapping } from './ProjectionMapping';
 import { useMidiController, type MidiMapping, type MidiEvent } from '@/hooks/useMidiController';
 import { StageMap } from './StageMap';
@@ -147,7 +147,7 @@ interface MHProgram {
 }
 
 // ── Audio / BPM Types ──
-type AudioSource = 'none' | 'tap-tempo' | 'pioneer-dj' | 'wled-analog' | 'wled-i2s-inmp441' | 'wled-i2s-max98357' | 'wled-i2s-sph0645' | 'wled-udp-sync' | 'browser-mic' | 'system-audio';
+type AudioSource = 'none' | 'tap-tempo' | 'pioneer-dj' | 'wled-analog' | 'wled-i2s-inmp441' | 'wled-i2s-max98357' | 'wled-i2s-sph0645' | 'wled-udp-sync' | 'browser-mic' | 'system-audio' | 'engine-audio-card';
 
 interface AudioConfig {
   source: AudioSource;
@@ -155,6 +155,7 @@ interface AudioConfig {
   gain: number;
   udpPort: number;
   wledIp: string;
+  engineAudioDeviceId?: string;
   sensitivity: number;   // 0-255, beat detection threshold
   freqLow: number;       // Hz, low cutoff for frequency filter
   freqHigh: number;      // Hz, high cutoff for frequency filter
@@ -188,6 +189,7 @@ const AUDIO_SOURCES: { value: AudioSource; label: string; description: string }[
   { value: 'none', label: 'None', description: 'No audio input' },
   { value: 'tap-tempo', label: 'TAP-TEMPO', description: 'Manual tap tempo for BPM sync' },
   { value: 'pioneer-dj', label: '🎛 Pioneer DJ (ProDJ Link)', description: 'Receive BPM and beat sync from Pioneer CDJ/DJM/XDJ equipment on the same network via ProDJ Link protocol' },
+  { value: 'engine-audio-card', label: '🖥 Engine Audio Card', description: 'Use a local sound card/audio interface physically connected to the STOKIO server' },
   { value: 'system-audio', label: 'System Audio', description: 'Capture audio from Chrome, Spotify, or any app on this computer via screen/tab sharing' },
   { value: 'browser-mic', label: 'Browser Microphone', description: "Use this device's microphone via Web Audio API" },
   { value: 'wled-analog', label: 'WLED Analog Mic', description: 'MAX4466 / MAX9814 analog microphone on WLED ESP32' },
@@ -2498,7 +2500,7 @@ const DEFAULT_SCRIPTS: DJScript[] = [
 
 const DEFAULT_AUDIO_CONFIG: AudioConfig = {
   source: 'none', squelch: 10, gain: 128, udpPort: 11988, wledIp: '',
-  sensitivity: 128, freqLow: 60, freqHigh: 200,
+  engineAudioDeviceId: '', sensitivity: 128, freqLow: 60, freqHigh: 200,
 };
 
 export function LiveDJ() {
@@ -2555,6 +2557,7 @@ export function LiveDJ() {
 
   // ── Audio & BPM ──
   const [audioConfig, setAudioConfig] = useState<AudioConfig>(() => autosaved.current?.audioConfig || DEFAULT_AUDIO_CONFIG);
+  const [engineAudioDevices, setEngineAudioDevices] = useState<EngineAudioDevice[]>([]);
   const [bpmState, setBpmState] = useState<BPMState>({
     bpm: 120, tapTimes: [], isSynced: false, linkedWidgetIds: [], flashOn: false,
     bpmMode: 'auto', autoBpm: 0, audioLevel: 0,
@@ -2840,6 +2843,49 @@ export function LiveDJ() {
 
     return () => { cancelled = true; cleanup(); };
   }, [audioConfig.source, audioConfig.sensitivity, audioConfig.freqLow, audioConfig.freqHigh]);
+
+  // ── Engine Audio Card → BPM detection via host sound card on STOKIO machine ──
+  useEffect(() => {
+    let cancelled = false;
+    if (audioConfig.source !== 'engine-audio-card') return;
+    engineAudioListDevices().then((result) => {
+      if (!cancelled) setEngineAudioDevices(result.devices || []);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [audioConfig.source]);
+
+  const engineAudioBeatRef = useRef<{ peaks: number[]; lastLevel: number; lastPeakTime: number }>({ peaks: [], lastLevel: 0, lastPeakTime: 0 });
+  useEffect(() => {
+    if (audioConfig.source !== 'engine-audio-card' || !audioConfig.engineAudioDeviceId) return;
+    const beatData = engineAudioBeatRef.current;
+    beatData.peaks = []; beatData.lastLevel = 0; beatData.lastPeakTime = 0;
+    const timer = setInterval(async () => {
+      try {
+        const result = await engineAudioPoll(audioConfig.engineAudioDeviceId!);
+        const level = Math.max(0, Math.min(255, result.level || 0));
+        const now = Date.now();
+        const threshold = (255 - audioConfig.sensitivity) * 0.6 + 15;
+        setBpmState(prev => ({ ...prev, audioLevel: level }));
+        if (level > threshold && beatData.lastLevel <= threshold && now - beatData.lastPeakTime > 200) {
+          beatData.lastPeakTime = now;
+          beatData.peaks = [...beatData.peaks.filter(t => now - t < 6000), now];
+          if (beatData.peaks.length >= 4) {
+            const intervals = beatData.peaks.slice(1).map((t, i) => t - beatData.peaks[i]);
+            const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+            const detectedBpm = Math.round(60000 / avgInterval);
+            if (detectedBpm >= 40 && detectedBpm <= 300) {
+              setBpmState(prev => ({
+                ...prev, autoBpm: detectedBpm,
+                ...(prev.bpmMode === 'auto' ? { bpm: detectedBpm, isSynced: true } : {}),
+              }));
+            }
+          }
+        }
+        beatData.lastLevel = level;
+      } catch {}
+    }, 500);
+    return () => clearInterval(timer);
+  }, [audioConfig.source, audioConfig.engineAudioDeviceId, audioConfig.sensitivity]);
 
   // ── System Audio → BPM detection via getDisplayMedia ──
   const sysAudioRef = useRef<{ ctx: AudioContext | null; analyser: AnalyserNode | null; stream: MediaStream | null; raf: number; peaks: number[]; lastEnergy: number; lastPeakTime: number; sourceName: string }>({
@@ -4218,8 +4264,28 @@ export function LiveDJ() {
                     )}
                   </div>
                 )}
-                {(audioConfig.source === 'browser-mic' || audioConfig.source === 'system-audio') && (
+                {(audioConfig.source === 'browser-mic' || audioConfig.source === 'system-audio' || audioConfig.source === 'engine-audio-card') && (
                   <div className="space-y-2">
+                    {audioConfig.source === 'engine-audio-card' && (
+                      <div className="space-y-2">
+                        <div className="text-[8px] text-emerald-400 bg-emerald-500/5 rounded p-1.5 border border-emerald-500/20">
+                          🖥 Läser audio från ljudkort på STOKIO-servern (headless-maskinen)
+                        </div>
+                        <div>
+                          <label className="text-[7px] uppercase text-muted-foreground">Audio Device</label>
+                          <select
+                            value={audioConfig.engineAudioDeviceId || ''}
+                            onChange={e => setAudioConfig(prev => ({ ...prev, engineAudioDeviceId: e.target.value }))}
+                            className="w-full h-7 rounded bg-muted/30 border border-border/30 text-[10px] px-2 text-foreground"
+                          >
+                            <option value="">Select local sound card...</option>
+                            {engineAudioDevices.map(dev => (
+                              <option key={dev.id} value={dev.id}>{dev.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
                     {audioConfig.source === 'system-audio' && systemAudioSourceName && (
                       <div className="text-[8px] text-primary bg-primary/5 rounded p-1.5 border border-primary/20">
                         🎵 Capturing: <strong>{systemAudioSourceName}</strong>
