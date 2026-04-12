@@ -2141,8 +2141,8 @@ function ControlWidget({
                 width={widget.width - 10}
                 height={widget.height - 36}
                 fixtures={fixtureList}
-                onTrigger={(zone, energy) => eqTriggerDispatch(zone, energy, allFixturesWithDefsRef.current, wledStore)}
-                onColorOutput={(outputs) => outputs.forEach(({ zone, fadeProgress }) => eqColorDispatch(zone, fadeProgress, allFixturesWithDefsRef.current, wledStore))}
+                onTrigger={(zone, energy) => eqTriggerDispatch(zone, energy, fixtureData, useWledStore.getState())}
+                onColorOutput={(outputs) => outputs.forEach(({ zone, fadeProgress }) => eqColorDispatch(zone, fadeProgress, fixtureData, useWledStore.getState()))}
               />
             </div>
           </div>
