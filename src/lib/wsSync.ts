@@ -335,6 +335,44 @@ export function engineWledAudioPoll(ip: string): Promise<{ data: any }> {
   return engineRequest({ type: 'wled-audio-poll', ip }, 'wled-audio-poll-result', 2000);
 }
 
+// ── Engine MIDI commands ──
+
+export interface EngineMidiDevice {
+  port: number;
+  name: string;
+  open: boolean;
+}
+
+export interface EngineMidiEvent {
+  type: 'noteon' | 'noteoff' | 'cc';
+  channel: number;
+  note: number;
+  velocity: number;
+  timestamp: number;
+  source: 'engine';
+  deviceName: string;
+}
+
+/** List MIDI devices connected to the engine server */
+export function engineMidiListDevices(): Promise<{ devices: EngineMidiDevice[]; available: boolean }> {
+  return engineRequest({ type: 'midi-list-devices' }, 'midi-devices', 3000);
+}
+
+/** Rescan MIDI devices on the engine server */
+export function engineMidiRescan(): Promise<{ devices: EngineMidiDevice[]; available: boolean }> {
+  return engineRequest({ type: 'midi-rescan' }, 'midi-devices', 5000);
+}
+
+/** Subscribe to engine MIDI events */
+export function onEngineMidi(listener: (event: EngineMidiEvent) => void): () => void {
+  const handler = (msg: any) => {
+    if (msg.type === 'engine-midi' && msg.event) {
+      listener(msg.event as EngineMidiEvent);
+    }
+  };
+  return onEngineMessage(handler);
+}
+
 // ── MagicHome engine commands ──
 
 /** Discover MagicHome devices via engine proxy */

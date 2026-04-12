@@ -11,6 +11,12 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  onEngineMidi, engineMidiListDevices, engineMidiRescan,
+  type EngineMidiDevice, type EngineMidiEvent, onEngineConnect,
+} from '@/lib/wsSync';
+
+export type MidiSource = 'web' | 'engine';
 
 export interface MidiMapping {
   id: string;
@@ -37,6 +43,7 @@ export interface MidiDevice {
   name: string;
   manufacturer: string;
   connected: boolean;
+  source: MidiSource;
 }
 
 export interface MidiEvent {
@@ -45,6 +52,8 @@ export interface MidiEvent {
   note: number;    // note number or CC number
   velocity: number; // velocity or CC value
   timestamp: number;
+  source?: MidiSource;
+  deviceName?: string;
 }
 
 interface UseMidiControllerOptions {
@@ -74,6 +83,8 @@ export function useMidiController(options: UseMidiControllerOptions = {}) {
   const [isLearning, setIsLearning] = useState(false);
   const [lastEvent, setLastEvent] = useState<MidiEvent | null>(null);
   const [learnTarget, setLearnTarget] = useState<Partial<MidiMapping> | null>(null);
+  const [engineMidiAvailable, setEngineMidiAvailable] = useState(false);
+  const [engineDevices, setEngineDevices] = useState<EngineMidiDevice[]>([]);
 
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -103,10 +114,119 @@ export function useMidiController(options: UseMidiControllerOptions = {}) {
         name: input.name || 'Unknown',
         manufacturer: input.manufacturer || '',
         connected: input.state === 'connected',
+        source: 'web',
       });
     });
-    setDevices(devs);
+    setDevices(prev => {
+      const engineDevs = prev.filter(d => d.source === 'engine');
+      return [...devs, ...engineDevs];
+    });
   };
+
+  // ── Engine MIDI ──
+  useEffect(() => {
+    // Fetch engine MIDI devices
+    const fetchEngineDevices = () => {
+      engineMidiListDevices().then(result => {
+        setEngineMidiAvailable(result.available);
+        setEngineDevices(result.devices);
+        setDevices(prev => {
+          const webDevs = prev.filter(d => d.source === 'web');
+          const engDevs = result.devices.map(d => ({
+            id: `engine-${d.port}`,
+            name: d.name,
+            manufacturer: 'Engine USB',
+            connected: d.open,
+            source: 'engine' as MidiSource,
+          }));
+          return [...webDevs, ...engDevs];
+        });
+      }).catch(() => {});
+    };
+
+    fetchEngineDevices();
+    const unsub = onEngineConnect(() => {
+      fetchEngineDevices();
+    });
+
+    return unsub;
+  }, []);
+
+  // Listen to engine MIDI events
+  useEffect(() => {
+    const unsub = onEngineMidi((event) => {
+      const midiEvent: MidiEvent = {
+        type: event.type,
+        channel: event.channel,
+        note: event.note,
+        velocity: event.velocity,
+        timestamp: event.timestamp,
+        source: 'engine',
+        deviceName: event.deviceName,
+      };
+
+      setLastEvent(midiEvent);
+      optionsRef.current.onRawMidi?.(midiEvent);
+
+      // Learning mode
+      if (isLearning && learnTarget) {
+        if (midiEvent.type === 'noteoff') return;
+        const newMapping: MidiMapping = {
+          id: `midi-${Date.now()}`,
+          inputType: midiEvent.type === 'cc' ? 'knob' : 'pad',
+          channel: midiEvent.channel,
+          noteOrCC: midiEvent.note,
+          targetType: learnTarget.targetType || 'widget',
+          targetWidgetId: learnTarget.targetWidgetId,
+          targetPageId: learnTarget.targetPageId,
+          paramName: learnTarget.paramName,
+          label: learnTarget.label || `${midiEvent.type === 'cc' ? 'Knob' : 'Pad'} ${midiEvent.note}`,
+        };
+        setMappings(prev => {
+          const filtered = prev.filter(m =>
+            !(m.channel === newMapping.channel && m.noteOrCC === newMapping.noteOrCC && m.inputType === newMapping.inputType)
+          );
+          return [...filtered, newMapping];
+        });
+        setIsLearning(false);
+        setLearnTarget(null);
+        return;
+      }
+
+      // Dispatch to mapped targets
+      const currentMappings = mappingsRef.current;
+      for (const mapping of currentMappings) {
+        if (mapping.channel !== midiEvent.channel) continue;
+        if (mapping.noteOrCC !== midiEvent.note) continue;
+        if (mapping.inputType === 'pad') {
+          if (midiEvent.type === 'noteon') optionsRef.current.onPadPress?.(mapping, midiEvent.velocity);
+          else if (midiEvent.type === 'noteoff') optionsRef.current.onPadRelease?.(mapping);
+        } else if (mapping.inputType === 'knob' && midiEvent.type === 'cc') {
+          optionsRef.current.onKnobChange?.(mapping, midiEvent.velocity);
+        }
+      }
+    });
+    return unsub;
+  }, [isLearning, learnTarget]);
+
+  const rescanEngineDevices = useCallback(async () => {
+    try {
+      const result = await engineMidiRescan();
+      setEngineMidiAvailable(result.available);
+      setEngineDevices(result.devices);
+      setDevices(prev => {
+        const webDevs = prev.filter(d => d.source === 'web');
+        const engDevs = result.devices.map(d => ({
+          id: `engine-${d.port}`,
+          name: d.name,
+          manufacturer: 'Engine USB',
+          connected: d.open,
+          source: 'engine' as MidiSource,
+        }));
+        return [...webDevs, ...engDevs];
+      });
+    } catch {}
+  }, []);
 
   // Listen to MIDI messages
   useEffect(() => {
@@ -230,5 +350,8 @@ export function useMidiController(options: UseMidiControllerOptions = {}) {
     clearAllMappings,
     updateMapping,
     setMappings,
+    engineMidiAvailable,
+    engineDevices,
+    rescanEngineDevices,
   };
 }
