@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { broadcastState, isSyncingFromRemote, onSyncState, engineWledRefresh } from '@/lib/wsSync';
+import { broadcastState, isSyncingFromRemote, onSyncState, engineWledRefresh, onEngineConnect } from '@/lib/wsSync';
 import { type WledInfo, type WledState, type WledSegment } from '@/lib/wledApi';
 
 // ── Types ──
