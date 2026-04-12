@@ -78,6 +78,16 @@ cd /opt/chroma-grid-canvas
 npm install
 ```
 
+### 3b. Pioneer DJ-integration (valfritt)
+
+Om du vill ha utökad Pioneer DJ-integration (track metadata, artwork, waveforms via TCP) installera `prolink-connect`:
+
+```bash
+npm install prolink-connect
+```
+
+> **Notera:** Detta är valfritt — engine fungerar utan det via UDP-fallback (BPM + beat sync). `prolink-connect` lägger till track-titel, artist, album, genre, tonart och artwork.
+
 ### 4. Testa manuellt
 
 Starta motorn i en terminal:

@@ -38,7 +38,7 @@ try {
 const PORT = parseInt(process.env.PORT || '9100', 10);
 const STATE_FILE = path.join(__dirname, '.engine-state.json');
 const OUTPUT_INTERVAL = 40;  // 25fps hardware output
-const HUE_INTERVAL = 100;   // Hue rate limit: ~10/sec per light
+// (Hue cycle controlled by outputCycle % 3 in outputLoop)
 const SAVE_INTERVAL = 5000;  // persist state every 5s
 const MIDI_POLL_INTERVAL = 5000; // re-scan MIDI devices every 5s
 
@@ -211,6 +211,8 @@ function loadState() {
       if (data.fixtures) state.fixtures = data.fixtures;
       if (data.stage) state.stage = data.stage;
       if (data.wledDevices) state.wledDevices = data.wledDevices;
+      // Restore I/O config (NIC bindings, universes, USB ports)
+      if (data.ioConfig) state.ioConfig = { ...state.ioConfig, ...data.ioConfig };
       // Restore DMX universes
       if (data.dmx) {
         for (const [uni, arr] of Object.entries(data.dmx)) {
@@ -241,12 +243,16 @@ function saveState() {
       fixtures: state.fixtures,
       stage: state.stage,
       wledDevices: state.wledDevices,
+      ioConfig: state.ioConfig,
     };
     // Convert Uint8Arrays to regular arrays for JSON
     for (const [uni, buf] of Object.entries(state.dmx)) {
       serializable.dmx[uni] = Array.from(buf);
     }
-    fs.writeFileSync(STATE_FILE, JSON.stringify(serializable), 'utf8');
+    // Atomic write: write to temp file then rename
+    const tmp = STATE_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(serializable), 'utf8');
+    fs.renameSync(tmp, STATE_FILE);
   } catch (e) {
     console.error('[ENGINE] Failed to save state:', e.message);
   }
@@ -1794,19 +1800,8 @@ function handleMessage(ws, msg) {
         // Entertainment config ID as null-terminated string (variable length)
         // For v1 API, we just omit this or use the group ID
         // Each light channel: 1 byte type (0=light) + 2 bytes id + 2 bytes R + 2 bytes G + 2 bytes B
+        // Each light channel: type(1) + id(2) + R(2) + G(2) + B(2) = 9 bytes
         const channelBufs = channels.map(ch => {
-          const buf = Buffer.alloc(7);
-          buf.writeUInt8(0x00, 0); // type: light
-          buf.writeUInt16BE(ch.channel || 0, 1); // channel id
-          buf.writeUInt16BE(Math.round((ch.r / 255) * 65535), 3); // R (16-bit)
-          buf.writeUInt16BE(Math.round((ch.g / 255) * 65535), 5); // G (16-bit)
-          // Only 7 bytes per spec: type(1) + id(2) + R(2) + G(2) = 7
-          // Actually need 9 bytes: type(1) + id(2) + R(2) + G(2) + B(2)
-          return buf;
-        });
-
-        // Rebuild with correct 9 bytes per channel
-        const channelBufs2 = channels.map(ch => {
           const buf = Buffer.alloc(9);
           buf.writeUInt8(0x00, 0); // type: light
           buf.writeUInt16BE(ch.channel || 0, 1);
@@ -1816,7 +1811,7 @@ function handleMessage(ws, msg) {
           return buf;
         });
 
-        const packet = Buffer.concat([header, ...channelBufs2]);
+        const packet = Buffer.concat([header, ...channelBufs]);
         try { ent.socket.send(packet); } catch {}
       } else {
         // HTTP fallback: send individual light commands (slower but works without DTLS)
@@ -1847,305 +1842,175 @@ function handleMessage(ws, msg) {
 // ══════════════════════════════════════════════════════════════
 
 let outputCycle = 0;
+let outputRunning = false;
 
 async function outputLoop() {
-  outputCycle++;
+  if (outputRunning) return; // overlap guard — skip if previous iteration still running
+  outputRunning = true;
+  try {
+    outputCycle++;
 
-  // ArtNet & sACN every cycle (25fps)
-  outputArtNet();
-  outputSacn();
+    // ArtNet & sACN every cycle (25fps)
+    outputArtNet();
+    outputSacn();
 
-  // DDP every cycle (25fps) — fast pixel protocol for WLED
-  outputDdp();
+    // DDP every cycle (25fps) — fast pixel protocol for WLED
+    outputDdp();
 
-  // DNRGB every cycle (25fps) — WLED realtime, auto-releases on stop
-  outputDnrgb();
+    // DNRGB every cycle (25fps) — WLED realtime, auto-releases on stop
+    outputDnrgb();
 
-  // WLED JSON API every cycle (only for devices set to 'json' protocol)
-  await outputWled();
+    // WLED JSON API every cycle (only for devices set to 'json' protocol)
+    await outputWled();
 
-  // Hue every 3rd cycle (~8fps, within Hue rate limits)
-  if (outputCycle % 3 === 0) {
-    await outputHue();
-  }
+    // Hue every 3rd cycle (~8fps, within Hue rate limits)
+    if (outputCycle % 3 === 0) {
+      await outputHue();
+    }
 
-  // MagicHome every 2nd cycle (~12fps)
-  if (outputCycle % 2 === 0) {
-    await outputMagic();
+    // MagicHome every 2nd cycle (~12fps)
+    if (outputCycle % 2 === 0) {
+      await outputMagic();
+    }
+  } finally {
+    outputRunning = false;
   }
 }
 
 // ══════════════════════════════════════════════════════════════
 // ProDJ Link — Pioneer DJ equipment discovery & beat sync
-// Uses prolink-connect (ESM) for full TCP+UDP protocol support
-// including track metadata, waveforms, and CDJ status.
-// Falls back to raw UDP parsing if prolink-connect is not installed.
 // ══════════════════════════════════════════════════════════════
 
-let prolinkNetwork = null;
-let prolinkFallback = false;
+const PRODJLINK_HEADER = Buffer.from([0x51, 0x73, 0x70, 0x74, 0x31, 0x57, 0x6d, 0x4a, 0x4f, 0x4c]);
 
-async function initProlink() {
-  try {
-    // prolink-connect is ESM-only, use dynamic import
-    const { bringOnline } = await import('prolink-connect');
-    console.log('[PIONEER] prolink-connect loaded — full TCP+UDP protocol');
-
-    const network = await bringOnline();
-
-    // Listen for devices appearing
-    network.deviceManager.on('connected', (device) => {
-      console.log(`[PIONEER] Device connected: ${device.name} (#${device.id}) @ ${device.ip?.address || '?'}`);
-      const deviceNumber = device.id;
-      if (deviceNumber > 0) {
-        state.pioneerDecks[deviceNumber] = {
-          ...(state.pioneerDecks[deviceNumber] || {}),
-          name: device.name || `Deck ${deviceNumber}`,
-          deviceNumber,
-          ip: device.ip?.address || '',
-          lastSeen: Date.now(),
-          bpm: state.pioneerDecks[deviceNumber]?.bpm || 0,
-          beat: state.pioneerDecks[deviceNumber]?.beat || 0,
-          playing: state.pioneerDecks[deviceNumber]?.playing || false,
-          master: false,
-        };
-      }
-    });
-
-    network.deviceManager.on('disconnected', (device) => {
-      console.log(`[PIONEER] Device disconnected: ${device.name} (#${device.id})`);
-      if (device.id > 0 && state.pioneerDecks[device.id]) {
-        state.pioneerDecks[device.id].playing = false;
-      }
-    });
-
-    // Auto-configure from peers on the network
-    console.log('[PIONEER] Waiting for peers to auto-configure...');
-    await network.autoconfigFromPeers();
-    console.log('[PIONEER] Network configured, connecting...');
-    await network.connect();
-    console.log('[PIONEER] Connected to ProDJ Link network ✓');
-
-    prolinkNetwork = network;
-
-    // Listen for CDJ status updates (TCP — much richer than UDP)
-    const statusEmitter = network.statusEmitter;
-    if (statusEmitter) {
-      statusEmitter.on('status', (status) => {
-        const deviceNumber = status.deviceID;
-        if (!deviceNumber || deviceNumber <= 0) return;
-
-        const existing = state.pioneerDecks[deviceNumber] || {};
-        state.pioneerDecks[deviceNumber] = {
-          ...existing,
-          deviceNumber,
-          lastSeen: Date.now(),
-          bpm: status.trackBPM || existing.bpm || 0,
-          beat: status.beatInMeasure || existing.beat || 0,
-          playing: status.isPlaying ?? existing.playing ?? false,
-          master: status.isMaster ?? existing.master ?? false,
-          name: existing.name || `Deck ${deviceNumber}`,
-          ip: existing.ip || '',
-        };
-
-        // Broadcast beat events for live sync
-        if (status.isPlaying && status.trackBPM > 0) {
-          broadcastToAll({
-            type: 'pioneer-beat',
-            deviceNumber,
-            bpm: status.trackBPM,
-            beat: status.beatInMeasure || 0,
-            name: state.pioneerDecks[deviceNumber].name,
-          });
-        }
-      });
-    }
-
-    // Track metadata via remote database (TCP port 50002)
-    const db = network.db;
-    if (db) {
-      // Listen for track changes via mixstatus processor
-      const mixstatus = network.mixstatus;
-      if (mixstatus) {
-        mixstatus.on('nowPlaying', async (status) => {
-          const deviceNumber = status.deviceID;
-          if (!deviceNumber) return;
-          try {
-            const track = await db.getMetadata({
-              deviceID: status.deviceID,
-              trackSlot: status.trackSlot,
-              trackType: status.trackType,
-              trackID: status.trackID,
-            });
-            if (track && state.pioneerDecks[deviceNumber]) {
-              state.pioneerDecks[deviceNumber] = {
-                ...state.pioneerDecks[deviceNumber],
-                trackTitle: track.title || '',
-                trackArtist: track.artist?.name || '',
-                trackAlbum: track.album?.name || '',
-                trackGenre: track.genre?.name || '',
-                trackKey: track.key?.name || '',
-                trackLabel: track.label?.name || '',
-                trackDuration: track.duration || 0,
-              };
-              console.log(`[PIONEER] Now playing on Deck ${deviceNumber}: ${track.artist?.name || '?'} — ${track.title || '?'}`);
-
-              // Fetch artwork if available
-              try {
-                const artwork = await db.getArtwork({
-                  deviceID: status.deviceID,
-                  trackSlot: status.trackSlot,
-                  trackType: status.trackType,
-                  trackID: status.trackID,
-                });
-                if (artwork && artwork.length > 0) {
-                  // Convert to base64 data URL for sending to browser
-                  const b64 = Buffer.from(artwork).toString('base64');
-                  state.pioneerDecks[deviceNumber].artworkUrl = `data:image/jpeg;base64,${b64}`;
-                }
-              } catch {}
-            }
-          } catch (err) {
-            console.warn(`[PIONEER] Could not fetch metadata for deck ${deviceNumber}:`, err.message);
-          }
-        });
-      }
-    }
-
-    return true;
-  } catch (err) {
-    console.log(`[PIONEER] prolink-connect not available (${err.message}) — falling back to raw UDP`);
-    return false;
+function isProDJLinkPacket(buf) {
+  if (buf.length < 11) return false;
+  for (let i = 0; i < 10; i++) {
+    if (buf[i] !== PRODJLINK_HEADER[i]) return false;
   }
+  return true;
 }
 
-// ── Fallback: raw UDP parsing (original implementation) ──
-function initProlinkFallback() {
-  prolinkFallback = true;
-  const PRODJLINK_HEADER = Buffer.from([0x51, 0x73, 0x70, 0x74, 0x31, 0x57, 0x6d, 0x4a, 0x4f, 0x4c]);
+// Port 50000: device keepalive / announcements
+const pdjKeepAlive = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+pdjKeepAlive.on('error', (e) => console.error('[PIONEER] Keepalive socket error:', e.message));
 
-  function isProDJLinkPacket(buf) {
-    if (buf.length < 11) return false;
-    for (let i = 0; i < 10; i++) {
-      if (buf[i] !== PRODJLINK_HEADER[i]) return false;
-    }
-    return true;
+pdjKeepAlive.on('message', (buf, rinfo) => {
+  if (!isProDJLinkPacket(buf)) return;
+  const packetType = buf[10];
+
+  // Type 0x06 = CDJ/Mixer keepalive, Type 0x0a = device keepalive
+  if (packetType !== 0x06 && packetType !== 0x0a) return;
+
+  // Device name: bytes 12-31 (null-terminated)
+  let deviceName = '';
+  for (let i = 12; i < Math.min(32, buf.length); i++) {
+    if (buf[i] === 0) break;
+    deviceName += String.fromCharCode(buf[i]);
   }
 
-  // Port 50000: device keepalive / announcements
-  const pdjKeepAlive = dgram.createSocket({ type: 'udp4', reuseAddr: true });
-  pdjKeepAlive.on('error', (e) => console.error('[PIONEER] Keepalive socket error:', e.message));
+  // Device number
+  const deviceNumber = buf.length > 36 ? buf[36] : buf.length > 33 ? buf[33] : 0;
 
-  pdjKeepAlive.on('message', (buf, rinfo) => {
-    if (!isProDJLinkPacket(buf)) return;
-    const packetType = buf[10];
-    if (packetType !== 0x06 && packetType !== 0x0a) return;
+  if (deviceNumber > 0) {
+    const existing = state.pioneerDecks[deviceNumber] || {};
+    state.pioneerDecks[deviceNumber] = {
+      ...existing,
+      name: deviceName.trim() || existing.name || `Deck ${deviceNumber}`,
+      deviceNumber,
+      ip: rinfo.address,
+      lastSeen: Date.now(),
+      bpm: existing.bpm || 0,
+      beat: existing.beat || 0,
+      playing: existing.playing || false,
+      master: existing.master || false,
+    };
+  }
+});
 
-    let deviceName = '';
-    for (let i = 12; i < Math.min(32, buf.length); i++) {
-      if (buf[i] === 0) break;
-      deviceName += String.fromCharCode(buf[i]);
-    }
-    const deviceNumber = buf.length > 36 ? buf[36] : buf.length > 33 ? buf[33] : 0;
+try {
+  pdjKeepAlive.bind(50000, () => {
+    try { pdjKeepAlive.setBroadcast(true); } catch {}
+    console.log('[PIONEER] Listening for keepalive on port 50000');
+  });
+} catch (e) {
+  console.error('[PIONEER] Could not bind port 50000:', e.message);
+}
 
-    if (deviceNumber > 0) {
+// Port 50001: beat packets
+const pdjBeat = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+pdjBeat.on('error', (e) => console.error('[PIONEER] Beat socket error:', e.message));
+
+pdjBeat.on('message', (buf, rinfo) => {
+  if (!isProDJLinkPacket(buf)) return;
+  const packetType = buf[10];
+
+  // Type 0x28 = Beat packet (0x60 = 96 bytes long)
+  if (packetType === 0x28 && buf.length >= 0x60) {
+    // Device number at byte 0x21 (33)
+    const deviceNumber = buf[0x21];
+    // BPM at bytes 0x5a-0x5b: 2-byte big-endian value * 0.01
+    const bpmRaw = buf.readUInt16BE(0x5a);
+    const bpm = Math.round(bpmRaw / 100 * 10) / 10; // one decimal
+    // Beat within bar at byte 0x5c
+    const beat = buf[0x5c];
+
+    if (deviceNumber > 0 && bpm > 0 && bpm < 500) {
       const existing = state.pioneerDecks[deviceNumber] || {};
       state.pioneerDecks[deviceNumber] = {
         ...existing,
-        name: deviceName.trim() || existing.name || `Deck ${deviceNumber}`,
+        name: existing.name || `Deck ${deviceNumber}`,
         deviceNumber,
-        ip: rinfo.address,
+        ip: existing.ip || rinfo.address,
         lastSeen: Date.now(),
-        bpm: existing.bpm || 0,
-        beat: existing.beat || 0,
-        playing: existing.playing || false,
+        bpm,
+        beat: beat || existing.beat || 0,
+        playing: true,
         master: existing.master || false,
       };
-    }
-  });
 
-  try {
-    pdjKeepAlive.bind(50000, () => {
-      try { pdjKeepAlive.setBroadcast(true); } catch {}
-      console.log('[PIONEER] Listening for keepalive on port 50000 (UDP fallback)');
-    });
-  } catch (e) {
-    console.error('[PIONEER] Could not bind port 50000:', e.message);
+      // Broadcast beat to all connected browser clients
+      broadcastToAll({
+        type: 'pioneer-beat',
+        deviceNumber,
+        bpm,
+        beat,
+        name: state.pioneerDecks[deviceNumber].name,
+      });
+    }
   }
 
-  // Port 50001: beat packets
-  const pdjBeat = dgram.createSocket({ type: 'udp4', reuseAddr: true });
-  pdjBeat.on('error', (e) => console.error('[PIONEER] Beat socket error:', e.message));
+  // Type 0x0b = Channels On Air / status (also on port 50001 for some models)
+  if (packetType === 0x0b && buf.length >= 0x28) {
+    const deviceNumber = buf[0x21];
+    const bpmRaw = buf.readUInt16BE(0x24);
+    const bpm = Math.round(bpmRaw / 100 * 10) / 10;
 
-  pdjBeat.on('message', (buf, rinfo) => {
-    if (!isProDJLinkPacket(buf)) return;
-    const packetType = buf[10];
-
-    if (packetType === 0x28 && buf.length >= 0x60) {
-      const deviceNumber = buf[0x21];
-      const bpmRaw = buf.readUInt16BE(0x5a);
-      const bpm = Math.round(bpmRaw / 100 * 10) / 10;
-      const beat = buf[0x5c];
-
-      if (deviceNumber > 0 && bpm > 0 && bpm < 500) {
-        const existing = state.pioneerDecks[deviceNumber] || {};
-        state.pioneerDecks[deviceNumber] = {
-          ...existing,
-          name: existing.name || `Deck ${deviceNumber}`,
-          deviceNumber,
-          ip: existing.ip || rinfo.address,
-          lastSeen: Date.now(),
-          bpm,
-          beat: beat || existing.beat || 0,
-          playing: true,
-          master: existing.master || false,
-        };
-
-        broadcastToAll({
-          type: 'pioneer-beat',
-          deviceNumber,
-          bpm,
-          beat,
-          name: state.pioneerDecks[deviceNumber].name,
-        });
-      }
+    if (deviceNumber > 0 && bpm > 0 && bpm < 500) {
+      const existing = state.pioneerDecks[deviceNumber] || {};
+      state.pioneerDecks[deviceNumber] = {
+        ...existing,
+        name: existing.name || `Deck ${deviceNumber}`,
+        deviceNumber,
+        ip: existing.ip || rinfo.address,
+        lastSeen: Date.now(),
+        bpm,
+      };
     }
-
-    if (packetType === 0x0b && buf.length >= 0x28) {
-      const deviceNumber = buf[0x21];
-      const bpmRaw = buf.readUInt16BE(0x24);
-      const bpm = Math.round(bpmRaw / 100 * 10) / 10;
-
-      if (deviceNumber > 0 && bpm > 0 && bpm < 500) {
-        const existing = state.pioneerDecks[deviceNumber] || {};
-        state.pioneerDecks[deviceNumber] = {
-          ...existing,
-          name: existing.name || `Deck ${deviceNumber}`,
-          deviceNumber,
-          ip: existing.ip || rinfo.address,
-          lastSeen: Date.now(),
-          bpm,
-        };
-      }
-    }
-  });
-
-  try {
-    pdjBeat.bind(50001, () => {
-      try { pdjBeat.setBroadcast(true); } catch {}
-      console.log('[PIONEER] Listening for beats on port 50001 (UDP fallback)');
-    });
-  } catch (e) {
-    console.error('[PIONEER] Could not bind port 50001:', e.message);
   }
-}
-
-// Try prolink-connect first, fall back to raw UDP
-initProlink().then((ok) => {
-  if (!ok) initProlinkFallback();
 });
 
+try {
+  pdjBeat.bind(50001, () => {
+    try { pdjBeat.setBroadcast(true); } catch {}
+    console.log('[PIONEER] Listening for beats on port 50001');
+  });
+} catch (e) {
+  console.error('[PIONEER] Could not bind port 50001:', e.message);
+}
+
 // Periodically broadcast full Pioneer deck state to clients & prune stale decks
+// Artwork is sent separately only when it changes (see pioneer-artwork message)
 setInterval(() => {
   const now = Date.now();
   let changed = false;
@@ -2163,7 +2028,13 @@ setInterval(() => {
   }
 
   if (Object.keys(state.pioneerDecks).length > 0) {
-    broadcastToAll({ type: 'pioneer-decks', decks: state.pioneerDecks });
+    // Strip artwork from periodic broadcast to save bandwidth
+    const decksLight = {};
+    for (const [num, deck] of Object.entries(state.pioneerDecks)) {
+      const { artworkUrl, ...rest } = deck;
+      decksLight[num] = rest;
+    }
+    broadcastToAll({ type: 'pioneer-decks', decks: decksLight });
   }
 }, 2000);
 
@@ -2178,30 +2049,6 @@ const outputTimer = setInterval(outputLoop, OUTPUT_INTERVAL);
 
 // Save state periodically
 const saveTimer = setInterval(saveState, SAVE_INTERVAL);
-
-// ── Systemd Watchdog + sd_notify ──
-// Sends READY=1 on startup and WATCHDOG=1 heartbeat every WatchdogSec/2.
-// Uses the systemd notification socket (NOTIFY_SOCKET env var).
-// If not running under systemd, this is a no-op.
-function sdNotify(msg) {
-  const notifySocket = process.env.NOTIFY_SOCKET;
-  if (!notifySocket) return;
-  try {
-    const net = require('net');
-    const client = net.createConnection({ path: notifySocket }, () => {
-      client.end(msg);
-    });
-    client.on('error', () => {});
-  } catch {}
-}
-
-// Tell systemd we're ready
-sdNotify('READY=1');
-
-// Send watchdog heartbeat every 10s (WatchdogSec=30, so half = 15s, we use 10s for margin)
-const watchdogTimer = setInterval(() => {
-  sdNotify('WATCHDOG=1');
-}, 10000);
 
 // ── Broadcast live DMX levels to browsers (10fps) ──
 // Sends only non-zero channels so it stays lightweight for remote tablets
@@ -2235,11 +2082,13 @@ artnetSocket.bind(() => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\n[ENGINE] Shutting down...');
-  sdNotify('STOPPING=1');
   clearInterval(outputTimer);
   clearInterval(saveTimer);
   clearInterval(dmxLevelsTimer);
-  clearInterval(watchdogTimer);
+  if (typeof watchdogTimer !== 'undefined') clearInterval(watchdogTimer);
+  // Disconnect prolink-connect if active
+  try { if (typeof prolinkNetwork !== 'undefined' && prolinkNetwork) prolinkNetwork.disconnect(); } catch {}
+  sdNotify('STOPPING=1');
   saveState();
   artnetSocket.close();
   sacnSocket.close();
@@ -2249,10 +2098,12 @@ process.on('SIGINT', () => {
 });
 
 process.on('SIGTERM', () => {
-  sdNotify('STOPPING=1');
   clearInterval(outputTimer);
   clearInterval(saveTimer);
-  clearInterval(watchdogTimer);
+  if (typeof watchdogTimer !== 'undefined') clearInterval(watchdogTimer);
+  // Disconnect prolink-connect if active
+  try { if (typeof prolinkNetwork !== 'undefined' && prolinkNetwork) prolinkNetwork.disconnect(); } catch {}
+  sdNotify('STOPPING=1');
   saveState();
   process.exit(0);
 });

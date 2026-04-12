@@ -18,15 +18,6 @@ export interface PioneerDeck {
   master: boolean;
   ip: string;
   lastSeen: number;
-  // Track metadata (via prolink-connect TCP)
-  trackTitle?: string;
-  trackArtist?: string;
-  trackAlbum?: string;
-  trackGenre?: string;
-  trackKey?: string;
-  trackLabel?: string;
-  trackDuration?: number;
-  artworkUrl?: string;
 }
 
 export interface PioneerData {
