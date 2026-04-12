@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Plus, Trash2, RefreshCw, Wifi, Usb, Monitor, Save, AlertTriangle
+  Plus, Trash2, RefreshCw, Wifi, Usb, Monitor, Save, AlertTriangle, Network
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,14 @@ export interface NetworkInterface {
   internal: boolean;
   operstate?: string; // 'up' | 'down' | 'unknown' — from /sys/class/net
 }
+
+export type NicRole = 'system' | 'artnet' | 'sacn' | 'none';
+export const NIC_ROLE_OPTIONS: { value: NicRole; label: string; description: string; color: string }[] = [
+  { value: 'system', label: 'System (Huvud)', description: 'STOKIO, WLED, Hue, internet', color: '#00e5ff' },
+  { value: 'artnet', label: 'ArtNet DMX',     description: 'Dedicerad DMX-trafik (UDP 6454)', color: '#ff6600' },
+  { value: 'sacn',   label: 'sACN / E1.31',   description: 'Dedicerad sACN-trafik (UDP 5568)', color: '#00cc88' },
+  { value: 'none',   label: 'Ej tilldelad',   description: 'Inte aktiv', color: '#666666' },
+];
 
 export type OutputProtocol = 'artnet' | 'sacn' | 'usb-dmx' | 'ddp';
 export type OutputDirection = 'output' | 'input' | 'input+output';
@@ -51,17 +59,19 @@ export interface VfxOutputConfig {
 interface IOState {
   outputs: IOOutput[];
   networkInterfaces: NetworkInterface[];
+  nicRoles: Record<string, NicRole>; // NIC name → role
   vfxOutput: VfxOutputConfig;
   addOutput: (o: IOOutput) => void;
   updateOutput: (id: string, patch: Partial<IOOutput>) => void;
   removeOutput: (id: string) => void;
   setNetworkInterfaces: (nics: NetworkInterface[]) => void;
+  setNicRole: (nicName: string, role: NicRole) => void;
   setVfxOutput: (patch: Partial<VfxOutputConfig>) => void;
 }
 
 export const useIOStore = create<IOState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       outputs: [
         {
           id: 'default-artnet-1',
@@ -75,6 +85,7 @@ export const useIOStore = create<IOState>()(
         },
       ],
       networkInterfaces: [],
+      nicRoles: {},
       vfxOutput: {
         enabled: false,
         display: 1,
@@ -86,20 +97,58 @@ export const useIOStore = create<IOState>()(
         set((s) => ({ outputs: s.outputs.map((o) => (o.id === id ? { ...o, ...patch } : o)) })),
       removeOutput: (id) => set((s) => ({ outputs: s.outputs.filter((o) => o.id !== id) })),
       setNetworkInterfaces: (nics) => set({ networkInterfaces: nics }),
+      setNicRole: (nicName, role) => {
+        set((s) => {
+          const newRoles = { ...s.nicRoles, [nicName]: role };
+          // Send to engine
+          sendRawMessage({ type: 'nic-roles', roles: newRoles });
+          // Auto-bind outputs to the appropriate NIC based on roles
+          const nic = s.networkInterfaces.find(n => n.name === nicName);
+          const nicAddr = nic?.address || nicName;
+          let updatedOutputs = s.outputs;
+          if (role === 'artnet') {
+            updatedOutputs = updatedOutputs.map(o => 
+              o.protocol === 'artnet' ? { ...o, bindInterface: nicAddr } : o
+            );
+          } else if (role === 'sacn') {
+            updatedOutputs = updatedOutputs.map(o => 
+              o.protocol === 'sacn' ? { ...o, bindInterface: nicAddr } : o
+            );
+          }
+          return { nicRoles: newRoles, outputs: updatedOutputs };
+        });
+      },
       setVfxOutput: (patch) => set((s) => ({ vfxOutput: { ...s.vfxOutput, ...patch } })),
     }),
-    { name: 'stokio-io-v1' }
+    {
+      name: 'stokio-io-v1',
+      partialize: (s) => ({
+        outputs: s.outputs,
+        nicRoles: s.nicRoles,
+        vfxOutput: s.vfxOutput,
+        // Don't persist networkInterfaces — they come from engine
+      }),
+    }
   )
 );
 
-// ── Sync to engine ──
+// ── Sync to engine (only outputs/vfx changes, NOT nic list updates) ──
+let _lastOutputsJson = '';
+let _lastVfxJson = '';
 useIOStore.subscribe((state) => {
-  if (!isSyncingFromRemote()) {
-    broadcastState('io', {
-      outputs: state.outputs,
-      vfxOutput: state.vfxOutput,
-    });
-    // Also send io-config directly to engine for hardware routing
+  if (isSyncingFromRemote()) return;
+  const outputsJson = JSON.stringify(state.outputs);
+  const vfxJson = JSON.stringify(state.vfxOutput);
+  const outputsChanged = outputsJson !== _lastOutputsJson;
+  const vfxChanged = vfxJson !== _lastVfxJson;
+  if (!outputsChanged && !vfxChanged) return;
+  _lastOutputsJson = outputsJson;
+  _lastVfxJson = vfxJson;
+  broadcastState('io', {
+    outputs: state.outputs,
+    vfxOutput: state.vfxOutput,
+  });
+  if (outputsChanged) {
     sendRawMessage({ type: 'io-config', outputs: state.outputs });
   }
 });
