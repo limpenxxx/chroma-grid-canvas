@@ -31,7 +31,7 @@ import stokioLogo from '@/assets/stokio-logo-color.png';
 import { useMediaStore } from '@/store/mediaStore';
 import { useWledStore, type WledDevice, type WledFixture } from '@/store/wledStore';
 import { fetchWledPresets, isWledDeviceTargetId, wledDeviceToFixture } from '@/lib/wledUtils';
-import { sendDmxChannel, sendRawMessage, sendWledOutput, sendWledBrightness, engineAudioListDevices, engineAudioPoll, engineWledAudioPoll, onPioneerData, type EngineAudioDevice, type PioneerData } from '@/lib/wsSync';
+import { sendDmxChannel, sendRawMessage, sendWledOutput, sendWledBrightness, sendHueLight, engineAudioListDevices, engineAudioPoll, engineWledAudioPoll, onPioneerData, type EngineAudioDevice, type PioneerData } from '@/lib/wsSync';
 import { ProjectionMapping } from './ProjectionMapping';
 import { useMidiController, type MidiMapping, type MidiEvent } from '@/hooks/useMidiController';
 import { StageMap } from './StageMap';
@@ -2141,7 +2141,8 @@ function ControlWidget({
                 width={widget.width - 10}
                 height={widget.height - 36}
                 fixtures={fixtureList}
-                onTrigger={() => {}}
+                onTrigger={(zone, energy) => eqTriggerDispatch(zone, energy, fixtureData, useWledStore.getState())}
+                onColorOutput={(outputs) => outputs.forEach(({ zone, fadeProgress }) => eqColorDispatch(zone, fadeProgress, fixtureData, useWledStore.getState()))}
               />
             </div>
           </div>
@@ -2463,6 +2464,164 @@ function buildWledBrightnessState(target: WledFixture, bri: number) {
     on: bri > 0,
     seg: [{ id: target.segmentId, on: bri > 0, bri }],
   };
+}
+
+// ── RGB to CIE XY conversion for Hue ──
+function rgbToHueXY(r: number, g: number, b: number): { x: number; y: number; bri: number } {
+  const r2 = r / 255, g2 = g / 255, b2 = b / 255;
+  const rL = r2 > 0.04045 ? Math.pow((r2 + 0.055) / 1.055, 2.4) : r2 / 12.92;
+  const gL = g2 > 0.04045 ? Math.pow((g2 + 0.055) / 1.055, 2.4) : g2 / 12.92;
+  const bL = b2 > 0.04045 ? Math.pow((b2 + 0.055) / 1.055, 2.4) : b2 / 12.92;
+  const X = rL * 0.4124 + gL * 0.3576 + bL * 0.1805;
+  const Y = rL * 0.2126 + gL * 0.7152 + bL * 0.0722;
+  const Z = rL * 0.0193 + gL * 0.1192 + bL * 0.9505;
+  const sum = X + Y + Z;
+  return {
+    x: sum > 0 ? X / sum : 0.3127,
+    y: sum > 0 ? Y / sum : 0.3290,
+    bri: Math.min(254, Math.max(1, Math.round(Y * 254))),
+  };
+}
+
+/**
+ * Dispatch EQ trigger action to any fixture type (DMX, WLED, Hue).
+ * This replaces the old DMX-only logic.
+ */
+function eqTriggerDispatch(
+  zone: import('./EqTriggerWidget').EqTriggerZone,
+  energy: number,
+  allFixtures: { inst: FixtureInstance; def: FixtureDefinition }[],
+  wledStoreRef: { devices: WledDevice[]; fixtures: WledFixture[] },
+) {
+  if (!zone.fixtureId) return;
+  const fixture = allFixtures.find(f => f.inst.id === zone.fixtureId);
+  if (!fixture) return;
+
+  const isWled = fixture.def.category === 'wled';
+  const isHue = (fixture.def.category as string) === 'hue';
+
+  if (isWled) {
+    const wledFix = [...wledStoreRef.fixtures, ...wledStoreRef.devices.map(wledDeviceToFixture)].find(f => f.id === zone.fixtureId);
+    if (!wledFix) return;
+    const ip = wledFix.deviceIp;
+
+    if (zone.action === 'dimmer') {
+      const min = zone.dimmerMin ?? 0;
+      const max = zone.dimmerMax ?? 255;
+      const val = Math.round(min + energy * (max - min));
+      sendWledOutput(ip, { on: val > 5, bri: Math.max(1, val) });
+    } else if (zone.action === 'strobe') {
+      sendWledOutput(ip, { on: true, bri: 255 });
+      setTimeout(() => sendWledOutput(ip, { bri: 0 }), 80);
+    } else if (zone.action === 'on-off') {
+      sendWledOutput(ip, { on: true, bri: 255 });
+      setTimeout(() => sendWledOutput(ip, { on: false, bri: 0 }), 150);
+    }
+    // color/color-flash handled by eqColorDispatch
+  } else if (isHue) {
+    // Hue fixture ID: "hue-{bridgeId}-{lightId}"
+    const parts = zone.fixtureId.split('-');
+    if (parts.length < 3) return;
+    const bridgeId = parts[1];
+    const lightId = parts.slice(2).join('-');
+
+    if (zone.action === 'dimmer') {
+      const min = zone.dimmerMin ?? 0;
+      const max = zone.dimmerMax ?? 255;
+      const val = Math.round(min + energy * (max - min));
+      const bri = Math.min(254, Math.max(1, val));
+      sendHueLight(bridgeId, lightId, { on: bri > 3, bri, transitiontime: 1 });
+    } else if (zone.action === 'strobe') {
+      sendHueLight(bridgeId, lightId, { on: true, bri: 254, transitiontime: 0 });
+      setTimeout(() => sendHueLight(bridgeId, lightId, { on: false, transitiontime: 0 }), 80);
+    } else if (zone.action === 'on-off') {
+      sendHueLight(bridgeId, lightId, { on: true, bri: 254, transitiontime: 0 });
+      setTimeout(() => sendHueLight(bridgeId, lightId, { on: false, transitiontime: 0 }), 150);
+    }
+  } else {
+    // DMX fixture
+    const uni = fixture.inst.universe || 1;
+    const startCh = fixture.inst.dmxAddress || 1;
+    const mode = fixture.def.modes.find(m => m.id === fixture.inst.modeId) || fixture.def.modes[0];
+    const chs = mode?.channels || [];
+
+    if (zone.action === 'dimmer') {
+      const min = zone.dimmerMin ?? 0;
+      const max = zone.dimmerMax ?? 255;
+      const val = Math.round(min + energy * (max - min));
+      const dimCh = chs.findIndex(c => c.function === 'dimmer');
+      if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, val);
+    } else if (zone.action === 'strobe') {
+      const strobeCh = chs.findIndex(c => c.function === 'strobe');
+      if (strobeCh >= 0) sendDmxChannel(uni, startCh + strobeCh, 255);
+      setTimeout(() => { if (strobeCh >= 0) sendDmxChannel(uni, startCh + strobeCh, 0); }, 80);
+    } else if (zone.action === 'mh-position') {
+      const posA = zone.posA || { pan: 0, tilt: 0 };
+      const posB = zone.posB || { pan: 128, tilt: 128 };
+      const panCh = chs.findIndex(c => c.function === 'pan');
+      const tiltCh = chs.findIndex(c => c.function === 'tilt');
+      const pos = Math.random() > 0.5 ? posB : posA;
+      if (panCh >= 0) sendDmxChannel(uni, startCh + panCh, pos.pan);
+      if (tiltCh >= 0) sendDmxChannel(uni, startCh + tiltCh, pos.tilt);
+    } else if (zone.action === 'on-off') {
+      const dimCh = chs.findIndex(c => c.function === 'dimmer');
+      if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, 255);
+      setTimeout(() => { if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, 0); }, 150);
+    }
+  }
+}
+
+/**
+ * Dispatch EQ color output to any fixture type (DMX, WLED, Hue).
+ */
+function eqColorDispatch(
+  zone: import('./EqTriggerWidget').EqTriggerZone,
+  fadeProgress: number,
+  allFixtures: { inst: FixtureInstance; def: FixtureDefinition }[],
+  wledStoreRef: { devices: WledDevice[]; fixtures: WledFixture[] },
+) {
+  if (!zone.fixtureId) return;
+  const fixture = allFixtures.find(f => f.inst.id === zone.fixtureId);
+  if (!fixture) return;
+
+  const idle = zone.idleColor || { r: 0, g: 0, b: 0 };
+  const trig = zone.triggerColor || { r: 255, g: 255, b: 255 };
+  const t = fadeProgress;
+  const r = Math.round(idle.r + (trig.r - idle.r) * t);
+  const g = Math.round(idle.g + (trig.g - idle.g) * t);
+  const b = Math.round(idle.b + (trig.b - idle.b) * t);
+
+  const isWled = fixture.def.category === 'wled';
+  const isHue = (fixture.def.category as string) === 'hue';
+
+  if (isWled) {
+    const wledFix = [...wledStoreRef.fixtures, ...wledStoreRef.devices.map(wledDeviceToFixture)].find(f => f.id === zone.fixtureId);
+    if (wledFix) sendWledOutput(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[r, g, b]] }] });
+  } else if (isHue) {
+    const parts = zone.fixtureId.split('-');
+    if (parts.length < 3) return;
+    const bridgeId = parts[1];
+    const lightId = parts.slice(2).join('-');
+    const isOff = r < 3 && g < 3 && b < 3;
+    const xy = rgbToHueXY(r, g, b);
+    if (xy.bri > 0 && !isOff) {
+      sendHueLight(bridgeId, lightId, { on: true, bri: xy.bri, xy: [xy.x, xy.y], transitiontime: 1 });
+    } else {
+      sendHueLight(bridgeId, lightId, { on: false });
+    }
+  } else {
+    // DMX
+    const uni = fixture.inst.universe || 1;
+    const startCh = fixture.inst.dmxAddress || 1;
+    const mode = fixture.def.modes.find(m => m.id === fixture.inst.modeId) || fixture.def.modes[0];
+    const chs = mode?.channels || [];
+    const rCh = chs.findIndex(c => c.function === 'red');
+    const gCh = chs.findIndex(c => c.function === 'green');
+    const bCh = chs.findIndex(c => c.function === 'blue');
+    if (rCh >= 0) sendDmxChannel(uni, startCh + rCh, r);
+    if (gCh >= 0) sendDmxChannel(uni, startCh + gCh, g);
+    if (bCh >= 0) sendDmxChannel(uni, startCh + bCh, b);
+  }
 }
 
 // ── Main LIVE DJ Component ──
@@ -6210,67 +6369,8 @@ export function LiveDJ() {
                           name: f.inst.name,
                           icon: getFixtureTypeIcon(f.def.type),
                         }))}
-                        onTrigger={(zone, energy) => {
-                          if (!zone.fixtureId) return;
-                          const fixture = allFixturesWithDefs.find(f => f.inst.id === zone.fixtureId);
-                          if (!fixture) return;
-                          const uni = fixture.inst.universe || 1;
-                          const startCh = fixture.inst.dmxAddress || 1;
-                          const mode = fixture.def.modes.find(m => m.id === fixture.inst.modeId) || fixture.def.modes[0];
-                          const chs = mode?.channels || [];
-
-                          if (zone.action === 'dimmer') {
-                            const min = zone.dimmerMin ?? 0;
-                            const max = zone.dimmerMax ?? 255;
-                            const val = Math.round(min + energy * (max - min));
-                            const dimCh = chs.findIndex(c => c.function === 'dimmer');
-                            if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, val);
-                          } else if (zone.action === 'strobe') {
-                            const strobeCh = chs.findIndex(c => c.function === 'strobe');
-                            if (strobeCh >= 0) sendDmxChannel(uni, startCh + strobeCh, 255);
-                            setTimeout(() => {
-                              if (strobeCh >= 0) sendDmxChannel(uni, startCh + strobeCh, 0);
-                            }, 80);
-                          } else if (zone.action === 'mh-position') {
-                            const posA = zone.posA || { pan: 0, tilt: 0 };
-                            const posB = zone.posB || { pan: 128, tilt: 128 };
-                            const panCh = chs.findIndex(c => c.function === 'pan');
-                            const tiltCh = chs.findIndex(c => c.function === 'tilt');
-                            const useB = Math.random() > 0.5;
-                            const pos = useB ? posB : posA;
-                            if (panCh >= 0) sendDmxChannel(uni, startCh + panCh, pos.pan);
-                            if (tiltCh >= 0) sendDmxChannel(uni, startCh + tiltCh, pos.tilt);
-                          } else if (zone.action === 'on-off') {
-                            const dimCh = chs.findIndex(c => c.function === 'dimmer');
-                            if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, 255);
-                            setTimeout(() => {
-                              if (dimCh >= 0) sendDmxChannel(uni, startCh + dimCh, 0);
-                            }, 150);
-                          }
-                        }}
-                        onColorOutput={(outputs) => {
-                          outputs.forEach(({ zone, fadeProgress }) => {
-                            if (!zone.fixtureId) return;
-                            const fixture = allFixturesWithDefs.find(f => f.inst.id === zone.fixtureId);
-                            if (!fixture) return;
-                            const uni = fixture.inst.universe || 1;
-                            const startCh = fixture.inst.dmxAddress || 1;
-                            const mode = fixture.def.modes.find(m => m.id === fixture.inst.modeId) || fixture.def.modes[0];
-                            const chs = mode?.channels || [];
-                            const idle = zone.idleColor || { r: 0, g: 0, b: 0 };
-                            const trig = zone.triggerColor || { r: 255, g: 255, b: 255 };
-                            const t = fadeProgress;
-                            const r = Math.round(idle.r + (trig.r - idle.r) * t);
-                            const g = Math.round(idle.g + (trig.g - idle.g) * t);
-                            const b = Math.round(idle.b + (trig.b - idle.b) * t);
-                            const rCh = chs.findIndex(c => c.function === 'red');
-                            const gCh = chs.findIndex(c => c.function === 'green');
-                            const bCh = chs.findIndex(c => c.function === 'blue');
-                            if (rCh >= 0) sendDmxChannel(uni, startCh + rCh, r);
-                            if (gCh >= 0) sendDmxChannel(uni, startCh + gCh, g);
-                            if (bCh >= 0) sendDmxChannel(uni, startCh + bCh, b);
-                          });
-                        }}
+                        onTrigger={(zone, energy) => eqTriggerDispatch(zone, energy, allFixturesWithDefs, wledStore)}
+                        onColorOutput={(outputs) => outputs.forEach(({ zone, fadeProgress }) => eqColorDispatch(zone, fadeProgress, allFixturesWithDefs, wledStore))}
                         isConfig={true}
                       />
                       <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-1.5">
