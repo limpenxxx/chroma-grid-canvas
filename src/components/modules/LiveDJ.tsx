@@ -3295,11 +3295,11 @@ export function LiveDJ() {
         def: {
           id: `hue-light-${light.id}`,
           manufacturer: 'Philips',
-          model: light.modelid || 'Hue Light',
+          model: light.modelId || 'Hue Light',
           type: 'par',
           category: 'hue' as any,
           colorSystem: 'rgb',
-          modes: [{ id: 'default', name: 'Default', channels: [] }],
+          modes: [{ id: 'default', name: 'Default', channels: [], channelCount: 0 }],
           createdAt: Date.now(),
         },
       });
