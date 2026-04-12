@@ -106,6 +106,35 @@ export function sendRawMessage(msg: Record<string, unknown>) {
   }
 }
 
+/**
+ * Send a request to the engine and wait for a typed response.
+ * Uses reqId to correlate request/response.
+ */
+let _reqIdCounter = 0;
+const _pendingRequests = new Map<string, { resolve: (data: any) => void; timer: ReturnType<typeof setTimeout> }>();
+
+export function engineRequest<T = any>(msg: Record<string, unknown>, responseType: string, timeoutMs: number = 10000): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const reqId = `req-${++_reqIdCounter}-${Date.now()}`;
+    const timer = setTimeout(() => {
+      _pendingRequests.delete(reqId);
+      reject(new Error('Engine request timeout'));
+    }, timeoutMs);
+    _pendingRequests.set(reqId, { resolve, timer });
+    sendRawMessage({ ...msg, reqId });
+  });
+}
+
+// Called from onmessage handler to resolve pending requests
+function _handleEngineResponse(msg: any) {
+  if (msg.reqId && _pendingRequests.has(msg.reqId)) {
+    const pending = _pendingRequests.get(msg.reqId)!;
+    clearTimeout(pending.timer);
+    _pendingRequests.delete(msg.reqId);
+    pending.resolve(msg);
+  }
+}
+
 // ── Engine commands (hardware output routed through engine) ──
 
 /** Send a single DMX channel value to the engine */
