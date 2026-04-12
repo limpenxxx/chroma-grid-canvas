@@ -3,6 +3,23 @@
 > Komplett guide för att installera Chroma Grid Canvas som en **dedikerad ljusstyrningsenhet** på Ubuntu.  
 > Systemet startar automatiskt vid ström, återhämtar sig från strömavbrott och kräver inget GUI.
 
+## Snabbstart (manuellt)
+
+```bash
+cd /opt/chroma-grid-canvas
+
+# Starta engine i bakgrunden
+node server/engine-server.cjs &
+
+# Starta frontend
+npm run dev -- --host 0.0.0.0
+
+# Öppna http://<IP>:5173 i Chrome
+```
+
+> **Stoppa:** tryck `Ctrl+C` för frontend, sedan `kill %1` för engine.  
+> **Port upptagen?** `sudo kill $(sudo lsof -t -i :9100)` och försök igen.
+
 ---
 
 ## Innehåll

@@ -29,6 +29,7 @@ WorkingDirectory=$CHROMA_DIR
 ExecStart=$NODE_BIN server/engine-server.cjs
 Restart=always
 RestartSec=5
+WatchdogSec=30
 StandardOutput=journal
 StandardError=journal
 Environment=NODE_ENV=production
