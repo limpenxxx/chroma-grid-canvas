@@ -1,13 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { type MagicHomeDevice, type MagicHomeDeviceState, type MagicHomePattern } from '@/lib/magicHomeApi';
 import {
-  type MagicHomeDevice, type MagicHomeDeviceState,
-  discoverDevices, getDeviceState,
-  setDeviceOn, setDeviceOff, setDeviceColor, setDeviceWarmWhite,
-  setDeviceColorWithBrightness, setDevicePattern,
-  type MagicHomePattern,
-} from '@/lib/magicHomeApi';
-import { sendMagicSet } from '@/lib/wsSync';
+  sendMagicColor, sendMagicPower, sendMagicPattern, sendMagicWarmWhite,
+  engineMagicDiscover, engineMagicRefresh,
+} from '@/lib/wsSync';
 
 interface StoredDevice extends MagicHomeDevice {
   mac?: string;
@@ -28,12 +25,12 @@ interface MagicHomeStore {
   refreshDevice: (id: string) => Promise<void>;
   refreshAll: () => Promise<void>;
 
-  // Control
-  setPower: (id: string, on: boolean) => Promise<void>;
-  setColor: (id: string, r: number, g: number, b: number) => Promise<void>;
-  setBrightness: (id: string, brightness: number) => Promise<void>;
-  setWarmWhite: (id: string, level: number) => Promise<void>;
-  setPattern: (id: string, pattern: MagicHomePattern, speed?: number) => Promise<void>;
+  // Control (all via engine)
+  setPower: (id: string, on: boolean) => void;
+  setColor: (id: string, r: number, g: number, b: number) => void;
+  setBrightness: (id: string, brightness: number) => void;
+  setWarmWhite: (id: string, level: number) => void;
+  setPattern: (id: string, pattern: MagicHomePattern, speed?: number) => void;
 }
 
 export const useMagicHomeStore = create<MagicHomeStore>()(
@@ -48,24 +45,26 @@ export const useMagicHomeStore = create<MagicHomeStore>()(
       discover: async () => {
         set({ discovering: true });
         try {
-          const found = await discoverDevices(get().proxyUrl);
+          const result = await engineMagicDiscover(get().proxyUrl);
+          const found = result.devices || [];
           const existing = get().devices;
           const newDevices: StoredDevice[] = found
-            .filter(d => !existing.some(e => e.id === d.id))
-            .map(d => ({ ...d, state: null, online: true }));
+            .filter((d: any) => !existing.some(e => e.id === d.id))
+            .map((d: any) => ({ ...d, state: null, online: true }));
           if (newDevices.length > 0) {
             set({ devices: [...existing, ...newDevices] });
           }
-          // Refresh existing
+          // Refresh all
           const all = [...existing, ...newDevices];
           await Promise.all(all.map(d => get().refreshDevice(d.id)));
+        } catch (err) {
+          console.error('[MAGIC] Discovery failed:', err);
         } finally {
           set({ discovering: false });
         }
       },
 
       addDevice: (address, name, mac) => {
-        // MAC becomes the device ID for the proxy API; fall back to IP-derived ID
         const id = mac ? mac.replace(/[:\-\.]/g, '').toUpperCase() : address.replace(/\./g, '');
         if (get().devices.some(d => d.id === id || d.address === address)) return;
         const device: StoredDevice = {
@@ -90,80 +89,76 @@ export const useMagicHomeStore = create<MagicHomeStore>()(
       refreshDevice: async (id) => {
         const device = get().devices.find(d => d.id === id);
         if (!device) return;
-        const state = await getDeviceState(device.id, get().proxyUrl);
-        set(s => ({
-          devices: s.devices.map(d => d.id === id ? {
-            ...d,
-            state: state || d.state,
-            online: !!state,
-          } : d),
-        }));
+        try {
+          const result = await engineMagicRefresh(device.id, get().proxyUrl);
+          set(s => ({
+            devices: s.devices.map(d => d.id === id ? {
+              ...d,
+              state: result.state || d.state,
+              online: result.online ?? !!result.state,
+            } : d),
+          }));
+        } catch {
+          set(s => ({
+            devices: s.devices.map(d => d.id === id ? { ...d, online: false } : d),
+          }));
+        }
       },
 
       refreshAll: async () => {
         await Promise.all(get().devices.map(d => get().refreshDevice(d.id)));
       },
 
-      setPower: async (id, on) => {
+      setPower: (id, on) => {
         const device = get().devices.find(d => d.id === id);
         if (!device) return;
-        const ok = on
-          ? await setDeviceOn(device.id, get().proxyUrl)
-          : await setDeviceOff(device.id, get().proxyUrl);
-        if (ok) {
-          set(s => ({
-            devices: s.devices.map(d => d.id === id && d.state ? {
-              ...d, state: { ...d.state, on },
-            } : d),
-          }));
-        }
-        // Send to engine for persistent output
-        const color = device.state?.color || { r: 0, g: 0, b: 0 };
-        sendMagicSet(id, get().proxyUrl, on, color.r, color.g, color.b);
+        sendMagicPower(device.id, get().proxyUrl, on);
+        set(s => ({
+          devices: s.devices.map(d => d.id === id && d.state ? {
+            ...d, state: { ...d.state, on },
+          } : d),
+        }));
       },
 
-      setColor: async (id, r, g, b) => {
+      setColor: (id, r, g, b) => {
         const device = get().devices.find(d => d.id === id);
         if (!device) return;
-        await setDeviceColor(device.id, r, g, b, get().proxyUrl);
+        sendMagicColor(device.id, get().proxyUrl, r, g, b);
         set(s => ({
           devices: s.devices.map(d => d.id === id && d.state ? {
             ...d, state: { ...d.state, color: { r, g, b }, on: true },
           } : d),
         }));
-        // Send to engine for persistent output
-        sendMagicSet(id, get().proxyUrl, true, r, g, b);
       },
 
-      setBrightness: async (id, brightness) => {
+      setBrightness: (id, brightness) => {
         const device = get().devices.find(d => d.id === id);
         if (!device?.state) return;
         const { r, g, b } = device.state.color;
-        // Find max channel to normalize
         const max = Math.max(r, g, b, 1);
-        const nr = r / max;
-        const ng = g / max;
-        const nb = b / max;
-        await setDeviceColorWithBrightness(device.id, Math.round(nr * 255), Math.round(ng * 255), Math.round(nb * 255), brightness, get().proxyUrl);
+        const nr = Math.round((r / max) * 255);
+        const ng = Math.round((g / max) * 255);
+        const nb = Math.round((b / max) * 255);
+        sendMagicColor(device.id, get().proxyUrl, nr, ng, nb);
       },
 
-      setWarmWhite: async (id, level) => {
+      setWarmWhite: (id, level) => {
         const device = get().devices.find(d => d.id === id);
         if (!device) return;
-        await setDeviceWarmWhite(device.id, level, get().proxyUrl);
+        sendMagicWarmWhite(device.id, get().proxyUrl, level);
       },
 
-      setPattern: async (id, pattern, speed = 50) => {
+      setPattern: (id, pattern, speed = 50) => {
         const device = get().devices.find(d => d.id === id);
         if (!device) return;
-        await setDevicePattern(device.id, pattern, speed, get().proxyUrl);
+        sendMagicPattern(device.id, get().proxyUrl, pattern, speed);
       },
     }),
     {
       name: 'stokio-magichome-v1',
       partialize: (s) => ({
         proxyUrl: s.proxyUrl,
-        devices: s.devices.map(d => ({ ...d, state: null, online: false })), // don't persist runtime state
+        devices: s.devices.map(d => ({ ...d, state: null, online: false })),
       }),
     }
   )

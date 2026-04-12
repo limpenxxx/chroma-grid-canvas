@@ -532,7 +532,7 @@ function HueLightPanel({ bridgeId, lightId, state: fixtureState, updateState }: 
         </div>
         {/* Power toggle */}
         <Button variant={light?.state.on ? 'secondary' : 'outline'} size="sm" className="w-full h-7 text-[10px]"
-          onClick={() => hueStore.setPower(bridgeId, lightId, !light?.state.on).then(() => hueStore.refreshBridge(bridgeId))}>
+          onClick={() => { hueStore.setPower(bridgeId, lightId, !light?.state.on); setTimeout(() => hueStore.refreshBridge(bridgeId), 300); }}>
           {light?.state.on ? '💡 Turn OFF' : '🔌 Turn ON'}
         </Button>
       </div>

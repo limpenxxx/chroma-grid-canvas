@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { engineWledScan } from '@/lib/wsSync';
 import {
   Plus, Trash2, Power, Wifi, WifiOff, RefreshCw, Palette, Zap, SunDim, Layers, Radar,
 } from 'lucide-react';
@@ -36,51 +37,33 @@ export function WledPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Network scan: try common IPs in 192.168.x.x ranges
+  // Network scan via engine server
   const scanNetwork = async () => {
     setScanning(true);
     const existingIps = new Set(store.devices.map(d => d.ip));
-    const found: string[] = [];
-
-    // Try common subnets and typical WLED IPs
     const subnets = ['192.168.0', '192.168.1', '192.168.4', '192.168.178', '10.0.0', '10.0.1'];
-    const batch = 15; // concurrent requests per round
+    let totalFound = 0;
 
     for (const subnet of subnets) {
       setScanProgress(`Scanning ${subnet}.x ...`);
-      const ips = Array.from({ length: 255 }, (_, i) => `${subnet}.${i + 1}`);
-      
-      for (let i = 0; i < ips.length; i += batch) {
-        const chunk = ips.slice(i, i + batch);
-        const results = await Promise.allSettled(
-          chunk.map(async (ip) => {
-            if (existingIps.has(ip)) return null;
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 1500);
-            try {
-              const res = await fetch(`http://${ip}/json/info`, { signal: controller.signal });
-              clearTimeout(timer);
-              if (res.ok) {
-                const info = await res.json();
-                if (info.ver && info.name) return { ip, name: info.name };
-              }
-            } catch {
-              clearTimeout(timer);
-            }
-            return null;
-          })
-        );
-        for (const r of results) {
-          if (r.status === 'fulfilled' && r.value) {
-            found.push(r.value.ip);
-            existingIps.add(r.value.ip);
-            await store.addDevice(r.value.ip, r.value.name);
+      const ips = Array.from({ length: 255 }, (_, i) => `${subnet}.${i + 1}`)
+        .filter(ip => !existingIps.has(ip));
+
+      try {
+        const result = await engineWledScan(ips);
+        for (const dev of result.found || []) {
+          if (!existingIps.has(dev.ip)) {
+            existingIps.add(dev.ip);
+            totalFound++;
+            await store.addDevice(dev.ip, dev.name);
           }
         }
+      } catch {
+        // engine timeout or not connected
       }
     }
 
-    setScanProgress(found.length > 0 ? `Found ${found.length} device(s)` : 'No new devices found');
+    setScanProgress(totalFound > 0 ? `Found ${totalFound} device(s)` : 'No new devices found');
     setScanning(false);
     setTimeout(() => setScanProgress(''), 4000);
   };

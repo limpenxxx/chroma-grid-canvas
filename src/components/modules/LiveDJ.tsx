@@ -31,7 +31,7 @@ import stokioLogo from '@/assets/stokio-logo-color.png';
 import { useMediaStore } from '@/store/mediaStore';
 import { useWledStore, type WledDevice, type WledFixture } from '@/store/wledStore';
 import { fetchWledPresets, isWledDeviceTargetId, wledDeviceToFixture } from '@/lib/wledUtils';
-import { sendDmxChannel, sendRawMessage, sendWledOutput, sendWledBrightness, onPioneerData, type PioneerData } from '@/lib/wsSync';
+import { sendDmxChannel, sendRawMessage, sendWledOutput, sendWledBrightness, engineWledAudioPoll, onPioneerData, type PioneerData } from '@/lib/wsSync';
 import { ProjectionMapping } from './ProjectionMapping';
 import { useMidiController, type MidiMapping, type MidiEvent } from '@/hooks/useMidiController';
 import { StageMap } from './StageMap';
@@ -2717,11 +2717,10 @@ export function LiveDJ() {
 
     const poll = async () => {
       try {
-        const res = await fetch(`http://${ip}/json/si`, { signal: AbortSignal.timeout(1500) });
-        if (!res.ok) return;
-        const data = await res.json();
-        // WLED sound-reactive info: data.leds.lx = volume/loudness estimate
-        // or data.um?.AudioReactive?.volumeSmth or similar
+        const result = await engineWledAudioPoll(ip);
+        const data = result?.data;
+        if (!data) return;
+        // WLED sound-reactive info
         const um = data?.um;
         const ar = um?.['AudioReactive'] || um?.['audioreactive'] || {};
         const vol = Math.min(255, Math.max(0, ar?.volumeSmth ?? ar?.volume ?? ar?.inputLevel ?? data?.leds?.lx ?? 0));
@@ -2749,7 +2748,7 @@ export function LiveDJ() {
           }
         }
         beatData.lastVol = vol;
-      } catch { /* device unreachable */ }
+      } catch { /* engine unreachable */ }
     };
 
     // Poll at ~50ms for responsive beat detection

@@ -953,6 +953,252 @@ function handleMessage(ws, msg) {
       break;
     }
 
+    // ══════════════════════════════════════════════════════════
+    // Hue Bridge: discovery, pairing, refresh (all via engine)
+    // ══════════════════════════════════════════════════════════
+
+    case 'hue-discover': {
+      // Discover bridges via Philips cloud + mDNS-style scan
+      const reqId = msg.reqId;
+      (async () => {
+        try {
+          const data = await httpRequest('https://discovery.meethue.com/', 'GET', null, 5000);
+          const bridges = Array.isArray(data) ? data : [];
+          ws.send(JSON.stringify({ type: 'hue-discover-result', reqId, bridges }));
+        } catch {
+          ws.send(JSON.stringify({ type: 'hue-discover-result', reqId, bridges: [] }));
+        }
+      })();
+      break;
+    }
+
+    case 'hue-pair': {
+      // Pair with bridge (user must press link button first)
+      const { ip, reqId } = msg;
+      (async () => {
+        try {
+          const data = await httpRequest(`http://${ip}/api`, 'POST', { devicetype: 'stokio_fx#engine' }, 5000);
+          if (Array.isArray(data) && data[0]?.success?.username) {
+            ws.send(JSON.stringify({ type: 'hue-pair-result', reqId, success: true, apiKey: data[0].success.username }));
+          } else {
+            const errorDesc = Array.isArray(data) ? data[0]?.error?.description || 'Unknown error' : 'Unknown error';
+            ws.send(JSON.stringify({ type: 'hue-pair-result', reqId, success: false, error: errorDesc }));
+          }
+        } catch (err) {
+          ws.send(JSON.stringify({ type: 'hue-pair-result', reqId, success: false, error: String(err) }));
+        }
+      })();
+      break;
+    }
+
+    case 'hue-refresh': {
+      // Fetch lights, groups, scenes, config from a paired bridge
+      const { bridgeId, ip, apiKey, reqId } = msg;
+      if (!ip || !apiKey) break;
+      (async () => {
+        try {
+          const [lights, groups, scenes, config] = await Promise.all([
+            httpRequest(`http://${ip}/api/${apiKey}/lights`, 'GET', null, 5000),
+            httpRequest(`http://${ip}/api/${apiKey}/groups`, 'GET', null, 5000),
+            httpRequest(`http://${ip}/api/${apiKey}/scenes`, 'GET', null, 5000),
+            httpRequest(`http://${ip}/api/${apiKey}/config`, 'GET', null, 5000),
+          ]);
+          ws.send(JSON.stringify({ type: 'hue-refresh-result', reqId, bridgeId, lights, groups, scenes, config }));
+        } catch (err) {
+          ws.send(JSON.stringify({ type: 'hue-refresh-result', reqId, bridgeId, error: String(err) }));
+        }
+      })();
+      break;
+    }
+
+    case 'hue-group-action': {
+      const { bridgeId, groupId, groupState } = msg;
+      const bridge = state.hue[bridgeId];
+      if (!bridge) break;
+      (async () => {
+        try {
+          await httpRequest(`http://${bridge.ip}/api/${bridge.apiKey}/groups/${groupId}/action`, 'PUT', groupState, 2000);
+        } catch { /* offline */ }
+      })();
+      break;
+    }
+
+    case 'hue-scene': {
+      const { bridgeId, groupId, sceneId } = msg;
+      const bridge = state.hue[bridgeId];
+      if (!bridge) break;
+      (async () => {
+        try {
+          await httpRequest(`http://${bridge.ip}/api/${bridge.apiKey}/groups/${groupId}/action`, 'PUT', { scene: sceneId }, 2000);
+        } catch { /* offline */ }
+      })();
+      break;
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // WLED: discovery, refresh (via engine)
+    // ══════════════════════════════════════════════════════════
+
+    case 'wled-refresh': {
+      // Fetch full state from a WLED device
+      const { ip, deviceId, reqId } = msg;
+      if (!ip) break;
+      (async () => {
+        try {
+          const data = await httpRequest(`http://${ip}/json`, 'GET', null, 3000);
+          ws.send(JSON.stringify({ type: 'wled-refresh-result', reqId, deviceId, data, online: true }));
+        } catch {
+          ws.send(JSON.stringify({ type: 'wled-refresh-result', reqId, deviceId, data: null, online: false }));
+        }
+      })();
+      break;
+    }
+
+    case 'wled-preset': {
+      // Activate a WLED preset
+      const { ip: wledIp, presetId } = msg;
+      if (!wledIp) break;
+      (async () => {
+        try {
+          await httpRequest(`http://${wledIp}/json/state`, 'POST', { ps: presetId }, 2000);
+        } catch { /* offline */ }
+      })();
+      break;
+    }
+
+    case 'wled-presets': {
+      // Fetch preset list from a WLED device
+      const { ip: presetsIp, reqId: presetsReqId } = msg;
+      if (!presetsIp) break;
+      (async () => {
+        try {
+          const data = await httpRequest(`http://${presetsIp}/presets.json`, 'GET', null, 3000);
+          ws.send(JSON.stringify({ type: 'wled-presets-result', reqId: presetsReqId, data }));
+        } catch {
+          ws.send(JSON.stringify({ type: 'wled-presets-result', reqId: presetsReqId, data: null }));
+        }
+      })();
+      break;
+    }
+
+    case 'wled-scan': {
+      // Network scan: probe a list of IPs for WLED devices
+      const { ips, reqId: scanReqId } = msg;
+      if (!Array.isArray(ips)) break;
+      (async () => {
+        const found = [];
+        for (let i = 0; i < ips.length; i += 20) {
+          const chunk = ips.slice(i, i + 20);
+          const results = await Promise.allSettled(
+            chunk.map(async (scanIp) => {
+              try {
+                const info = await httpRequest(`http://${scanIp}/json/info`, 'GET', null, 1500);
+                if (info && info.ver && info.name) return { ip: scanIp, name: info.name };
+              } catch {}
+              return null;
+            })
+          );
+          for (const r of results) {
+            if (r.status === 'fulfilled' && r.value) found.push(r.value);
+          }
+        }
+        ws.send(JSON.stringify({ type: 'wled-scan-result', reqId: scanReqId, found }));
+      })();
+      break;
+    }
+
+    case 'wled-audio-poll': {
+      const { ip: audioIp, reqId: audioReqId } = msg;
+      if (!audioIp) break;
+      (async () => {
+        try {
+          const data = await httpRequest(`http://${audioIp}/json/si`, 'GET', null, 1500);
+          ws.send(JSON.stringify({ type: 'wled-audio-poll-result', reqId: audioReqId, data }));
+        } catch {
+          ws.send(JSON.stringify({ type: 'wled-audio-poll-result', reqId: audioReqId, data: null }));
+        }
+      })();
+      break;
+    }
+
+    case 'magic-discover': {
+      const { proxyUrl, reqId } = msg;
+      (async () => {
+        try {
+          const data = await httpRequest(`${proxyUrl}/api/discover`, 'GET', null, 10000);
+          ws.send(JSON.stringify({ type: 'magic-discover-result', reqId, devices: Array.isArray(data) ? data : [] }));
+        } catch {
+          ws.send(JSON.stringify({ type: 'magic-discover-result', reqId, devices: [] }));
+        }
+      })();
+      break;
+    }
+
+    case 'magic-refresh': {
+      const { deviceId, proxyUrl, reqId } = msg;
+      (async () => {
+        try {
+          const data = await httpRequest(`${proxyUrl}/api/device/${deviceId}/state`, 'GET', null, 3000);
+          ws.send(JSON.stringify({ type: 'magic-refresh-result', reqId, deviceId, state: data, online: true }));
+        } catch {
+          ws.send(JSON.stringify({ type: 'magic-refresh-result', reqId, deviceId, state: null, online: false }));
+        }
+      })();
+      break;
+    }
+
+    case 'magic-power': {
+      const { deviceId, proxyUrl, on } = msg;
+      (async () => {
+        try {
+          await httpRequest(`${proxyUrl}/api/device/${deviceId}/${on ? 'on' : 'off'}`, 'POST', undefined, 2000);
+        } catch { /* offline */ }
+      })();
+      // Also update engine state
+      if (!state.magic[msg.deviceId]) state.magic[msg.deviceId] = {};
+      state.magic[msg.deviceId].proxyUrl = msg.proxyUrl;
+      state.magic[msg.deviceId].on = msg.on;
+      dirty = true;
+      break;
+    }
+
+    case 'magic-color': {
+      const { deviceId, proxyUrl, r, g, b } = msg;
+      (async () => {
+        try {
+          await httpRequest(`${proxyUrl}/api/device/${deviceId}/color`, 'POST', { r, g, b }, 2000);
+        } catch { /* offline */ }
+      })();
+      if (!state.magic[deviceId]) state.magic[deviceId] = {};
+      state.magic[deviceId].proxyUrl = proxyUrl;
+      state.magic[deviceId].on = true;
+      state.magic[deviceId].r = r;
+      state.magic[deviceId].g = g;
+      state.magic[deviceId].b = b;
+      dirty = true;
+      break;
+    }
+
+    case 'magic-pattern': {
+      const { deviceId, proxyUrl, pattern, speed } = msg;
+      (async () => {
+        try {
+          await httpRequest(`${proxyUrl}/api/device/${deviceId}/pattern`, 'POST', { pattern, speed: speed || 50 }, 2000);
+        } catch { /* offline */ }
+      })();
+      break;
+    }
+
+    case 'magic-warm-white': {
+      const { deviceId, proxyUrl, level } = msg;
+      (async () => {
+        try {
+          await httpRequest(`${proxyUrl}/api/device/${deviceId}/warm-white`, 'POST', { level }, 2000);
+        } catch { /* offline */ }
+      })();
+      break;
+    }
+
     default:
       // Unknown message type — ignore
       break;

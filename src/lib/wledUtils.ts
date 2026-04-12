@@ -1,4 +1,5 @@
 import type { WledDevice, WledFixture } from '@/store/wledStore';
+import { engineWledPresets } from '@/lib/wsSync';
 
 export interface WledPresetSummary {
   id: number;
@@ -7,42 +8,36 @@ export interface WledPresetSummary {
 
 export const WLED_DEVICE_TARGET_PREFIX = '_wled_device_';
 
-const REQUEST_TIMEOUT = 3000;
-
-async function fetchJsonWithTimeout(url: string): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
-  try {
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-    return res.json();
-  } finally {
-    window.clearTimeout(timer);
-  }
-}
-
+/**
+ * Fetch WLED presets via engine server (not direct HTTP).
+ * The engine makes the HTTP request to the WLED device on the local network.
+ */
 export async function fetchWledPresets(ip: string): Promise<WledPresetSummary[]> {
   const trimmedIp = ip.trim();
   if (!trimmedIp) return [];
 
-  const data = await fetchJsonWithTimeout(`http://${trimmedIp}/presets.json`);
-  if (!data || typeof data !== 'object') return [];
+  try {
+    const result = await engineWledPresets(trimmedIp);
+    const data = result.data;
+    if (!data || typeof data !== 'object') return [];
 
-  return Object.entries(data as Record<string, unknown>)
-    .map(([key, value]) => {
-      const id = Number(key);
-      if (!Number.isInteger(id)) return null;
+    return Object.entries(data as Record<string, unknown>)
+      .map(([key, value]) => {
+        const id = Number(key);
+        if (!Number.isInteger(id)) return null;
 
-      const preset = value as { n?: unknown } | null;
-      const name = typeof preset?.n === 'string' && preset.n.trim()
-        ? preset.n.trim()
-        : `Preset ${id}`;
+        const preset = value as { n?: unknown } | null;
+        const name = typeof preset?.n === 'string' && preset.n.trim()
+          ? preset.n.trim()
+          : `Preset ${id}`;
 
-      return { id, name };
-    })
-    .filter((preset): preset is WledPresetSummary => preset !== null)
-    .sort((a, b) => a.id - b.id);
+        return { id, name };
+      })
+      .filter((preset): preset is WledPresetSummary => preset !== null)
+      .sort((a, b) => a.id - b.id);
+  } catch {
+    return [];
+  }
 }
 
 export function getWledDeviceLedCount(device: WledDevice): number {
