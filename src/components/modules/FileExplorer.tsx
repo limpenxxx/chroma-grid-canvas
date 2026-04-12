@@ -84,7 +84,7 @@ function OnlineFixtureBrowser({ onClose }: { onClose: () => void }) {
   const [search, setSearch] = useState('');
   const [selectedMfr, setSelectedMfr] = useState<OflManufacturerInfo | null>(null);
   const [loading, setLoading] = useState(false);
-  const [importing, setImporting] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(MFR_PAGE_SIZE);
 
   // Load manufacturers on mount
   useEffect(() => {
