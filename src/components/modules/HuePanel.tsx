@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, Trash2, RefreshCw, Lightbulb, Link2, Wifi, ChevronDown, ChevronRight, Search
+  Plus, Trash2, RefreshCw, Lightbulb, Link2, Wifi, ChevronDown, ChevronRight, Search, Play, Square, Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,10 @@ import { Slider } from '@/components/ui/slider';
 import { useHueStore } from '@/store/hueStore';
 import { xyToRgb } from '@/lib/hueApi';
 import { toast } from 'sonner';
+import {
+  engineHueEntertainmentStart, engineHueEntertainmentStop,
+  engineHueEntertainmentCreate, sendHueEntertainmentColor, onEngineMessage,
+} from '@/lib/wsSync';
 
 export function HuePanel() {
   const hueStore = useHueStore();
@@ -293,14 +297,115 @@ export function HuePanel() {
         );
       })}
 
-      {/* Info panel */}
+      {/* Entertainment API info */}
       <div className="glass-panel p-4 space-y-2">
+        <div className="text-[10px] uppercase tracking-widest text-purple-400 font-semibold flex items-center gap-1">
+          <Zap size={10} /> Entertainment API (Low-Latency Streaming)
+        </div>
         <div className="text-[9px] text-muted-foreground/60">
-          <strong>Note:</strong> Philips Hue uses local HTTP API — works on <code className="text-primary">localhost</code> only (same as WLED).
-          <br />Auto-discover uses <code className="text-primary">discovery.meethue.com</code> to find bridges on your network.
-          <br />Entertainment API (low-latency streaming) requires a local DTLS proxy — coming soon.
+          Aktivera Entertainment-streaming på en grupp för att få realtidskontroll med minimal latens.
+          Kräver att <code className="text-primary">node-dtls-client</code> är installerat på servern för full DTLS-support.
+          Utan DTLS används snabb HTTP-fallback (~10fps).
+        </div>
+        <div className="text-[8px] text-muted-foreground/40">
+          Installera: <code className="text-primary">cd server && npm install node-dtls-client</code>
+        </div>
+
+        {hueStore.bridges.filter(b => b.apiKey).map(bridge => {
+          const groups = hueStore.groups[bridge.id] || [];
+          const entertainmentGroups = groups.filter(g => g.type === 'Entertainment');
+
+          return (
+            <div key={bridge.id} className="space-y-1">
+              <div className="text-[9px] font-semibold text-foreground/80">{bridge.name}</div>
+              {entertainmentGroups.length === 0 ? (
+                <div className="text-[8px] text-muted-foreground/40">
+                  Inga Entertainment-grupper hittade. Skapa en i Hue-appen eller klicka nedan.
+                  <Button variant="outline" size="sm" className="h-5 text-[8px] ml-2 px-2"
+                    onClick={async () => {
+                      const lights = hueStore.lights[bridge.id]?.map(l => l.id) || [];
+                      if (lights.length === 0) { toast.error('Inga lampor hittade'); return; }
+                      try {
+                        await engineHueEntertainmentCreate(bridge.id, 'STOKIO Entertainment', lights.slice(0, 10));
+                        toast.success('Entertainment-grupp skapad!');
+                        hueStore.refreshBridge(bridge.id);
+                      } catch (err) {
+                        toast.error('Kunde inte skapa grupp: ' + String(err));
+                      }
+                    }}>
+                    <Plus size={8} /> Skapa grupp
+                  </Button>
+                </div>
+              ) : (
+                entertainmentGroups.map(group => (
+                  <EntertainmentGroupControl key={group.id} bridgeId={bridge.id} group={group} />
+                ))
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function EntertainmentGroupControl({ bridgeId, group }: { bridgeId: string; group: { id: string; name: string; lights: string[] } }) {
+  const [active, setActive] = useState(false);
+  const [dtls, setDtls] = useState(false);
+  const [starting, setStarting] = useState(false);
+
+  useEffect(() => {
+    const unsub = onEngineMessage((msg: any) => {
+      if (msg.type === 'hue-entertainment-status' && msg.bridgeId === bridgeId) {
+        setActive(msg.active);
+        setDtls(msg.dtls || false);
+      }
+    });
+    return unsub;
+  }, [bridgeId]);
+
+  const handleStart = async () => {
+    setStarting(true);
+    try {
+      const result = await engineHueEntertainmentStart(bridgeId, group.id);
+      if (result.success) {
+        setActive(true);
+        setDtls(result.dtls);
+        toast.success(result.dtls ? 'DTLS streaming aktiverat!' : 'HTTP-fallback streaming aktiverat');
+      } else {
+        toast.error('Kunde inte starta: ' + (result.error || 'Okänt fel'));
+      }
+    } catch (err) {
+      toast.error('Timeout: ' + String(err));
+    }
+    setStarting(false);
+  };
+
+  const handleStop = async () => {
+    try {
+      await engineHueEntertainmentStop(bridgeId);
+      setActive(false);
+    } catch {}
+  };
+
+  return (
+    <div className="flex items-center gap-2 p-2 rounded bg-muted/20 border border-border/20">
+      <Zap size={12} className={active ? 'text-green-400' : 'text-muted-foreground'} />
+      <div className="flex-1 min-w-0">
+        <div className="text-[9px] font-medium truncate">{group.name}</div>
+        <div className="text-[8px] text-muted-foreground">
+          {group.lights.length} lights • {active ? (dtls ? 'DTLS aktiv' : 'HTTP streaming') : 'Inaktiv'}
         </div>
       </div>
+      {active ? (
+        <Button variant="destructive" size="sm" className="h-5 text-[8px] px-2 gap-1" onClick={handleStop}>
+          <Square size={8} /> Stoppa
+        </Button>
+      ) : (
+        <Button variant="outline" size="sm" className="h-5 text-[8px] px-2 gap-1" onClick={handleStart} disabled={starting}>
+          <Play size={8} /> {starting ? 'Startar...' : 'Starta'}
+        </Button>
+      )}
     </div>
   );
 }
