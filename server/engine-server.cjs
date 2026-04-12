@@ -134,6 +134,7 @@ function saveState() {
 
 function httpRequest(url, method = 'GET', body = null, timeout = 3000) {
   return new Promise((resolve, reject) => {
+    const dns = require('dns');
     const lib = url.startsWith('https') ? https : http;
     const parsed = new URL(url);
     const opts = {
@@ -143,6 +144,8 @@ function httpRequest(url, method = 'GET', body = null, timeout = 3000) {
       method,
       timeout,
       headers: {},
+      // Use OS resolver (supports mDNS .local via avahi/nss-mdns)
+      lookup: dns.lookup,
     };
     if (body) {
       const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
@@ -156,8 +159,15 @@ function httpRequest(url, method = 'GET', body = null, timeout = 3000) {
         try { resolve(JSON.parse(data)); } catch { resolve(data); }
       });
     });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    req.on('error', (err) => {
+      console.error(`[HTTP] ${method} ${url} → error: ${err.message}`);
+      reject(err);
+    });
+    req.on('timeout', () => {
+      console.error(`[HTTP] ${method} ${url} → timeout after ${timeout}ms`);
+      req.destroy();
+      reject(new Error(`timeout: ${url}`));
+    });
     if (body) {
       req.write(typeof body === 'string' ? body : JSON.stringify(body));
     }
