@@ -875,15 +875,20 @@ function handleMessage(ws, msg) {
 
     // ── Service restart (systemd) ──
     case 'restart-service': {
-      const { service, reqId } = msg;
+      const { service, reqId, sudoPass } = msg;
       const allowed = ['chroma-engine', 'chroma-frontend', 'avahi-daemon'];
       if (!service || !allowed.includes(service)) {
         ws.send(JSON.stringify({ type: 'restart-service-result', reqId, success: false, error: `Service not allowed: ${service}` }));
         break;
       }
+      if (!sudoPass) {
+        ws.send(JSON.stringify({ type: 'restart-service-result', reqId, success: false, error: 'Lösenord krävs' }));
+        break;
+      }
       console.log(`[ENGINE] Restart requested: ${service}`);
       const { exec } = require('child_process');
-      exec(`sudo systemctl restart ${service}`, { timeout: 15000 }, (err, stdout, stderr) => {
+      // Use sudo -S to read password from stdin — password is never logged or persisted
+      const child = exec(`sudo -S systemctl restart ${service}`, { timeout: 15000 }, (err, stdout, stderr) => {
         if (err) {
           console.error(`[ENGINE] Restart ${service} failed:`, err.message);
           ws.send(JSON.stringify({ type: 'restart-service-result', reqId, success: false, error: err.message }));
@@ -892,6 +897,9 @@ function handleMessage(ws, msg) {
           ws.send(JSON.stringify({ type: 'restart-service-result', reqId, success: true, service }));
         }
       });
+      // Write password to stdin and close it
+      child.stdin.write(sudoPass + '\n');
+      child.stdin.end();
       break;
     }
 
