@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { type HueBridge, type HueLight, type HueGroup, type HueScene } from '@/lib/hueApi';
 import {
   sendHueBridge, sendHueLight, sendHueGroupAction, sendHueScene,
-  engineHueDiscover, engineHuePair, engineHueRefresh, onEngineConnect,
+  engineHueDiscover, engineHuePair, engineHueRefresh, isEngineConnected, onEngineConnect, removeHueBridgeFromEngine,
 } from '@/lib/wsSync';
 import { rgbToXy } from '@/lib/hueApi';
 
@@ -123,6 +123,7 @@ export const useHueStore = create<HueStore>()(
       },
 
       removeBridge: (id) => {
+        removeHueBridgeFromEngine(id);
         set((s) => {
           const { [id]: _l, ...lights } = s.lights;
           const { [id]: _g, ...groups } = s.groups;
@@ -214,6 +215,16 @@ export const useHueStore = create<HueStore>()(
     }),
     {
       name: 'stokio-hue-v1',
+      onRehydrateStorage: () => (state) => {
+        if (!state || !isEngineConnected()) return;
+        const paired = state.bridges.filter((bridge) => bridge.apiKey);
+        for (const bridge of paired) {
+          sendHueBridge(bridge.id, bridge.ip, bridge.apiKey!);
+        }
+        if (paired.length > 0) {
+          void state.refreshAll();
+        }
+      },
       partialize: (s) => ({
         bridges: s.bridges, // persist bridge configs with API keys
       }),

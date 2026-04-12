@@ -240,6 +240,11 @@ export function sendHueBridge(bridgeId: string, ip: string, apiKey: string) {
   }
 }
 
+/** Remove a Hue bridge from the engine's persisted state */
+export function removeHueBridgeFromEngine(bridgeId: string) {
+  sendRawMessage({ type: 'hue-remove-bridge', bridgeId });
+}
+
 /** Set a Hue light state through the engine */
 export function sendHueLight(bridgeId: string, lightId: string, state: Record<string, unknown>) {
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -308,6 +313,11 @@ export function sendHueScene(bridgeId: string, groupId: string, sceneId: string)
 /** Refresh WLED device state via engine */
 export function engineWledRefresh(deviceId: string, ip: string): Promise<any> {
   return engineRequest({ type: 'wled-refresh', deviceId, ip }, 'wled-refresh-result', 5000);
+}
+
+/** Remove a WLED device from the engine's persisted state */
+export function removeWledDeviceFromEngine(deviceId: string, ip?: string) {
+  sendRawMessage({ type: 'wled-remove-device', deviceId, ip });
 }
 
 /** Fetch WLED preset list via engine */
