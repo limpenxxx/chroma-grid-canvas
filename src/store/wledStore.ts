@@ -73,17 +73,20 @@ interface WledStore {
   _setPolling: (v: boolean) => void;
 }
 
-async function fetchDeviceState(ip: string): Promise<Partial<WledDevice>> {
+async function fetchDeviceState(id: string, ip: string): Promise<Partial<WledDevice>> {
   try {
-    const data: WledFullState = await getWledState(ip);
-    return {
-      online: true,
-      lastSeen: Date.now(),
-      info: data.info,
-      state: data.state,
-      effects: data.effects,
-      palettes: data.palettes,
-    };
+    const result = await engineWledRefresh(id, ip);
+    if (result.online && result.data) {
+      return {
+        online: true,
+        lastSeen: Date.now(),
+        info: result.data.info,
+        state: result.data.state,
+        effects: result.data.effects,
+        palettes: result.data.palettes,
+      };
+    }
+    return { online: false };
   } catch {
     return { online: false };
   }
