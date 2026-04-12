@@ -113,7 +113,7 @@ export const useWledStore = create<WledStore>()(
         };
         // Add immediately, then fetch state
         set((s) => ({ devices: [...s.devices, newDev] }));
-        const liveState = await fetchDeviceState(ip.trim());
+        const liveState = await fetchDeviceState(id, ip.trim());
         set((s) => ({
           devices: s.devices.map((d) =>
             d.id === id
@@ -141,7 +141,7 @@ export const useWledStore = create<WledStore>()(
       refreshDevice: async (id) => {
         const dev = get().devices.find((d) => d.id === id);
         if (!dev) return;
-        const liveState = await fetchDeviceState(dev.ip);
+        const liveState = await fetchDeviceState(dev.id, dev.ip);
         set((s) => ({
           devices: s.devices.map((d) => (d.id === id ? { ...d, ...liveState } : d)),
         }));
@@ -152,7 +152,7 @@ export const useWledStore = create<WledStore>()(
         const { devices } = get();
         const results = await Promise.all(
           devices.map(async (dev) => {
-            const liveState = await fetchDeviceState(dev.ip);
+            const liveState = await fetchDeviceState(dev.id, dev.ip);
             return { id: dev.id, ...liveState };
           })
         );
