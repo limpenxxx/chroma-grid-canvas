@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLogStore, type LogLevel } from '@/store/logStore';
-import { Trash2, Download, ArrowDown, Pause, Play, Filter } from 'lucide-react';
+import { Trash2, Download, ArrowDown, Pause, Play, Filter, RotateCcw, Server, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { engineRequest } from '@/lib/wsSync';
+import { toast } from 'sonner';
 
 const LEVEL_COLORS: Record<LogLevel, string> = {
   info: 'text-blue-400',
@@ -33,6 +35,33 @@ export function SystemLog() {
   const [activeLevels, setActiveLevels] = useState<Set<LogLevel>>(new Set(ALL_LEVELS));
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [restarting, setRestarting] = useState<string | null>(null);
+
+  const SERVICES = [
+    { id: 'chroma-engine', label: 'Engine', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20' },
+    { id: 'chroma-frontend', label: 'Frontend', color: 'text-blue-400 border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20' },
+    { id: 'avahi-daemon', label: 'mDNS (Avahi)', color: 'text-purple-400 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20' },
+  ];
+
+  const restartService = async (serviceId: string) => {
+    setRestarting(serviceId);
+    try {
+      const result = await engineRequest<{ success: boolean; error?: string }>(
+        { type: 'restart-service', service: serviceId },
+        'restart-service-result',
+        20000,
+      );
+      if (result.success) {
+        toast.success(`${serviceId} omstartad`);
+      } else {
+        toast.error(`Misslyckades: ${result.error}`);
+      }
+    } catch (err: any) {
+      toast.error(`Kunde inte nå engine: ${err.message}`);
+    } finally {
+      setRestarting(null);
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = filter.toLowerCase();
@@ -77,6 +106,36 @@ export function SystemLog() {
 
   return (
     <div className="h-full flex flex-col gap-2 p-3">
+      {/* Service Controls */}
+      <div className="glass-panel p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <Server size={12} className="text-primary" />
+          <span className="text-[9px] uppercase tracking-widest text-primary font-semibold">Service Control</span>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {SERVICES.map((svc) => (
+            <Button
+              key={svc.id}
+              variant="outline"
+              size="sm"
+              className={`h-7 text-[10px] gap-1.5 border ${svc.color}`}
+              disabled={restarting !== null}
+              onClick={() => restartService(svc.id)}
+            >
+              {restarting === svc.id ? (
+                <Loader2 size={11} className="animate-spin" />
+              ) : (
+                <RotateCcw size={11} />
+              )}
+              {svc.label}
+            </Button>
+          ))}
+        </div>
+        <p className="text-[8px] text-muted-foreground/50">
+          Kräver att engine körs som systemd-tjänst med sudo-behörighet för systemctl restart.
+        </p>
+      </div>
+
       {/* Toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1">
