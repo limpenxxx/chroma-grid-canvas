@@ -2235,9 +2235,11 @@ artnetSocket.bind(() => {
 // Graceful shutdown
 process.on('SIGINT', () => {
   console.log('\n[ENGINE] Shutting down...');
+  sdNotify('STOPPING=1');
   clearInterval(outputTimer);
   clearInterval(saveTimer);
   clearInterval(dmxLevelsTimer);
+  clearInterval(watchdogTimer);
   saveState();
   artnetSocket.close();
   sacnSocket.close();
@@ -2247,8 +2249,10 @@ process.on('SIGINT', () => {
 });
 
 process.on('SIGTERM', () => {
+  sdNotify('STOPPING=1');
   clearInterval(outputTimer);
   clearInterval(saveTimer);
+  clearInterval(watchdogTimer);
   saveState();
   process.exit(0);
 });
