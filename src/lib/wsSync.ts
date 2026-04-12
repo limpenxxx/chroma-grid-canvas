@@ -266,6 +266,28 @@ export function engineHuePair(ip: string): Promise<{ success: boolean; apiKey?: 
   return engineRequest({ type: 'hue-pair', ip }, 'hue-pair-result', 8000);
 }
 
+// ── Hue Entertainment API (DTLS streaming) ──
+
+/** Create a Hue entertainment group */
+export function engineHueEntertainmentCreate(bridgeId: string, name: string, lights: string[]): Promise<any> {
+  return engineRequest({ type: 'hue-entertainment-create', bridgeId, name, lights }, 'hue-entertainment-create-result', 8000);
+}
+
+/** Start Hue entertainment streaming (activates DTLS or HTTP fallback) */
+export function engineHueEntertainmentStart(bridgeId: string, groupId: string): Promise<any> {
+  return engineRequest({ type: 'hue-entertainment-start', bridgeId, groupId }, 'hue-entertainment-start-result', 10000);
+}
+
+/** Stop Hue entertainment streaming */
+export function engineHueEntertainmentStop(bridgeId: string): Promise<any> {
+  return engineRequest({ type: 'hue-entertainment-stop', bridgeId }, 'hue-entertainment-stop-result', 5000);
+}
+
+/** Stream color data to Hue entertainment lights */
+export function sendHueEntertainmentColor(bridgeId: string, channels: Array<{ channel: number; r: number; g: number; b: number }>) {
+  sendRawMessage({ type: 'hue-entertainment-color', bridgeId, channels });
+}
+
 /** Refresh bridge data via engine */
 export function engineHueRefresh(bridgeId: string, ip: string, apiKey: string): Promise<any> {
   return engineRequest({ type: 'hue-refresh', bridgeId, ip, apiKey }, 'hue-refresh-result', 8000);
