@@ -1124,8 +1124,9 @@ function handleMessage(ws, msg) {
             let mac = '', operstate = 'down';
             try { mac = fs.readFileSync(`${netDir}/${nic}/address`, 'utf8').trim(); } catch {}
             try { operstate = fs.readFileSync(`${netDir}/${nic}/operstate`, 'utf8').trim(); } catch {}
-            if (mac === '00:00:00:00:00:00' || nic.startsWith('veth') || nic.startsWith('docker') || nic.startsWith('br-')) continue;
-            nics.push({ name: nic, address: '', mac, internal: false, operstate });
+            // Skip virtual/docker interfaces only — keep real NICs even without MAC
+            if (nic.startsWith('veth') || nic.startsWith('docker') || nic.startsWith('br-') || nic.startsWith('virbr')) continue;
+            nics.push({ name: nic, address: '', mac: mac === '00:00:00:00:00:00' ? '' : mac, internal: false, operstate });
           }
         }
       } catch {}
