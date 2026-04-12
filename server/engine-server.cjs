@@ -1079,7 +1079,47 @@ function handleMessage(ws, msg) {
         }
       })();
       break;
-    // ══════════════════════════════════════════════════════════
+    }
+
+    case 'wled-scan': {
+      // Network scan: probe a list of IPs for WLED devices
+      const { ips, reqId: scanReqId } = msg;
+      if (!Array.isArray(ips)) break;
+      (async () => {
+        const found = [];
+        for (let i = 0; i < ips.length; i += 20) {
+          const chunk = ips.slice(i, i + 20);
+          const results = await Promise.allSettled(
+            chunk.map(async (scanIp) => {
+              try {
+                const info = await httpRequest(`http://${scanIp}/json/info`, 'GET', null, 1500);
+                if (info && info.ver && info.name) return { ip: scanIp, name: info.name };
+              } catch {}
+              return null;
+            })
+          );
+          for (const r of results) {
+            if (r.status === 'fulfilled' && r.value) found.push(r.value);
+          }
+        }
+        ws.send(JSON.stringify({ type: 'wled-scan-result', reqId: scanReqId, found }));
+      })();
+      break;
+    }
+
+    case 'wled-audio-poll': {
+      const { ip: audioIp, reqId: audioReqId } = msg;
+      if (!audioIp) break;
+      (async () => {
+        try {
+          const data = await httpRequest(`http://${audioIp}/json/si`, 'GET', null, 1500);
+          ws.send(JSON.stringify({ type: 'wled-audio-poll-result', reqId: audioReqId, data }));
+        } catch {
+          ws.send(JSON.stringify({ type: 'wled-audio-poll-result', reqId: audioReqId, data: null }));
+        }
+      })();
+      break;
+    }
 
     case 'magic-discover': {
       const { proxyUrl, reqId } = msg;
