@@ -75,6 +75,8 @@ interface LocalFile {
 
 /* ────────── Online Fixture Browser ────────── */
 
+const MFR_PAGE_SIZE = 80;
+
 function OnlineFixtureBrowser({ onClose }: { onClose: () => void }) {
   const fixtureStore = useFixtureStore();
   const [manufacturers, setManufacturers] = useState<Record<string, { name: string }> | null>(null);
