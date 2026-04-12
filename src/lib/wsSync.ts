@@ -48,6 +48,19 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let isRemoteUpdate = false;
 let _engineConnected = false;
 let rawMessageListeners: RawMessageListener[] = [];
+let engineConnectListeners: (() => void)[] = [];
+
+/** Subscribe to engine connect events (fires when WS opens) */
+export function onEngineConnect(listener: () => void): () => void {
+  engineConnectListeners.push(listener);
+  // If already connected, fire immediately
+  if (_engineConnected) {
+    try { listener(); } catch {}
+  }
+  return () => {
+    engineConnectListeners = engineConnectListeners.filter((l) => l !== listener);
+  };
+}
 
 /** True when we're applying a remote update — stores should skip broadcasting */
 export function isSyncingFromRemote(): boolean {
@@ -115,6 +128,10 @@ const _pendingRequests = new Map<string, { resolve: (data: any) => void; timer: 
 
 export function engineRequest<T = any>(msg: Record<string, unknown>, responseType: string, timeoutMs: number = 10000): Promise<T> {
   return new Promise((resolve, reject) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      reject(new Error('Engine not connected'));
+      return;
+    }
     const reqId = `req-${++_reqIdCounter}-${Date.now()}`;
     const timer = setTimeout(() => {
       _pendingRequests.delete(reqId);
@@ -249,6 +266,28 @@ export function engineHuePair(ip: string): Promise<{ success: boolean; apiKey?: 
   return engineRequest({ type: 'hue-pair', ip }, 'hue-pair-result', 8000);
 }
 
+// ── Hue Entertainment API (DTLS streaming) ──
+
+/** Create a Hue entertainment group */
+export function engineHueEntertainmentCreate(bridgeId: string, name: string, lights: string[]): Promise<any> {
+  return engineRequest({ type: 'hue-entertainment-create', bridgeId, name, lights }, 'hue-entertainment-create-result', 8000);
+}
+
+/** Start Hue entertainment streaming (activates DTLS or HTTP fallback) */
+export function engineHueEntertainmentStart(bridgeId: string, groupId: string): Promise<any> {
+  return engineRequest({ type: 'hue-entertainment-start', bridgeId, groupId }, 'hue-entertainment-start-result', 10000);
+}
+
+/** Stop Hue entertainment streaming */
+export function engineHueEntertainmentStop(bridgeId: string): Promise<any> {
+  return engineRequest({ type: 'hue-entertainment-stop', bridgeId }, 'hue-entertainment-stop-result', 5000);
+}
+
+/** Stream color data to Hue entertainment lights */
+export function sendHueEntertainmentColor(bridgeId: string, channels: Array<{ channel: number; r: number; g: number; b: number }>) {
+  sendRawMessage({ type: 'hue-entertainment-color', bridgeId, channels });
+}
+
 /** Refresh bridge data via engine */
 export function engineHueRefresh(bridgeId: string, ip: string, apiKey: string): Promise<any> {
   return engineRequest({ type: 'hue-refresh', bridgeId, ip, apiKey }, 'hue-refresh-result', 8000);
@@ -361,6 +400,10 @@ function connect() {
     ws.onopen = () => {
       console.log('[ENGINE] Connected to', url);
       _engineConnected = true;
+      // Notify listeners that engine is connected — stores can auto-refresh
+      for (const listener of engineConnectListeners) {
+        try { listener(); } catch {}
+      }
     };
 
     ws.onmessage = (event) => {

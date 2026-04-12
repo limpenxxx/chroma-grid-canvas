@@ -165,6 +165,19 @@ function httpRequest(url, method = 'GET', body = null, timeout = 3000) {
   });
 }
 
+// Simple RGB to CIE xy conversion for Hue Entertainment HTTP fallback
+function rgbToXySimple(r, g, b) {
+  let R = r / 255, G = g / 255, B = b / 255;
+  R = R > 0.04045 ? Math.pow((R + 0.055) / 1.055, 2.4) : R / 12.92;
+  G = G > 0.04045 ? Math.pow((G + 0.055) / 1.055, 2.4) : G / 12.92;
+  B = B > 0.04045 ? Math.pow((B + 0.055) / 1.055, 2.4) : B / 12.92;
+  const X = R * 0.664511 + G * 0.154324 + B * 0.162028;
+  const Y = R * 0.283881 + G * 0.668433 + B * 0.047685;
+  const Z = R * 0.000088 + G * 0.072310 + B * 0.986039;
+  const sum = X + Y + Z;
+  return sum === 0 ? [0.3127, 0.3290] : [X / sum, Y / sum];
+}
+
 // ══════════════════════════════════════════════════════════════
 // Hardware Output: WLED
 // ══════════════════════════════════════════════════════════════
@@ -1196,6 +1209,233 @@ function handleMessage(ws, msg) {
           await httpRequest(`${proxyUrl}/api/device/${deviceId}/warm-white`, 'POST', { level }, 2000);
         } catch { /* offline */ }
       })();
+      break;
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // Hue Entertainment API (DTLS streaming)
+    // ══════════════════════════════════════════════════════════
+
+    case 'hue-entertainment-create': {
+      // Create an entertainment configuration via REST API
+      const { bridgeId, name, lights: entLights, reqId } = msg;
+      const bridge = state.hue[bridgeId];
+      if (!bridge) {
+        ws.send(JSON.stringify({ type: 'hue-entertainment-create-result', reqId, error: 'Bridge not registered' }));
+        break;
+      }
+      (async () => {
+        try {
+          // Create entertainment configuration (API v1)
+          const body = {
+            name: name || 'STOKIO Entertainment',
+            type: 'Entertainment',
+            class: 'Other',
+            lights: entLights || [],
+          };
+          const result = await httpRequest(
+            `http://${bridge.ip}/api/${bridge.apiKey}/groups`,
+            'POST', body, 5000
+          );
+          const groupId = Array.isArray(result) && result[0]?.success?.id
+            ? result[0].success.id
+            : null;
+          ws.send(JSON.stringify({ type: 'hue-entertainment-create-result', reqId, groupId, result }));
+        } catch (err) {
+          ws.send(JSON.stringify({ type: 'hue-entertainment-create-result', reqId, error: String(err) }));
+        }
+      })();
+      break;
+    }
+
+    case 'hue-entertainment-start': {
+      // Activate streaming mode on an entertainment group and establish DTLS
+      const { bridgeId, groupId, reqId } = msg;
+      const bridge = state.hue[bridgeId];
+      if (!bridge) {
+        ws.send(JSON.stringify({ type: 'hue-entertainment-start-result', reqId, success: false, error: 'Bridge not registered' }));
+        break;
+      }
+      (async () => {
+        try {
+          // Step 1: Activate streaming on the group
+          await httpRequest(
+            `http://${bridge.ip}/api/${bridge.apiKey}/groups/${groupId}`,
+            'PUT', { stream: { active: true } }, 5000
+          );
+
+          // Step 2: Get the entertainment group to find clientkey + light channels
+          const groupData = await httpRequest(
+            `http://${bridge.ip}/api/${bridge.apiKey}/groups/${groupId}`,
+            'GET', null, 3000
+          );
+
+          // Step 3: Get the clientkey for this API user
+          const config = await httpRequest(
+            `http://${bridge.ip}/api/${bridge.apiKey}/config`,
+            'GET', null, 3000
+          );
+
+          // Find our clientkey from whitelist
+          let clientKey = null;
+          if (config && config.whitelist) {
+            for (const [, entry] of Object.entries(config.whitelist)) {
+              // The clientkey is set during entertainment registration
+              // We need to have registered with entertainment capability
+            }
+          }
+
+          // Step 4: Establish DTLS connection
+          let dtlsConnected = false;
+          try {
+            const dtls = require('node-dtls-client');
+            const socket = dtls.createSocket({
+              type: 'udp4',
+              address: bridge.ip,
+              port: 2100,
+              psk: { [bridge.apiKey]: Buffer.from(bridge.clientKey || '', 'hex') },
+              ciphers: ['TLS_PSK_WITH_AES_128_GCM_SHA256'],
+              timeout: 5000,
+            });
+
+            await new Promise((resolve, reject) => {
+              socket.on('connected', () => {
+                dtlsConnected = true;
+                // Store DTLS socket for this bridge
+                if (!state._hueEntertainment) state._hueEntertainment = {};
+                state._hueEntertainment[bridgeId] = {
+                  socket,
+                  groupId,
+                  lights: groupData?.lights || [],
+                  sequence: 0,
+                };
+                resolve();
+              });
+              socket.on('error', reject);
+              socket.on('close', () => {
+                if (state._hueEntertainment && state._hueEntertainment[bridgeId]) {
+                  delete state._hueEntertainment[bridgeId];
+                  broadcastToAll({ type: 'hue-entertainment-status', bridgeId, active: false });
+                }
+              });
+            });
+          } catch (dtlsErr) {
+            // DTLS library not installed — fall back to fast HTTP polling
+            console.warn('[HUE-ENT] node-dtls-client not available, using fast HTTP fallback:', dtlsErr.message);
+            if (!state._hueEntertainment) state._hueEntertainment = {};
+            state._hueEntertainment[bridgeId] = {
+              socket: null, // null = HTTP fallback mode
+              groupId,
+              lights: groupData?.lights || [],
+              sequence: 0,
+              httpFallback: true,
+            };
+            dtlsConnected = false; // but we still have HTTP fallback
+          }
+
+          ws.send(JSON.stringify({
+            type: 'hue-entertainment-start-result',
+            reqId,
+            success: true,
+            dtls: dtlsConnected,
+            httpFallback: !dtlsConnected,
+            groupId,
+            lights: groupData?.lights || [],
+          }));
+
+          broadcastToAll({ type: 'hue-entertainment-status', bridgeId, active: true, dtls: dtlsConnected, groupId });
+
+        } catch (err) {
+          ws.send(JSON.stringify({ type: 'hue-entertainment-start-result', reqId, success: false, error: String(err) }));
+        }
+      })();
+      break;
+    }
+
+    case 'hue-entertainment-stop': {
+      const { bridgeId, reqId } = msg;
+      const bridge = state.hue[bridgeId];
+      if (state._hueEntertainment && state._hueEntertainment[bridgeId]) {
+        const ent = state._hueEntertainment[bridgeId];
+        if (ent.socket) {
+          try { ent.socket.close(); } catch {}
+        }
+        // Deactivate streaming on bridge
+        if (bridge) {
+          httpRequest(
+            `http://${bridge.ip}/api/${bridge.apiKey}/groups/${ent.groupId}`,
+            'PUT', { stream: { active: false } }, 3000
+          ).catch(() => {});
+        }
+        delete state._hueEntertainment[bridgeId];
+      }
+      broadcastToAll({ type: 'hue-entertainment-status', bridgeId, active: false });
+      if (reqId) ws.send(JSON.stringify({ type: 'hue-entertainment-stop-result', reqId, success: true }));
+      break;
+    }
+
+    case 'hue-entertainment-color': {
+      // Stream color data to entertainment lights
+      // { bridgeId, channels: [{ channel: 0, r: 255, g: 0, b: 0 }, ...] }
+      if (!state._hueEntertainment || !state._hueEntertainment[msg.bridgeId]) break;
+      const ent = state._hueEntertainment[msg.bridgeId];
+      const channels = msg.channels || [];
+
+      if (ent.socket && !ent.httpFallback) {
+        // DTLS mode: build binary packet
+        // Protocol: "HueStream" + version(2.0) + seq + reserved + colorspace(RGB=0) + reserved + entertainment_config_id
+        const header = Buffer.alloc(16);
+        Buffer.from('HueStream', 'ascii').copy(header, 0); // 9 bytes
+        header.writeUInt8(0x02, 9);  // API version major
+        header.writeUInt8(0x00, 10); // API version minor
+        ent.sequence = (ent.sequence + 1) & 0xff;
+        header.writeUInt8(ent.sequence, 11); // sequence number
+        header.writeUInt16BE(0x0000, 12);    // reserved
+        header.writeUInt8(0x00, 14);         // color space: 0 = RGB
+        header.writeUInt8(0x00, 15);         // reserved
+
+        // Entertainment config ID as null-terminated string (variable length)
+        // For v1 API, we just omit this or use the group ID
+        // Each light channel: 1 byte type (0=light) + 2 bytes id + 2 bytes R + 2 bytes G + 2 bytes B
+        const channelBufs = channels.map(ch => {
+          const buf = Buffer.alloc(7);
+          buf.writeUInt8(0x00, 0); // type: light
+          buf.writeUInt16BE(ch.channel || 0, 1); // channel id
+          buf.writeUInt16BE(Math.round((ch.r / 255) * 65535), 3); // R (16-bit)
+          buf.writeUInt16BE(Math.round((ch.g / 255) * 65535), 5); // G (16-bit)
+          // Only 7 bytes per spec: type(1) + id(2) + R(2) + G(2) = 7
+          // Actually need 9 bytes: type(1) + id(2) + R(2) + G(2) + B(2)
+          return buf;
+        });
+
+        // Rebuild with correct 9 bytes per channel
+        const channelBufs2 = channels.map(ch => {
+          const buf = Buffer.alloc(9);
+          buf.writeUInt8(0x00, 0); // type: light
+          buf.writeUInt16BE(ch.channel || 0, 1);
+          buf.writeUInt16BE(Math.round((ch.r / 255) * 65535), 3);
+          buf.writeUInt16BE(Math.round((ch.g / 255) * 65535), 5);
+          buf.writeUInt16BE(Math.round((ch.b / 255) * 65535), 7);
+          return buf;
+        });
+
+        const packet = Buffer.concat([header, ...channelBufs2]);
+        try { ent.socket.send(packet); } catch {}
+      } else {
+        // HTTP fallback: send individual light commands (slower but works without DTLS)
+        const bridge = state.hue[msg.bridgeId];
+        if (!bridge) break;
+        for (const ch of channels) {
+          const lightId = ent.lights[ch.channel];
+          if (!lightId) continue;
+          const xy = rgbToXySimple(ch.r, ch.g, ch.b);
+          const bri = Math.max(1, Math.round(Math.max(ch.r, ch.g, ch.b) / 255 * 254));
+          httpRequest(
+            `http://${bridge.ip}/api/${bridge.apiKey}/lights/${lightId}/state`,
+            'PUT', { on: true, xy, bri, transitiontime: 0 }, 1000
+          ).catch(() => {});
+        }
+      }
       break;
     }
 

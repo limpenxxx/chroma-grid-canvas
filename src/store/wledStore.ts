@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { broadcastState, isSyncingFromRemote, onSyncState, engineWledRefresh } from '@/lib/wsSync';
+import { broadcastState, isSyncingFromRemote, onSyncState, engineWledRefresh, onEngineConnect } from '@/lib/wsSync';
 import { type WledInfo, type WledState, type WledSegment } from '@/lib/wledApi';
 
 // ── Types ──
@@ -206,6 +206,8 @@ export const useWledStore = create<WledStore>()(
           name: d.name,
           online: false,
           lastSeen: d.lastSeen,
+          protocol: d.protocol || 'dnrgb',
+          realtimeTimeout: d.realtimeTimeout ?? 0,
         })),
         fixtures: state.fixtures,
       }),
@@ -230,5 +232,14 @@ onSyncState((incoming) => {
       ...(w.devices !== undefined && { devices: w.devices as WledDevice[] }),
       ...(w.fixtures !== undefined && { fixtures: w.fixtures as WledFixture[] }),
     });
+  }
+});
+
+// ── Auto-refresh when engine connects ──
+onEngineConnect(() => {
+  const { devices, refreshAll } = useWledStore.getState();
+  if (devices.length > 0) {
+    console.log('[WLED] Engine connected — refreshing', devices.length, 'devices');
+    setTimeout(() => refreshAll(), 500);
   }
 });
