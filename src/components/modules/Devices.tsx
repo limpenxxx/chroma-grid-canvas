@@ -228,13 +228,35 @@ export function Devices() {
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
                 className="glass-panel p-3 space-y-2">
                 <div className="text-[9px] uppercase tracking-widest text-primary font-semibold">Add New DMX Fixture</div>
-                <select value={newInstDefId} onChange={e => setNewInstDefId(e.target.value)}
-                  className="w-full h-7 rounded bg-muted/30 border border-border/30 text-xs px-2 text-foreground">
-                  <option value="">Select fixture type...</option>
-                  {store.definitions.filter(d => d.category === 'dmx').map(d => (
-                    <option key={d.id} value={d.id}>{d.manufacturer} {d.model}</option>
-                  ))}
-                </select>
+                <Popover open={fixturePickerOpen} onOpenChange={setFixturePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <button className="w-full h-7 rounded bg-muted/30 border border-border/30 text-xs px-2 text-foreground text-left flex items-center justify-between">
+                      <span className={newInstDefId ? 'text-foreground' : 'text-muted-foreground'}>
+                        {newInstDefId
+                          ? (() => { const d = store.definitions.find(x => x.id === newInstDefId); return d ? `${d.manufacturer} ${d.model}` : 'Select...'; })()
+                          : 'Select fixture type...'}
+                      </span>
+                      <ChevronDown className="h-3 w-3 opacity-50" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search fixtures..." className="h-8 text-xs" />
+                      <CommandList className="max-h-[200px]">
+                        <CommandEmpty className="py-2 text-xs text-center">No fixtures found.</CommandEmpty>
+                        <CommandGroup>
+                          {store.definitions.filter(d => d.category === 'dmx').map(d => (
+                            <CommandItem key={d.id} value={`${d.manufacturer} ${d.model}`}
+                              onSelect={() => { setNewInstDefId(d.id); setFixturePickerOpen(false); }}
+                              className="text-xs">
+                              {d.manufacturer} {d.model}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 <div className="grid grid-cols-3 gap-2">
                   <Input placeholder="Name" value={newInstName} onChange={e => setNewInstName(e.target.value)}
                     className="h-7 text-xs bg-muted/30 border-border/30" />
