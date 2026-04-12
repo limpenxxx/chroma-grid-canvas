@@ -2,27 +2,28 @@
 
 ## Problem
 
-Fixture Library-fliken i Devices visar **alla** fixturdefinitioner utan paginering. Med OFL-importerade fixturer som har 15-68 modes vardera (t.ex. Astera FP2 med 68 modes × ~10 badges) skapas tusentals DOM-noder som gör listan trög och kan se ut som att den "stannar".
-
-"Show more"-knappen lades till i **Online Fixture Browser** (FileExplorer.tsx), men aldrig i **Fixture Library**-fliken (Devices.tsx).
+The "Select fixture type..." dropdown on the Patched Fixtures tab uses a native HTML `<select>` element. When there are many fixtures (100+), the dropdown extends beyond the screen and gets cut off — you can't scroll to fixtures past "Astera FP2". This is a browser limitation with native selects in constrained layouts.
 
 ## Plan
 
-### Steg 1 — Lägg till paginering i Fixture Library-fliken
+### Replace native `<select>` with a searchable combobox
 
-**Fil: `src/components/modules/Devices.tsx`**
+**File: `src/components/modules/Devices.tsx`**
 
-- Lägg till `DEF_PAGE_SIZE = 30` och en `visibleDefCount` state.
-- Byt `filteredDefs.map(...)` till `filteredDefs.slice(0, visibleDefCount).map(...)`.
-- Lägg till en "Show more (N remaining)"-knapp efter listan.
-- Nollställ `visibleDefCount` vid sökning (search-ändring).
+Replace the native `<select>` (lines 228-234) with a Popover + Command (combobox) pattern using the existing shadcn/ui components (`Popover`, `Command`, `CommandInput`, `CommandList`, `CommandItem`).
 
-### Steg 2 — Begränsa mode-badges per fixtur
+This gives:
+- A **search field** to filter fixtures by name (no more scrolling through hundreds)
+- A **scrollable list** with proper max-height that works within the panel
+- Selecting an item closes the popover and sets the fixture ID
 
-Varje fixtur visar **alla** modes som badges. En Astera FP2 med 68 modes renderar 68 badges.
+The combobox will show the selected fixture name on the trigger button, and typing filters the list instantly.
 
-- Visa max 12 mode-badges per fixtur.
-- Om det finns fler, visa en `+N more` badge.
+### Technical details
 
-Dessa två ändringar löser både "ser ej Show more" och att listan fryser vid många fixturer.
+- Import `Popover`, `PopoverTrigger`, `PopoverContent` from `@/components/ui/popover`
+- Import `Command`, `CommandInput`, `CommandEmpty`, `CommandGroup`, `CommandItem`, `CommandList` from `@/components/ui/command`
+- Add an `open` state for the popover
+- Filter `store.definitions.filter(d => d.category === 'dmx')` through the Command search
+- On select: set `newInstDefId`, close popover
 
