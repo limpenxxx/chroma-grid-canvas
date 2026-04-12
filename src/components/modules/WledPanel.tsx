@@ -190,6 +190,12 @@ export function WledPanel() {
                   onClick={() => store.refreshAll()} disabled={store._polling}>
                   <RefreshCw size={12} className={store._polling ? 'animate-spin' : ''} />
                 </Button>
+                {store.devices.length > 0 && (
+                  <Button variant="ghost" size="sm" className="h-7 text-[10px] gap-1 text-destructive hover:text-destructive"
+                    onClick={() => { if (confirm('Ta bort ALLA WLED-enheter?')) store.removeAllDevices(); }}>
+                    <Trash2 size={12} /> Rensa
+                  </Button>
+                )}
               </div>
               {scanProgress && (
                 <div className="text-[9px] text-primary/80 text-center mt-1 animate-pulse">
