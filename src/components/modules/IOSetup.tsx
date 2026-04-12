@@ -354,8 +354,8 @@ export function IOSetup() {
                   {nics
                     .filter((n) => !n.internal)
                     .map((n) => (
-                      <option key={n.address} value={n.address}>
-                        {n.name} — {n.address}
+                      <option key={n.name} value={n.address || n.name}>
+                        {n.name}{n.address ? ` — ${n.address}` : ' (ej ansluten)'}
                       </option>
                     ))}
                 </select>
@@ -699,8 +699,8 @@ function OutputRow({
               {nics
                 .filter((n) => !n.internal)
                 .map((n) => (
-                  <option key={n.address} value={n.address}>
-                    {n.name} ({n.address})
+                  <option key={n.name} value={n.address || n.name}>
+                    {n.name}{n.address ? ` (${n.address})` : ' (ej ansluten)'}
                   </option>
                 ))}
             </select>
