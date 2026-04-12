@@ -753,9 +753,9 @@ wss.on('connection', (ws) => {
         let operstate = 'down';
         try { mac = fs.readFileSync(`${netDir}/${nic}/address`, 'utf8').trim(); } catch {}
         try { operstate = fs.readFileSync(`${netDir}/${nic}/operstate`, 'utf8').trim(); } catch {}
-        // Skip virtual/docker interfaces
-        if (mac === '00:00:00:00:00:00' || nic.startsWith('veth') || nic.startsWith('docker') || nic.startsWith('br-')) continue;
-        nicList.push({ name: nic, address: '', mac, internal: false, operstate });
+        // Skip virtual/docker interfaces (but keep real NICs even with null MAC)
+        if (nic.startsWith('veth') || nic.startsWith('docker') || nic.startsWith('br-') || nic.startsWith('virbr')) continue;
+        nicList.push({ name: nic, address: '', mac: mac === '00:00:00:00:00:00' ? '' : mac, internal: false, operstate });
       }
     }
   } catch {}

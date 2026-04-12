@@ -9,6 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { useHueStore } from '@/store/hueStore';
 import { xyToRgb } from '@/lib/hueApi';
 import { toast } from 'sonner';
+import { isEngineConnected } from '@/lib/wsSync';
 import {
   engineHueEntertainmentStart, engineHueEntertainmentStop,
   engineHueEntertainmentCreate, sendHueEntertainmentColor, onEngineMessage,
@@ -27,6 +28,10 @@ export function HuePanel() {
   }, []);
 
   const handleDiscover = async () => {
+    if (!isEngineConnected()) {
+      toast.error('Engine ej ansluten — starta engine-server först');
+      return;
+    }
     await hueStore.discover();
     toast.success('Bridge discovery complete');
   };
@@ -40,12 +45,20 @@ export function HuePanel() {
   };
 
   const handlePair = async (bridgeId: string) => {
+    if (!isEngineConnected()) {
+      toast.error('Engine ej ansluten — starta engine-server först');
+      return;
+    }
     setPairingBridgeId(bridgeId);
     setPairingStatus('Press the link button on your Hue Bridge, then click "Pair Now"...');
   };
 
   const handlePairConfirm = async () => {
     if (!pairingBridgeId) return;
+    if (!isEngineConnected()) {
+      setPairingStatus('Engine ej ansluten — starta engine-server och försök igen.');
+      return;
+    }
     setPairingStatus('Connecting...');
     const result = await hueStore.pair(pairingBridgeId);
     if (result.success) {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { engineWledScan } from '@/lib/wsSync';
+import { engineWledScan, isEngineConnected } from '@/lib/wsSync';
+import { useIOStore } from '@/components/modules/IOSetup';
 import {
   Plus, Trash2, Power, Wifi, WifiOff, RefreshCw, Palette, Zap, SunDim, Layers, Radar,
 } from 'lucide-react';
@@ -37,11 +38,32 @@ export function WledPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Network scan via engine server
+  // Network scan via engine server — dynamically detect subnets from NICs
   const scanNetwork = async () => {
+    if (!isEngineConnected()) {
+      setScanProgress('Engine not connected — starta engine-server först');
+      setTimeout(() => setScanProgress(''), 4000);
+      return;
+    }
     setScanning(true);
     const existingIps = new Set(store.devices.map(d => d.ip));
-    const subnets = ['192.168.0', '192.168.1', '192.168.4', '192.168.178', '10.0.0', '10.0.1'];
+
+    // Build subnet list from actual NICs (system role preferred)
+    const ioStore = useIOStore.getState();
+    const nics = ioStore.networkInterfaces.filter(n => !n.internal && n.address);
+    const subnetSet = new Set<string>();
+    for (const nic of nics) {
+      const parts = nic.address.split('.');
+      if (parts.length === 4) {
+        subnetSet.add(`${parts[0]}.${parts[1]}.${parts[2]}`);
+      }
+    }
+    // Fallback if no NICs detected yet
+    if (subnetSet.size === 0) {
+      subnetSet.add('192.168.0');
+      subnetSet.add('192.168.1');
+    }
+    const subnets = Array.from(subnetSet);
     let totalFound = 0;
 
     for (const subnet of subnets) {
