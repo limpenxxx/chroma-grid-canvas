@@ -276,6 +276,16 @@ export function engineWledPresets(ip: string): Promise<{ data: any }> {
   return engineRequest({ type: 'wled-presets', ip }, 'wled-presets-result', 5000);
 }
 
+/** Scan network for WLED devices via engine */
+export function engineWledScan(ips: string[]): Promise<{ found: Array<{ ip: string; name: string }> }> {
+  return engineRequest({ type: 'wled-scan', ips }, 'wled-scan-result', 30000);
+}
+
+/** Poll WLED audio-reactive data via engine */
+export function engineWledAudioPoll(ip: string): Promise<{ data: any }> {
+  return engineRequest({ type: 'wled-audio-poll', ip }, 'wled-audio-poll-result', 2000);
+}
+
 // ── MagicHome engine commands ──
 
 /** Discover MagicHome devices via engine proxy */
