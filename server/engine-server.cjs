@@ -587,16 +587,38 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'sync', state: syncState }));
 
   // Send engine status with NIC list + detected USB serial ports
+  // Include ALL physical NICs, even those without an IP (cable disconnected)
   const os = require('os');
   const ifaces = os.networkInterfaces();
   const nicList = [];
+  const seenNics = new Set();
   for (const [name, addrs] of Object.entries(ifaces)) {
     for (const addr of addrs) {
       if (addr.family === 'IPv4') {
         nicList.push({ name, address: addr.address, mac: addr.mac || '', internal: addr.internal });
+        seenNics.add(name);
       }
     }
   }
+  // Also detect NICs without IPv4 (disconnected cables) via /sys/class/net on Linux
+  try {
+    const fs = require('fs');
+    const netDir = '/sys/class/net';
+    if (fs.existsSync(netDir)) {
+      const allNics = fs.readdirSync(netDir);
+      for (const nic of allNics) {
+        if (seenNics.has(nic) || nic === 'lo') continue;
+        // Read MAC and operstate
+        let mac = '';
+        let operstate = 'down';
+        try { mac = fs.readFileSync(`${netDir}/${nic}/address`, 'utf8').trim(); } catch {}
+        try { operstate = fs.readFileSync(`${netDir}/${nic}/operstate`, 'utf8').trim(); } catch {}
+        // Skip virtual/docker interfaces
+        if (mac === '00:00:00:00:00:00' || nic.startsWith('veth') || nic.startsWith('docker') || nic.startsWith('br-')) continue;
+        nicList.push({ name: nic, address: '', mac, internal: false, operstate });
+      }
+    }
+  } catch {}
 
   // Auto-detect USB serial ports (ttyUSB*, ttyACM*)
   let usbSerialPorts = [];
