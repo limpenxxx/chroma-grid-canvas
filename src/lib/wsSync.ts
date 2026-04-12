@@ -48,6 +48,19 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let isRemoteUpdate = false;
 let _engineConnected = false;
 let rawMessageListeners: RawMessageListener[] = [];
+let engineConnectListeners: (() => void)[] = [];
+
+/** Subscribe to engine connect events (fires when WS opens) */
+export function onEngineConnect(listener: () => void): () => void {
+  engineConnectListeners.push(listener);
+  // If already connected, fire immediately
+  if (_engineConnected) {
+    try { listener(); } catch {}
+  }
+  return () => {
+    engineConnectListeners = engineConnectListeners.filter((l) => l !== listener);
+  };
+}
 
 /** True when we're applying a remote update — stores should skip broadcasting */
 export function isSyncingFromRemote(): boolean {
@@ -115,6 +128,10 @@ const _pendingRequests = new Map<string, { resolve: (data: any) => void; timer: 
 
 export function engineRequest<T = any>(msg: Record<string, unknown>, responseType: string, timeoutMs: number = 10000): Promise<T> {
   return new Promise((resolve, reject) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      reject(new Error('Engine not connected'));
+      return;
+    }
     const reqId = `req-${++_reqIdCounter}-${Date.now()}`;
     const timer = setTimeout(() => {
       _pendingRequests.delete(reqId);
@@ -361,6 +378,10 @@ function connect() {
     ws.onopen = () => {
       console.log('[ENGINE] Connected to', url);
       _engineConnected = true;
+      // Notify listeners that engine is connected — stores can auto-refresh
+      for (const listener of engineConnectListeners) {
+        try { listener(); } catch {}
+      }
     };
 
     ws.onmessage = (event) => {

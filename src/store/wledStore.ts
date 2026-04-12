@@ -206,6 +206,8 @@ export const useWledStore = create<WledStore>()(
           name: d.name,
           online: false,
           lastSeen: d.lastSeen,
+          protocol: d.protocol || 'dnrgb',
+          realtimeTimeout: d.realtimeTimeout ?? 0,
         })),
         fixtures: state.fixtures,
       }),
