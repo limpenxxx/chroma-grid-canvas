@@ -31,7 +31,7 @@ import stokioLogo from '@/assets/stokio-logo-color.png';
 import { useMediaStore } from '@/store/mediaStore';
 import { useWledStore, type WledDevice, type WledFixture } from '@/store/wledStore';
 import { fetchWledPresets, isWledDeviceTargetId, wledDeviceToFixture } from '@/lib/wledUtils';
-import { sendDmxChannel, sendRawMessage, sendWledOutput, sendWledBrightness, engineAudioListDevices, engineAudioPoll, engineWledAudioPoll, onPioneerData, type EngineAudioDevice, type PioneerData } from '@/lib/wsSync';
+import { sendDmxChannel, sendRawMessage, sendWledOutput, sendWledBrightness, sendHueLight, engineAudioListDevices, engineAudioPoll, engineWledAudioPoll, onPioneerData, type EngineAudioDevice, type PioneerData } from '@/lib/wsSync';
 import { ProjectionMapping } from './ProjectionMapping';
 import { useMidiController, type MidiMapping, type MidiEvent } from '@/hooks/useMidiController';
 import { StageMap } from './StageMap';
