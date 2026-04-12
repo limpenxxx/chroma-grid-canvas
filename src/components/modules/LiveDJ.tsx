@@ -38,6 +38,7 @@ import { useMidiController, type MidiMapping, type MidiEvent } from '@/hooks/use
 import { StageMap } from './StageMap';
 import { AILightShow } from './AILightShow';
 import { useIOStore } from './IOSetup';
+import { useHueStore } from '@/store/hueStore';
 import { type ArpConfig, createDefaultArpConfig, computeArpFrame, ArpeggiatorPreview, ARP_PATTERNS, BPM_DIVISIONS, ARP_PRESETS, type ArpColorStep, type ArpEngineState } from './ArpeggiatorWidget';
 
 // ── Types ──
@@ -3273,7 +3274,39 @@ export function LiveDJ() {
   })).filter(f => f.def);
   const wledDeviceVirtualFixtures = wledStore.devices.map(wledDeviceToVirtual);
   const wledSegmentVirtualFixtures = wledStore.fixtures.map(wledFixtureToVirtual);
-  const allFixturesWithDefs = [...fixturesWithDefs, ...wledDeviceVirtualFixtures, ...wledSegmentVirtualFixtures];
+
+  // Build virtual fixtures from Hue lights
+  const hueStore = useHueStore.getState();
+  const hueVirtualFixtures: { inst: FixtureInstance; def: FixtureDefinition }[] = [];
+  hueStore.bridges.forEach(bridge => {
+    const lights = hueStore.lights[bridge.id] || [];
+    lights.forEach(light => {
+      hueVirtualFixtures.push({
+        inst: {
+          id: `hue-${bridge.id}-${light.id}`,
+          definitionId: `hue-light-${light.id}`,
+          name: `💡 ${light.name}`,
+          universe: 0,
+          dmxAddress: 0,
+          modeId: 'default',
+          onStage: false,
+          stageX: 0, stageY: 0, stageWidth: 40, stageHeight: 40,
+        },
+        def: {
+          id: `hue-light-${light.id}`,
+          manufacturer: 'Philips',
+          model: light.modelId || 'Hue Light',
+          type: 'par',
+          category: 'hue' as any,
+          colorSystem: 'rgb',
+          modes: [{ id: 'default', name: 'Default', channels: [], channelCount: 0 }],
+          createdAt: Date.now(),
+        },
+      });
+    });
+  });
+
+  const allFixturesWithDefs = [...fixturesWithDefs, ...wledDeviceVirtualFixtures, ...wledSegmentVirtualFixtures, ...hueVirtualFixtures];
   allFixturesWithDefsRef.current = allFixturesWithDefs;
 
   const selectedWidgetData = widgets.find(w => w.id === selectedWidget);
