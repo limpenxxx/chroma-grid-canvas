@@ -237,6 +237,72 @@ export function sendMagicSet(deviceId: string, proxyUrl: string, on: boolean, r:
   }
 }
 
+// ── Hue engine commands ──
+
+/** Discover Hue bridges via engine */
+export function engineHueDiscover(): Promise<{ bridges: Array<{ id: string; internalipaddress: string }> }> {
+  return engineRequest({ type: 'hue-discover' }, 'hue-discover-result', 8000);
+}
+
+/** Pair with Hue bridge via engine */
+export function engineHuePair(ip: string): Promise<{ success: boolean; apiKey?: string; error?: string }> {
+  return engineRequest({ type: 'hue-pair', ip }, 'hue-pair-result', 8000);
+}
+
+/** Refresh bridge data via engine */
+export function engineHueRefresh(bridgeId: string, ip: string, apiKey: string): Promise<any> {
+  return engineRequest({ type: 'hue-refresh', bridgeId, ip, apiKey }, 'hue-refresh-result', 8000);
+}
+
+/** Set Hue group action via engine */
+export function sendHueGroupAction(bridgeId: string, groupId: string, state: Record<string, unknown>) {
+  sendRawMessage({ type: 'hue-group-action', bridgeId, groupId, groupState: state });
+}
+
+/** Activate Hue scene via engine */
+export function sendHueScene(bridgeId: string, groupId: string, sceneId: string) {
+  sendRawMessage({ type: 'hue-scene', bridgeId, groupId, sceneId });
+}
+
+// ── WLED engine commands ──
+
+/** Refresh WLED device state via engine */
+export function engineWledRefresh(deviceId: string, ip: string): Promise<any> {
+  return engineRequest({ type: 'wled-refresh', deviceId, ip }, 'wled-refresh-result', 5000);
+}
+
+// ── MagicHome engine commands ──
+
+/** Discover MagicHome devices via engine proxy */
+export function engineMagicDiscover(proxyUrl: string): Promise<{ devices: any[] }> {
+  return engineRequest({ type: 'magic-discover', proxyUrl }, 'magic-discover-result', 12000);
+}
+
+/** Refresh MagicHome device state via engine */
+export function engineMagicRefresh(deviceId: string, proxyUrl: string): Promise<any> {
+  return engineRequest({ type: 'magic-refresh', deviceId, proxyUrl }, 'magic-refresh-result', 5000);
+}
+
+/** MagicHome power control via engine */
+export function sendMagicPower(deviceId: string, proxyUrl: string, on: boolean) {
+  sendRawMessage({ type: 'magic-power', deviceId, proxyUrl, on });
+}
+
+/** MagicHome color control via engine */
+export function sendMagicColor(deviceId: string, proxyUrl: string, r: number, g: number, b: number) {
+  sendRawMessage({ type: 'magic-color', deviceId, proxyUrl, r, g, b });
+}
+
+/** MagicHome pattern control via engine */
+export function sendMagicPattern(deviceId: string, proxyUrl: string, pattern: string, speed?: number) {
+  sendRawMessage({ type: 'magic-pattern', deviceId, proxyUrl, pattern, speed });
+}
+
+/** MagicHome warm white control via engine */
+export function sendMagicWarmWhite(deviceId: string, proxyUrl: string, level: number) {
+  sendRawMessage({ type: 'magic-warm-white', deviceId, proxyUrl, level });
+}
+
 /** Send master dimmer to engine */
 export function sendMasterDimmer(value: number) {
   if (ws && ws.readyState === WebSocket.OPEN) {
