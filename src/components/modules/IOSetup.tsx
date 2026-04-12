@@ -283,23 +283,40 @@ export function IOSetup() {
                 <th className="text-left p-2 text-muted-foreground font-semibold">Namn</th>
                 <th className="text-left p-2 text-muted-foreground font-semibold">IP-adress</th>
                 <th className="text-left p-2 text-muted-foreground font-semibold">MAC</th>
-                <th className="text-left p-2 text-muted-foreground font-semibold">Tilldelning</th>
+                <th className="text-left p-2 text-muted-foreground font-semibold">Roll / Tilldelning</th>
               </tr>
             </thead>
             <tbody>
               {nics.length > 0 ? (
                 nics.filter((n) => !n.internal).map((nic) => {
+                  const role = store.nicRoles[nic.name] || 'none';
+                  const roleInfo = NIC_ROLE_OPTIONS.find(r => r.value === role) || NIC_ROLE_OPTIONS[3];
                   const assignedOutputs = store.outputs.filter((o) => o.bindInterface === nic.address || o.bindInterface === nic.name);
                   return (
                     <tr key={nic.name + nic.address} className="border-b border-border/10">
-                      <td className="p-2 font-mono font-semibold">{nic.name}</td>
+                      <td className="p-2 font-mono font-semibold">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: roleInfo.color }} />
+                          {nic.name}
+                        </div>
+                      </td>
                       <td className="p-2 font-mono text-primary">
                         {nic.address || <span className="text-muted-foreground/40 italic">Ej ansluten</span>}
                       </td>
                       <td className="p-2 font-mono text-muted-foreground/50">{nic.mac || '—'}</td>
                       <td className="p-2">
-                        {assignedOutputs.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
+                        <select
+                          value={role}
+                          onChange={(e) => store.setNicRole(nic.name, e.target.value as NicRole)}
+                          className="h-6 text-[9px] bg-muted/20 border border-border/20 rounded px-1 text-foreground font-semibold"
+                          style={{ borderColor: `${roleInfo.color}44`, color: roleInfo.color }}
+                        >
+                          {NIC_ROLE_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                        {assignedOutputs.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
                             {assignedOutputs.map((o) => (
                               <span
                                 key={o.id}
@@ -314,8 +331,6 @@ export function IOSetup() {
                               </span>
                             ))}
                           </div>
-                        ) : (
-                          <span className="text-muted-foreground/40 italic">Ej tilldelad</span>
                         )}
                       </td>
                     </tr>
@@ -330,15 +345,14 @@ export function IOSetup() {
                   </td>
                 </tr>
               )}
-              {/* Always show fallback IPs */}
-              <tr className="border-b border-border/10 bg-muted/5">
-                <td className="p-2 font-mono text-muted-foreground">all</td>
-                <td className="p-2 font-mono text-muted-foreground/50">0.0.0.0</td>
-                <td className="p-2 font-mono text-muted-foreground/30">—</td>
-                <td className="p-2 text-[8px] text-muted-foreground/40 italic">Alla gränssnitt (broadcast)</td>
-              </tr>
             </tbody>
           </table>
+        </div>
+        <div className="text-[8px] text-muted-foreground/50 bg-muted/10 rounded p-2 mt-2">
+          <strong>💡 Roller:</strong> Tilldela varje NIC en roll.{' '}
+          <span style={{ color: '#00e5ff' }}>System</span> = STOKIO + WLED + Hue + internet.{' '}
+          <span style={{ color: '#ff6600' }}>ArtNet</span> = dedicerad DMX (auto-bindar ArtNet-outputs).{' '}
+          <span style={{ color: '#00cc88' }}>sACN</span> = dedicerad E1.31.
         </div>
       </div>
 
