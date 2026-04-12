@@ -18,6 +18,7 @@ interface HueStore {
   discover: () => Promise<void>;
   addBridge: (ip: string, name?: string) => void;
   removeBridge: (id: string) => void;
+  removeAllBridges: () => void;
   pair: (bridgeId: string) => Promise<{ success: boolean; error?: string }>;
   refreshBridge: (bridgeId: string) => Promise<void>;
   refreshAll: () => Promise<void>;
@@ -123,7 +124,7 @@ export const useHueStore = create<HueStore>()(
       },
 
       removeBridge: (id) => {
-        removeHueBridgeFromEngine(id);
+        try { removeHueBridgeFromEngine(id); } catch {}
         set((s) => {
           const { [id]: _l, ...lights } = s.lights;
           const { [id]: _g, ...groups } = s.groups;
@@ -133,6 +134,14 @@ export const useHueStore = create<HueStore>()(
             lights, groups, scenes,
           };
         });
+      },
+
+      removeAllBridges: () => {
+        const bridges = get().bridges;
+        for (const b of bridges) {
+          try { removeHueBridgeFromEngine(b.id); } catch {}
+        }
+        set({ bridges: [], lights: {}, groups: {}, scenes: {} });
       },
 
       pair: async (bridgeId) => {
