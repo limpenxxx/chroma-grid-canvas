@@ -3533,19 +3533,25 @@ export function LiveDJ() {
     chasePos: Record<string, number>; // per-effect pixel chase position
   }>({ beatCount: 0, lastBeatTime: 0, currentLevel: {}, colorIdx: {}, posToggle: {}, presetIdx: {}, chasePos: {} });
 
+  // Refs for AR engine loop to avoid re-creating RAF on every state change
+  const arWidgetsRef = useRef(widgets);
+  const arAudioConfigRef = useRef(audioConfig);
+  const arBpmStateRef = useRef(bpmState);
+  const arWledStoreRef = useRef(wledStore);
+  arWidgetsRef.current = widgets;
+  arAudioConfigRef.current = audioConfig;
+  arBpmStateRef.current = bpmState;
+  arWledStoreRef.current = wledStore;
+
   useEffect(() => {
     // Get audio analyser dynamically (mic/system audio are created async)
     const getAnalyser = (): AnalyserNode | null => {
-      if (audioConfig.source === 'browser-mic') return micBpmRef.current?.analyser || null;
-      if (audioConfig.source === 'system-audio') return sysAudioRef.current?.analyser || null;
+      const src = arAudioConfigRef.current.source;
+      if (src === 'browser-mic') return micBpmRef.current?.analyser || null;
+      if (src === 'system-audio') return sysAudioRef.current?.analyser || null;
       return null;
     };
 
-    // Find all active audio-reactive widgets
-    const arWidgets = widgets.filter(w => w.type === 'audio-reactive' && w.audioReactive?.running);
-    if (arWidgets.length === 0) return;
-
-    // Even without an analyser, BPM-based effects can still work from tap-tempo
     const arState = arStateRef.current;
     let raf = 0;
     let lastFrameTime = 0;
@@ -3580,6 +3586,16 @@ export function LiveDJ() {
       if (now - lastFrameTime < 30) { raf = requestAnimationFrame(tick); return; } // ~33fps
       lastFrameTime = now;
 
+      // Read current values from refs
+      const currentWidgets = arWidgetsRef.current;
+      const currentBpmState = arBpmStateRef.current;
+      const currentAllFixtures = allFixturesWithDefsRef.current;
+      const currentWledStore = arWledStoreRef.current;
+
+      // Find all active audio-reactive widgets
+      const arWidgets = currentWidgets.filter(w => w.type === 'audio-reactive' && w.audioReactive?.running);
+      if (arWidgets.length === 0) { raf = requestAnimationFrame(tick); return; }
+
       // Read analyser each frame so async mic/system audio is picked up
       const analyser = getAnalyser();
       let freqData: Uint8Array | null = null;
@@ -3594,7 +3610,7 @@ export function LiveDJ() {
       }
 
       // Beat detection from BPM state
-      const beatInterval = bpmState.bpm > 0 ? 60000 / bpmState.bpm : 500;
+      const beatInterval = currentBpmState.bpm > 0 ? 60000 / currentBpmState.bpm : 500;
       const isBeat = now - arState.lastBeatTime >= beatInterval;
       if (isBeat) {
         arState.lastBeatTime = now;
@@ -3615,7 +3631,7 @@ export function LiveDJ() {
           const intensityScale = (fx.intensity || 200) / 255;
 
           // Find fixture
-          const instData = allFixturesWithDefs.find(f => f.inst.id === fx.fixtureId);
+          const instData = currentAllFixtures.find(f => f.inst.id === fx.fixtureId);
           if (!instData) return;
           const isWled = instData.def.category === 'wled';
 
@@ -3629,7 +3645,7 @@ export function LiveDJ() {
             case 'dimmer-pump': {
               const dmxVal = Math.round(level * 255);
               if (isWled) {
-                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                const wledFix = [...currentWledStore.fixtures, ...currentWledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
                 if (wledFix) sendWledOutput(wledFix.deviceIp, { on: dmxVal > 5, bri: Math.max(1, dmxVal) });
               } else {
                 const inst = instData.inst;
@@ -3646,7 +3662,7 @@ export function LiveDJ() {
               if (isBeat && fx.color1) {
                 const c = fx.color1;
                 if (isWled) {
-                  const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                  const wledFix = [...currentWledStore.fixtures, ...currentWledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
                   if (wledFix) sendWledOutput(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] });
                 } else {
                   const inst = instData.inst;
@@ -3678,7 +3694,7 @@ export function LiveDJ() {
                     if (strobeCh) sendDmxChannel(inst.universe, inst.dmxAddress + strobeCh.number - 1, 0);
                   }, 80);
                 } else {
-                  const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                  const wledFix = [...currentWledStore.fixtures, ...currentWledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
                   if (wledFix) {
                     sendWledOutput(wledFix.deviceIp, { on: true, bri: 255 });
                     setTimeout(() => { sendWledOutput(wledFix.deviceIp, { bri: 0 }); }, 80);
@@ -3708,7 +3724,7 @@ export function LiveDJ() {
                 arState.colorIdx[fxKey] = ((arState.colorIdx[fxKey] || 0) + 1) % 2;
                 const c = arState.colorIdx[fxKey] === 0 ? fx.color1 : fx.color2;
                 if (isWled) {
-                  const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                  const wledFix = [...currentWledStore.fixtures, ...currentWledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
                   if (wledFix) sendWledOutput(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] });
                 } else {
                   const inst = instData.inst;
@@ -3725,10 +3741,10 @@ export function LiveDJ() {
               break;
             }
             case 'bass-color-shift': {
-              const hue = normalizedEnergy * 120; // shifts from red(0) to green(120) with bass
+              const hue = normalizedEnergy * 120;
               const c = hslToRgb(hue, 1, 0.5);
               if (isWled) {
-                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                const wledFix = [...currentWledStore.fixtures, ...currentWledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
                 if (wledFix) sendWledOutput(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] });
               } else {
                 const inst = instData.inst;
@@ -3747,20 +3763,19 @@ export function LiveDJ() {
               if (isBeat && isWled && fx.wledPresets && fx.wledPresets.length > 0) {
                 arState.presetIdx[fxKey] = ((arState.presetIdx[fxKey] || 0) + 1) % fx.wledPresets.length;
                 const presetId = fx.wledPresets[arState.presetIdx[fxKey]];
-                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                const wledFix = [...currentWledStore.fixtures, ...currentWledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
                 if (wledFix) sendWledOutput(wledFix.deviceIp, { ps: presetId });
               }
               break;
             }
             case 'wled-pixel-chase': {
               if (isBeat && isWled && fx.color1) {
-                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                const wledFix = [...currentWledStore.fixtures, ...currentWledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
                 if (wledFix) {
-                  const dev = wledStore.devices.find(d => d.id === wledFix.deviceId);
+                  const dev = currentWledStore.devices.find(d => d.id === wledFix.deviceId);
                   const ledCount = dev?.info?.leds?.count || instData.def.wledConfig?.ledCount || 30;
                   arState.chasePos[fxKey] = 0;
                   const c = fx.color1;
-                  // Send chase effect: use WLED effect 45 (Scan) with the color
                   sendWledOutput(wledFix.deviceIp, {
                     on: true,
                     seg: [{ id: 0, col: [[c.r, c.g, c.b], [0, 0, 0]], fx: 45, sx: 200, ix: Math.round(intensityScale * 255) }],
@@ -3772,7 +3787,7 @@ export function LiveDJ() {
             case 'intensity-map': {
               const dmxVal = Math.round(level * 255);
               if (isWled) {
-                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                const wledFix = [...currentWledStore.fixtures, ...currentWledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
                 if (wledFix) sendWledOutput(wledFix.deviceIp, { on: dmxVal > 5, bri: Math.max(1, dmxVal) });
               } else {
                 const inst = instData.inst;
@@ -3787,7 +3802,7 @@ export function LiveDJ() {
               const hue = normalizedEnergy * 360;
               const c = hslToRgb(hue, 1, 0.5);
               if (isWled) {
-                const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
+                const wledFix = [...currentWledStore.fixtures, ...currentWledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
                 if (wledFix) sendWledOutput(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] });
               } else {
                 const inst = instData.inst;
@@ -3828,20 +3843,11 @@ export function LiveDJ() {
 
     raf = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(raf); clearTimeout(raf); };
-  }, [widgets, audioConfig.source, bpmState.bpm, allFixturesWithDefs, wledStore.devices, wledStore.fixtures]);
+  }, []);
 
   // ── Arpeggiator Engine Loop ──
   const arpStartTimeRef = useRef(performance.now() / 1000);
   useEffect(() => {
-    const arpWidgets = widgets.filter(w => w.type === 'arpeggiator' && w.arpConfig?.running);
-    if (arpWidgets.length === 0) return;
-
-    const wledOutputFixtures = [
-      ...wledStore.devices.map(wledDeviceToFixture),
-      ...wledStore.fixtures,
-    ];
-    const wledFixMap = new Map(wledOutputFixtures.map(f => [f.id, f]));
-
     let raf = 0;
     let lastFrame = 0;
     const arpStates: Record<string, ArpEngineState> = {};
@@ -3849,6 +3855,21 @@ export function LiveDJ() {
     const tick = (now: number) => {
       if (now - lastFrame < 33) { raf = requestAnimationFrame(tick); return; }
       lastFrame = now;
+
+      const currentWidgets = arWidgetsRef.current;
+      const currentBpmState = arBpmStateRef.current;
+      const currentAllFixtures = allFixturesWithDefsRef.current;
+      const currentWledStore = arWledStoreRef.current;
+
+      const arpWidgets = currentWidgets.filter(w => w.type === 'arpeggiator' && w.arpConfig?.running);
+      if (arpWidgets.length === 0) { raf = requestAnimationFrame(tick); return; }
+
+      const wledOutputFixtures = [
+        ...currentWledStore.devices.map(wledDeviceToFixture),
+        ...currentWledStore.fixtures,
+      ];
+      const wledFixMap = new Map(wledOutputFixtures.map(f => [f.id, f]));
+
       const timeS = now / 1000 - arpStartTimeRef.current;
 
       arpWidgets.forEach(w => {
@@ -3861,7 +3882,7 @@ export function LiveDJ() {
         }
 
         const { outputs, nextState } = computeArpFrame(
-          arp, arpStates[w.id], linkedIds.length, timeS, bpmState.bpm, bpmState.audioLevel
+          arp, arpStates[w.id], linkedIds.length, timeS, currentBpmState.bpm, currentBpmState.audioLevel
         );
         arpStates[w.id] = nextState;
 
@@ -3870,7 +3891,7 @@ export function LiveDJ() {
           const out = outputs[i];
           if (!out) return;
 
-          const instData = allFixturesWithDefs.find(f => f.inst.id === fid);
+          const instData = currentAllFixtures.find(f => f.inst.id === fid);
           if (!instData) return;
 
           const isWled = instData.def.category === 'wled';
@@ -3916,7 +3937,7 @@ export function LiveDJ() {
 
     raf = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(raf); clearTimeout(raf); };
-  }, [widgets, bpmState.bpm, bpmState.audioLevel, allFixturesWithDefs, wledStore.devices, wledStore.fixtures]);
+  }, []);
 
   useEffect(() => {
     const nextSent: Record<string, string> = {};

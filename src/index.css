@@ -72,11 +72,11 @@
 
 @layer components {
   .glass-panel {
-    @apply bg-card/60 backdrop-blur-xl border border-border/50 rounded-lg;
+    @apply bg-card/80 border border-border/50 rounded-lg;
   }
 
   .glass-panel-strong {
-    @apply bg-card/80 backdrop-blur-2xl border border-border/60 rounded-lg;
+    @apply bg-card/90 border border-border/60 rounded-lg;
   }
 
   .glow-green {
