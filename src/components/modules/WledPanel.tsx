@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { engineWledScan } from '@/lib/wsSync';
+import { engineWledScan, isEngineConnected } from '@/lib/wsSync';
+import { useIOStore } from '@/components/modules/IOSetup';
 import {
   Plus, Trash2, Power, Wifi, WifiOff, RefreshCw, Palette, Zap, SunDim, Layers, Radar,
 } from 'lucide-react';
