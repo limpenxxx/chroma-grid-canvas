@@ -81,8 +81,14 @@ export function HuePanel() {
               {hueStore.discovering ? 'Scanning...' : 'Auto-Discover'}
             </Button>
             <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1" onClick={() => hueStore.refreshAll()}>
-              <RefreshCw size={12} /> Refresh All
+              <RefreshCw size={12} /> Refresh
             </Button>
+            {hueStore.bridges.length > 0 && (
+              <Button variant="ghost" size="sm" className="h-7 text-[10px] gap-1 text-destructive hover:text-destructive"
+                onClick={() => { if (confirm('Ta bort ALLA Hue-bryggor?')) hueStore.removeAllBridges(); }}>
+                <Trash2 size={12} /> Rensa
+              </Button>
+            )}
           </div>
         </div>
 
