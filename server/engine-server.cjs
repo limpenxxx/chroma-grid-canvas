@@ -696,6 +696,91 @@ function outputDdp() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// Hardware scan helpers (reusable)
+// ══════════════════════════════════════════════════════════════
+
+function scanNics() {
+  const os = require('os');
+  const fs = require('fs');
+  const ifaces = os.networkInterfaces();
+  const nicList = [];
+  const seenNics = new Set();
+  for (const [name, addrs] of Object.entries(ifaces)) {
+    for (const addr of addrs) {
+      if (addr.family === 'IPv4') {
+        nicList.push({ name, address: addr.address, mac: addr.mac || '', internal: addr.internal });
+        seenNics.add(name);
+      }
+    }
+  }
+  // Also detect NICs without IPv4 (disconnected cables) via /sys/class/net on Linux
+  try {
+    const netDir = '/sys/class/net';
+    if (fs.existsSync(netDir)) {
+      const allNics = fs.readdirSync(netDir);
+      for (const nic of allNics) {
+        if (seenNics.has(nic) || nic === 'lo') continue;
+        let mac = '';
+        let operstate = 'down';
+        try { mac = fs.readFileSync(`${netDir}/${nic}/address`, 'utf8').trim(); } catch {}
+        try { operstate = fs.readFileSync(`${netDir}/${nic}/operstate`, 'utf8').trim(); } catch {}
+        if (nic.startsWith('veth') || nic.startsWith('docker') || nic.startsWith('br-') || nic.startsWith('virbr')) continue;
+        nicList.push({ name: nic, address: '', mac: mac === '00:00:00:00:00:00' ? '' : mac, internal: false, operstate });
+      }
+    }
+  } catch {}
+  return nicList;
+}
+
+function scanUsbSerial() {
+  const fs = require('fs');
+  try {
+    const devFiles = fs.readdirSync('/dev');
+    return devFiles
+      .filter(f => /^tty(USB|ACM)\d+$/.test(f))
+      .map(f => {
+        const devPath = '/dev/' + f;
+        let vendor = '', product = '', serial = '';
+        try {
+          const sysBase = '/sys/class/tty/' + f + '/device/..';
+          if (fs.existsSync(sysBase + '/idVendor')) vendor = fs.readFileSync(sysBase + '/idVendor', 'utf8').trim();
+          if (fs.existsSync(sysBase + '/idProduct')) product = fs.readFileSync(sysBase + '/idProduct', 'utf8').trim();
+          if (fs.existsSync(sysBase + '/serial')) serial = fs.readFileSync(sysBase + '/serial', 'utf8').trim();
+        } catch {}
+        let adapterType = 'unknown';
+        if (vendor === '0403' && product === '6001') adapterType = 'eurolite-dmx';
+        else if (vendor === '0403' && product === '6010') adapterType = 'enttec-pro';
+        else if (vendor === '0403' && product === '6014') adapterType = 'eurolite-dmx';
+        else if (vendor === '0403') adapterType = 'ftdi-generic';
+        else if (vendor === '10cf') adapterType = 'udmx';
+        else if (vendor === '16c0') adapterType = 'dmxking';
+        else if (vendor === '1a86' && product === '7523') adapterType = 'ch340-dmx';
+        else if (vendor === '1a86') adapterType = 'ch340-generic';
+        return { path: devPath, name: f, vendor, product, serial, adapterType };
+      });
+  } catch { return []; }
+}
+
+function buildEngineStatus() {
+  const nicList = scanNics();
+  const usbSerialPorts = scanUsbSerial();
+  if (usbSerialPorts.length > 0) {
+    console.log(`[ENGINE] Detected USB serial ports:`, usbSerialPorts.map(p => `${p.path} (${p.adapterType})`).join(', '));
+  }
+  return {
+    type: 'engine-status',
+    running: true,
+    dmxUniverses: Object.keys(state.dmx).map(Number),
+    wledTargets: Object.keys(state.wled).length,
+    hueBridges: Object.keys(state.hue).length,
+    magicDevices: Object.keys(state.magic).length,
+    pioneerDecks: state.pioneerDecks,
+    networkInterfaces: nicList,
+    usbSerialPorts: usbSerialPorts,
+  };
+}
+
+// ══════════════════════════════════════════════════════════════
 // WebSocket Server
 // ══════════════════════════════════════════════════════════════
 
