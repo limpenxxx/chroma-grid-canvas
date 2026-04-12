@@ -47,6 +47,7 @@ export function Devices() {
   const importRef = useRef<HTMLInputElement>(null);
   const DEF_PAGE_SIZE = 30;
   const [visibleDefCount, setVisibleDefCount] = useState(DEF_PAGE_SIZE);
+  const [fixturePickerOpen, setFixturePickerOpen] = useState(false);
 
   useEffect(() => { setVisibleDefCount(DEF_PAGE_SIZE); }, [search]);
 
