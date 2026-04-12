@@ -375,7 +375,7 @@ async function outputMagic() {
 // Hardware Output: ArtNet DMX (UDP)
 // ══════════════════════════════════════════════════════════════
 
-const artnetSocket = dgram.createSocket('udp4');
+let artnetSocket = dgram.createSocket('udp4');
 artnetSocket.on('error', () => {}); // ignore errors
 
 let artnetSequence = 0;
@@ -1099,20 +1099,27 @@ function handleMessage(ws, msg) {
         state.ioConfig.outputs = msg.outputs;
         // Extract ArtNet bind address from first artnet output with a specific NIC
         const artnetOut = msg.outputs.find(o => o.protocol === 'artnet' && o.bindInterface && o.bindInterface !== 'all');
-        if (artnetOut) {
+        if (artnetOut && state.ioConfig.artnetBindAddress !== artnetOut.bindInterface) {
           state.ioConfig.artnetBindAddress = artnetOut.bindInterface;
           console.log(`[ENGINE] ArtNet bound to NIC: ${artnetOut.bindInterface}`);
-          // Rebind ArtNet socket
-          try {
-            artnetSocket.close();
-          } catch {}
-          const newSocket = require('dgram').createSocket('udp4');
-          newSocket.on('error', () => {});
-          newSocket.bind({ address: artnetOut.bindInterface, port: 0 }, () => {
-            try { newSocket.setBroadcast(true); } catch {}
-            console.log(`[ENGINE] ArtNet socket rebound to ${artnetOut.bindInterface}`);
+          // Rebind ArtNet socket — properly replace the reference
+          try { artnetSocket.close(); } catch {}
+          artnetSocket = dgram.createSocket('udp4');
+          artnetSocket.on('error', () => {});
+          artnetSocket.bind({ address: artnetOut.bindInterface, port: 0 }, () => {
+            try { artnetSocket.setBroadcast(true); } catch {}
+            console.log(`[ENGINE] ✓ ArtNet socket rebound to ${artnetOut.bindInterface}`);
           });
-          // Note: in production, we'd replace artnetSocket reference
+        } else if (!artnetOut && state.ioConfig.artnetBindAddress !== '0.0.0.0') {
+          // Reset to all interfaces
+          state.ioConfig.artnetBindAddress = '0.0.0.0';
+          try { artnetSocket.close(); } catch {}
+          artnetSocket = dgram.createSocket('udp4');
+          artnetSocket.on('error', () => {});
+          artnetSocket.bind(() => {
+            try { artnetSocket.setBroadcast(true); } catch {}
+            console.log(`[ENGINE] ✓ ArtNet socket reset to 0.0.0.0`);
+          });
         }
         const sacnOut = msg.outputs.find(o => o.protocol === 'sacn' && o.bindInterface && o.bindInterface !== 'all');
         if (sacnOut) {
@@ -1126,6 +1133,16 @@ function handleMessage(ws, msg) {
         if (state.ioConfig.usbPorts.length > 0) {
           console.log(`[ENGINE] USB-DMX ports configured:`, state.ioConfig.usbPorts.map(p => `${p.port} (U${p.universe})`).join(', '));
         }
+        dirty = true;
+      }
+      break;
+    }
+
+    // ── NIC role assignment ──
+    case 'nic-roles': {
+      if (msg.roles) {
+        state.ioConfig.nicRoles = msg.roles;
+        console.log('[ENGINE] NIC roles updated:', JSON.stringify(msg.roles));
         dirty = true;
       }
       break;
