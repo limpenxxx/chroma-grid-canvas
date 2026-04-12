@@ -6430,28 +6430,63 @@ export function LiveDJ() {
           <div className="space-y-2">
             <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
               🎹 MIDI Controller
-              {midi.midiSupported ? (
+              {midi.engineMidiAvailable && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Engine USB</span>
+              )}
+              {midi.midiSupported && (
                 <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">Web MIDI</span>
-              ) : (
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive border border-destructive/20">Ej stöd</span>
               )}
             </h3>
             <p className="text-[10px] text-muted-foreground">
-              Anslut AKAI MPD218 eller annan USB MIDI-kontroller. Mappa pads till widgets/scener och knobs till faders.
+              Två MIDI-källor: <strong>Engine USB</strong> (MIDI-enheter anslutna till STOKIO-servern) och <strong>Web MIDI</strong> (MIDI-enheter anslutna till din webbläsardator). Båda matar in till samma mappningssystem.
             </p>
           </div>
 
           {/* Connected devices */}
           <div className="space-y-1">
-            <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Anslutna enheter</span>
-            {midi.devices.length === 0 ? (
-              <p className="text-[10px] text-muted-foreground italic">Ingen MIDI-enhet hittad. Anslut via USB.</p>
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Anslutna enheter</span>
+              <button onClick={() => midi.rescanEngineDevices()} className="text-[9px] text-primary hover:text-primary/80 transition-colors">
+                🔄 Skanna om
+              </button>
+            </div>
+
+            {/* Engine USB devices */}
+            {midi.engineMidiAvailable && (
+              <>
+                <div className="text-[8px] uppercase tracking-widest text-emerald-400/70 font-semibold mt-1">🖥️ Engine USB (STOKIO-server)</div>
+                {midi.devices.filter(d => d.source === 'engine').length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground italic pl-2">Ingen USB-MIDI hittad på servern.</p>
+                ) : (
+                  midi.devices.filter(d => d.source === 'engine').map(dev => (
+                    <div key={dev.id} className="flex items-center gap-2 p-2 rounded bg-emerald-500/5 border border-emerald-500/20">
+                      <div className={`w-2 h-2 rounded-full ${dev.connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                      <span className="text-xs font-mono text-foreground">{dev.name}</span>
+                      <span className="text-[8px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 ml-auto">USB</span>
+                    </div>
+                  ))
+                )}
+              </>
+            )}
+            {!midi.engineMidiAvailable && (
+              <div className="text-[9px] text-muted-foreground/50 bg-muted/10 rounded p-2 border border-border/20">
+                <span className="font-semibold">Engine USB-MIDI ej tillgängligt.</span> Installera på servern: <code className="text-primary/60">cd /opt/chroma-grid-canvas && npm install midi</code>
+              </div>
+            )}
+
+            {/* Web MIDI devices */}
+            <div className="text-[8px] uppercase tracking-widest text-primary/70 font-semibold mt-2">🌐 Web MIDI (din webbläsare)</div>
+            {midi.devices.filter(d => d.source === 'web').length === 0 ? (
+              <p className="text-[10px] text-muted-foreground italic pl-2">
+                {midi.midiSupported ? 'Ingen MIDI-enhet hittad i webbläsaren. Anslut via USB.' : 'Web MIDI stöds inte i denna webbläsare.'}
+              </p>
             ) : (
-              midi.devices.map(dev => (
-                <div key={dev.id} className="flex items-center gap-2 p-2 rounded bg-muted/30 border border-border/20">
+              midi.devices.filter(d => d.source === 'web').map(dev => (
+                <div key={dev.id} className="flex items-center gap-2 p-2 rounded bg-primary/5 border border-primary/20">
                   <div className={`w-2 h-2 rounded-full ${dev.connected ? 'bg-green-500' : 'bg-red-500'}`} />
                   <span className="text-xs font-mono text-foreground">{dev.name}</span>
                   {dev.manufacturer && <span className="text-[9px] text-muted-foreground">({dev.manufacturer})</span>}
+                  <span className="text-[8px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 ml-auto">WEB</span>
                 </div>
               ))
             )}
@@ -6459,7 +6494,7 @@ export function LiveDJ() {
 
           {/* Last MIDI event indicator */}
           {midi.lastEvent && (
-            <div className="p-2 rounded bg-muted/20 border border-border/20">
+            <div className={`p-2 rounded border ${midi.lastEvent.source === 'engine' ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-muted/20 border-border/20'}`}>
               <span className="text-[9px] uppercase tracking-widest text-muted-foreground font-semibold">Senaste signal</span>
               <div className="flex gap-3 mt-1 text-xs font-mono text-foreground">
                 <span className={`px-1.5 py-0.5 rounded ${midi.lastEvent.type === 'noteon' ? 'bg-primary/20 text-primary' : midi.lastEvent.type === 'cc' ? 'bg-stokio-cyan/20 text-stokio-cyan' : 'bg-muted/30 text-muted-foreground'}`}>
@@ -6468,6 +6503,10 @@ export function LiveDJ() {
                 <span>CH {midi.lastEvent.channel + 1}</span>
                 <span>{midi.lastEvent.type === 'cc' ? `CC ${midi.lastEvent.note}` : `Note ${midi.lastEvent.note}`}</span>
                 <span>Val {midi.lastEvent.velocity}</span>
+                <span className={`text-[8px] px-1 py-0.5 rounded ${midi.lastEvent.source === 'engine' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-primary/15 text-primary'}`}>
+                  {midi.lastEvent.source === 'engine' ? 'USB' : 'WEB'}
+                </span>
+                {midi.lastEvent.deviceName && <span className="text-muted-foreground text-[8px]">{midi.lastEvent.deviceName}</span>}
               </div>
             </div>
           )}
