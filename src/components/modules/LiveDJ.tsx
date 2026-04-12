@@ -30,9 +30,8 @@ import {
 import stokioLogo from '@/assets/stokio-logo-color.png';
 import { useMediaStore } from '@/store/mediaStore';
 import { useWledStore, type WledDevice, type WledFixture } from '@/store/wledStore';
-import { setWledPreset, setWledState } from '@/lib/wledApi';
 import { fetchWledPresets, isWledDeviceTargetId, wledDeviceToFixture } from '@/lib/wledUtils';
-import { sendDmxChannel, sendRawMessage, onPioneerData, type PioneerData } from '@/lib/wsSync';
+import { sendDmxChannel, sendRawMessage, sendWledOutput, sendWledBrightness, onPioneerData, type PioneerData } from '@/lib/wsSync';
 import { ProjectionMapping } from './ProjectionMapping';
 import { useMidiController, type MidiMapping, type MidiEvent } from '@/hooks/useMidiController';
 import { StageMap } from './StageMap';
@@ -1483,7 +1482,7 @@ function ControlWidget({
           engine.preset = widget.vfxPreset || 'plasma-wave';
 
           if (widget.vfxRunning) {
-            engine.start('microphone').catch(() => {});
+            engine.start('microphone');
           }
 
           const animate = () => {
@@ -1512,7 +1511,7 @@ function ControlWidget({
         useEffect(() => {
           if (!engineRef.current) return;
           if (widget.vfxRunning && !engineRef.current.isRunning) {
-            engineRef.current.start('microphone').catch(() => {});
+            engineRef.current.start('microphone');
           } else if (!widget.vfxRunning && engineRef.current.isRunning) {
             engineRef.current.stop();
           }
@@ -1578,7 +1577,7 @@ function ControlWidget({
             const wf = fixtureData.find(f => f.inst.id === fid);
             if (wf?.def.wledConfig?.ip) targetIps.add(wf.def.wledConfig.ip);
           });
-          await Promise.all([...targetIps].map(ip => setWledPreset(ip, presetId).catch(() => {})));
+          [...targetIps].forEach(ip => sendWledOutput(ip, { ps: presetId }));
         };
 
         const fetchPresetsFromDevice = async () => {
@@ -1668,19 +1667,19 @@ function ControlWidget({
         const handleColor = (c: { r: number; g: number; b: number }) => {
           onUpdate({ wledFixtureColor: c });
           if (device?.online) {
-            void setWledState(device.ip, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+            sendWledOutput(device.ip, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] });
           }
         };
         const handleBri = (bri: number) => {
           onUpdate({ wledFixtureBrightness: bri });
           if (device?.online) {
-            void setWledState(device.ip, { on: bri > 0, bri }).catch(() => {});
+            sendWledOutput(device.ip, { on: bri > 0, bri });
           }
         };
         const handlePreset = (presetId: number) => {
           onUpdate({ wledFixtureActivePresetId: presetId });
           if (device?.online) {
-            void setWledPreset(device.ip, presetId).catch(() => {});
+            sendWledOutput(device.ip, { ps: presetId });
           }
         };
 
@@ -2048,7 +2047,7 @@ function ControlWidget({
               if (wledFix) {
                 const c = cell.color || { r: 255, g: 255, b: 255 };
                 const bri = cell.active ? 0 : Math.max(1, cell.dimmer ?? 255);
-                void setWledState(wledFix.deviceIp, { on: bri > 0, bri, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+                sendWledOutput(wledFix.deviceIp, { on: bri > 0, bri, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] });
               }
             } else if (cell.sourceType === 'dmx') {
               const instData = fixtureData.find(f => f.inst.id === cell.fixtureInstanceId);
@@ -2633,7 +2632,7 @@ export function LiveDJ() {
         const wledInst = allFixturesWithDefsRef.current.find(f => f.inst.id === entry.targetId);
         const wledIp = wledInst?.def.wledConfig?.ip;
         if (wledIp && entry.wledPresetId !== undefined) {
-          void setWledPreset(wledIp, entry.wledPresetId).catch(() => {});
+          sendWledOutput(wledIp, { ps: entry.wledPresetId });
         }
         return;
       }
@@ -2769,7 +2768,7 @@ export function LiveDJ() {
     const cleanup = () => {
       if (mic.raf) cancelAnimationFrame(mic.raf);
       mic.stream?.getTracks().forEach(t => t.stop());
-      mic.ctx?.close().catch(() => {});
+      mic.ctx?.close();
       mic.ctx = null; mic.analyser = null; mic.stream = null; mic.raf = 0;
       mic.peaks = []; mic.lastEnergy = 0; mic.lastPeakTime = 0;
     };
@@ -2853,7 +2852,7 @@ export function LiveDJ() {
     const cleanup = () => {
       if (sys.raf) cancelAnimationFrame(sys.raf);
       sys.stream?.getTracks().forEach(t => t.stop());
-      sys.ctx?.close().catch(() => {});
+      sys.ctx?.close();
       sys.ctx = null; sys.analyser = null; sys.stream = null; sys.raf = 0;
       sys.peaks = []; sys.lastEnergy = 0; sys.lastPeakTime = 0; sys.sourceName = '';
     };
@@ -3427,7 +3426,7 @@ export function LiveDJ() {
               const dmxVal = Math.round(level * 255);
               if (isWled) {
                 const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
-                if (wledFix) void setWledState(wledFix.deviceIp, { on: dmxVal > 5, bri: Math.max(1, dmxVal) }).catch(() => {});
+                if (wledFix) sendWledOutput(wledFix.deviceIp, { on: dmxVal > 5, bri: Math.max(1, dmxVal) });
               } else {
                 const inst = instData.inst;
                 const def = instData.def;
@@ -3444,7 +3443,7 @@ export function LiveDJ() {
                 const c = fx.color1;
                 if (isWled) {
                   const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
-                  if (wledFix) void setWledState(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+                  if (wledFix) sendWledOutput(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] });
                 } else {
                   const inst = instData.inst;
                   const def = instData.def;
@@ -3477,8 +3476,8 @@ export function LiveDJ() {
                 } else {
                   const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
                   if (wledFix) {
-                    void setWledState(wledFix.deviceIp, { on: true, bri: 255 }).catch(() => {});
-                    setTimeout(() => { void setWledState(wledFix.deviceIp, { bri: 0 }).catch(() => {}); }, 80);
+                    sendWledOutput(wledFix.deviceIp, { on: true, bri: 255 });
+                    setTimeout(() => { sendWledOutput(wledFix.deviceIp, { bri: 0 }); }, 80);
                   }
                 }
               }
@@ -3506,7 +3505,7 @@ export function LiveDJ() {
                 const c = arState.colorIdx[fxKey] === 0 ? fx.color1 : fx.color2;
                 if (isWled) {
                   const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
-                  if (wledFix) void setWledState(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+                  if (wledFix) sendWledOutput(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] });
                 } else {
                   const inst = instData.inst;
                   const def = instData.def;
@@ -3526,7 +3525,7 @@ export function LiveDJ() {
               const c = hslToRgb(hue, 1, 0.5);
               if (isWled) {
                 const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
-                if (wledFix) void setWledState(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+                if (wledFix) sendWledOutput(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] });
               } else {
                 const inst = instData.inst;
                 const def = instData.def;
@@ -3545,7 +3544,7 @@ export function LiveDJ() {
                 arState.presetIdx[fxKey] = ((arState.presetIdx[fxKey] || 0) + 1) % fx.wledPresets.length;
                 const presetId = fx.wledPresets[arState.presetIdx[fxKey]];
                 const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
-                if (wledFix) void setWledPreset(wledFix.deviceIp, presetId).catch(() => {});
+                if (wledFix) sendWledOutput(wledFix.deviceIp, { ps: presetId });
               }
               break;
             }
@@ -3558,10 +3557,10 @@ export function LiveDJ() {
                   arState.chasePos[fxKey] = 0;
                   const c = fx.color1;
                   // Send chase effect: use WLED effect 45 (Scan) with the color
-                  void setWledState(wledFix.deviceIp, {
+                  sendWledOutput(wledFix.deviceIp, {
                     on: true,
                     seg: [{ id: 0, col: [[c.r, c.g, c.b], [0, 0, 0]], fx: 45, sx: 200, ix: Math.round(intensityScale * 255) }],
-                  }).catch(() => {});
+                  });
                 }
               }
               break;
@@ -3570,7 +3569,7 @@ export function LiveDJ() {
               const dmxVal = Math.round(level * 255);
               if (isWled) {
                 const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
-                if (wledFix) void setWledState(wledFix.deviceIp, { on: dmxVal > 5, bri: Math.max(1, dmxVal) }).catch(() => {});
+                if (wledFix) sendWledOutput(wledFix.deviceIp, { on: dmxVal > 5, bri: Math.max(1, dmxVal) });
               } else {
                 const inst = instData.inst;
                 const def = instData.def;
@@ -3585,7 +3584,7 @@ export function LiveDJ() {
               const c = hslToRgb(hue, 1, 0.5);
               if (isWled) {
                 const wledFix = [...wledStore.fixtures, ...wledStore.devices.map(wledDeviceToFixture)].find(f => f.id === fx.fixtureId);
-                if (wledFix) void setWledState(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] }).catch(() => {});
+                if (wledFix) sendWledOutput(wledFix.deviceIp, { on: true, seg: [{ id: 0, col: [[c.r, c.g, c.b]] }] });
               } else {
                 const inst = instData.inst;
                 const def = instData.def;
@@ -3675,13 +3674,13 @@ export function LiveDJ() {
           if (isWled) {
             const wledFix = wledFixMap.get(fid);
             if (wledFix && (out.r > 0 || out.g > 0 || out.b > 0 || out.dimmer > 0)) {
-              void setWledState(wledFix.deviceIp, {
+              sendWledOutput(wledFix.deviceIp, {
                 on: true,
                 bri: Math.max(1, out.dimmer),
                 seg: [{ id: 0, col: [[out.r, out.g, out.b, out.w]] }],
-              }).catch(() => {});
+              });
             } else if (wledFix) {
-              void setWledState(wledFix.deviceIp, { on: false }).catch(() => {});
+              sendWledOutput(wledFix.deviceIp, { on: false });
             }
           } else {
             const inst = instData.inst;
@@ -3736,7 +3735,7 @@ export function LiveDJ() {
           const val = `${r},${g},${b}`;
           nextSent[key] = val;
           if (lastWledSentRef.current[key] === val) return;
-          void setWledState(fix.deviceIp, buildWledColorState(fix, wledDevMap.get(fix.deviceId), { r, g, b })).catch(() => {});
+          sendWledOutput(fix.deviceIp, buildWledColorState(fix, wledDevMap.get(fix.deviceId), { r, g, b }));
         });
       }
 
@@ -3748,7 +3747,7 @@ export function LiveDJ() {
           const val = String(bri);
           nextSent[key] = val;
           if (lastWledSentRef.current[key] === val) return;
-          void setWledState(fix.deviceIp, buildWledBrightnessState(fix, bri)).catch(() => {});
+          sendWledOutput(fix.deviceIp, buildWledBrightnessState(fix, bri));
         });
       }
 
@@ -3760,7 +3759,7 @@ export function LiveDJ() {
           const val = String(w.wledPresetId);
           nextSent[key] = val;
           if (lastWledSentRef.current[key] === val) return;
-          void setWledPreset(ip, w.wledPresetId!).catch(() => {});
+          sendWledOutput(ip, { ps: w.wledPresetId! });
         });
       }
     });
@@ -4039,14 +4038,14 @@ export function LiveDJ() {
                           const wledTarget = [...wledStore.devices.map(wledDeviceToFixture), ...wledStore.fixtures].find(f => f.id === entry.targetId);
                           const wledDevice = wledTarget ? wledStore.devices.find(dev => dev.id === wledTarget.deviceId) : undefined;
                           if (wledIp && entry.wledPresetId !== undefined) {
-                            void setWledPreset(wledIp, entry.wledPresetId).catch(() => {});
+                            sendWledOutput(wledIp, { ps: entry.wledPresetId });
                           }
                           // Also apply color if set
                           if (wledIp && entry.color && wledTarget) {
-                            void setWledState(wledIp, buildWledColorState(wledTarget, wledDevice, entry.color)).catch(() => {});
+                            sendWledOutput(wledIp, buildWledColorState(wledTarget, wledDevice, entry.color));
                           }
                           if (wledIp && !entry.color && entry.dimmer !== undefined && wledTarget) {
-                            void setWledState(wledIp, buildWledBrightnessState(wledTarget, entry.dimmer)).catch(() => {});
+                            sendWledOutput(wledIp, buildWledBrightnessState(wledTarget, entry.dimmer));
                           }
                           // Apply to WLED preset widgets linked to this fixture
                           widgets.forEach(ow => {

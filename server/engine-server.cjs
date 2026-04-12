@@ -704,11 +704,22 @@ function handleMessage(ws, msg) {
       break;
     }
 
-    // ── WLED output ──
+    // ── WLED output (JSON API — permanent) ──
     case 'wled-output': {
       if (msg.ip && msg.payload) {
         state.wled[msg.ip] = msg.payload;
         dirty = true;
+      }
+      break;
+    }
+
+    // ── WLED realtime (DNRGB — temporary override) ──
+    case 'wled-realtime': {
+      // { ip, pixels: [r,g,b,...], timeout?: number }
+      if (msg.ip && msg.pixels) {
+        if (!state.wledRealtime) state.wledRealtime = {};
+        state.wledRealtime[msg.ip] = { pixels: msg.pixels, timeout: msg.timeout || 0 };
+        // No dirty flag — realtime data is ephemeral, not persisted
       }
       break;
     }

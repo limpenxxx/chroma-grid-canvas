@@ -6,9 +6,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import {
-  setWledPower, setWledBrightness, setWledColor, setWledEffect, setWledPreset,
-} from '@/lib/wledApi';
+import { sendWledOutput } from '@/lib/wsSync';
 import { useWledStore, type WledDevice, type WledFixture, WLED_PROTOCOL_OPTIONS, type WledProtocol } from '@/store/wledStore';
 
 type SubTab = 'devices' | 'fixtures';
@@ -96,38 +94,34 @@ export function WledPanel() {
     setShowAdd(false);
   };
 
-  const handlePower = async (dev: WledDevice) => {
+  const handlePower = (dev: WledDevice) => {
     const newState = !dev.state?.on;
-    try {
-      await setWledPower(dev.ip, newState);
-      store.updateDevice(dev.id, {
-        state: dev.state ? { ...dev.state, on: newState } : dev.state,
-      });
-    } catch { /* offline */ }
+    sendWledOutput(dev.ip, { on: newState });
+    store.updateDevice(dev.id, {
+      state: dev.state ? { ...dev.state, on: newState } : dev.state,
+    });
   };
 
-  const handleBrightness = async (dev: WledDevice, bri: number) => {
-    try {
-      await setWledBrightness(dev.ip, bri);
-      store.updateDevice(dev.id, {
-        state: dev.state ? { ...dev.state, bri } : dev.state,
-      });
-    } catch { /* offline */ }
+  const handleBrightness = (dev: WledDevice, bri: number) => {
+    sendWledOutput(dev.ip, { bri });
+    store.updateDevice(dev.id, {
+      state: dev.state ? { ...dev.state, bri } : dev.state,
+    });
   };
 
-  const handleColor = async (dev: WledDevice, hex: string) => {
+  const handleColor = (dev: WledDevice, hex: string) => {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
-    try { await setWledColor(dev.ip, r, g, b); } catch { /* offline */ }
+    sendWledOutput(dev.ip, { seg: [{ id: 0, col: [[r, g, b]] }] });
   };
 
-  const handleEffect = async (dev: WledDevice, fx: number) => {
-    try { await setWledEffect(dev.ip, fx); } catch { /* offline */ }
+  const handleEffect = (dev: WledDevice, fx: number) => {
+    sendWledOutput(dev.ip, { seg: [{ id: 0, fx }] });
   };
 
-  const handlePreset = async (dev: WledDevice, ps: number) => {
-    try { await setWledPreset(dev.ip, ps); } catch { /* offline */ }
+  const handlePreset = (dev: WledDevice, ps: number) => {
+    sendWledOutput(dev.ip, { ps });
   };
 
   const addFixture = () => {
@@ -377,7 +371,7 @@ export function WledPanel() {
                               value={dev.state?.seg?.[0]?.pal ?? 0}
                               onChange={(e) => {
                                 const pal = Number(e.target.value);
-                                setWledEffect(dev.ip, dev.state?.seg?.[0]?.fx ?? 0, undefined, undefined, pal);
+                                sendWledOutput(dev.ip, { seg: [{ id: 0, fx: dev.state?.seg?.[0]?.fx ?? 0, pal }] });
                               }}>
                               {dev.palettes.map((name, i) => (
                                 <option key={i} value={i}>{i}: {name}</option>
