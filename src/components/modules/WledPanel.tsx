@@ -371,7 +371,7 @@ export function WledPanel() {
                               value={dev.state?.seg?.[0]?.pal ?? 0}
                               onChange={(e) => {
                                 const pal = Number(e.target.value);
-                                setWledEffect(dev.ip, dev.state?.seg?.[0]?.fx ?? 0, undefined, undefined, pal);
+                                sendWledOutput(dev.ip, { seg: [{ id: 0, fx: dev.state?.seg?.[0]?.fx ?? 0, pal }] });
                               }}>
                               {dev.palettes.map((name, i) => (
                                 <option key={i} value={i}>{i}: {name}</option>
