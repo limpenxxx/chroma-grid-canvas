@@ -850,6 +850,12 @@ wss.on('connection', (ws) => {
 
 function handleMessage(ws, msg) {
   switch (msg.type) {
+    // ── Status refresh (IOSetup "Uppdatera" button) ──
+    case 'get-status': {
+      ws.send(JSON.stringify(buildEngineStatus()));
+      break;
+    }
+
     // ── Existing sync protocol (backward compatible) ──
     case 'update': {
       if (msg.state) {
