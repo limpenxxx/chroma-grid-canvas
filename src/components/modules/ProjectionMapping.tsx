@@ -416,227 +416,233 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
     return () => clearInterval(iv);
   }, []);
 
-  // ── Core render function (used for both preview canvas and output window) ──
-  const renderScene = useCallback((
-    ctx: CanvasRenderingContext2D,
-    w: number, h: number,
-    scaleX: number, scaleY: number,
-    drawUI: boolean
-  ) => {
-    ctx.clearRect(0, 0, w, h);
+  // ── Use refs for render-loop data to avoid recreating RAF ──
+  const shapesRef = useRef(shapes);
+  shapesRef.current = shapes;
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+  const effectiveBpmRef = useRef(effectiveBpm);
+  effectiveBpmRef.current = effectiveBpm;
 
-    // Dark background
-    ctx.fillStyle = '#0a0a0a';
-    ctx.fillRect(0, 0, w, h);
-
-    if (drawUI) {
-      // Grid
-      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-      ctx.lineWidth = 1;
-      for (let gx = 0; gx < w; gx += 40) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, h); ctx.stroke(); }
-      for (let gy = 0; gy < h; gy += 40) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(w, gy); ctx.stroke(); }
-    }
-
-    const now = performance.now();
-    const beatInterval = effectiveBpm > 0 ? 60000 / effectiveBpm : 1000;
-    const beatPhase = ((now - lastBeatRef.current) % beatInterval) / beatInterval;
-
-    const sorted = [...shapes].sort((a, b) => a.zIndex - b.zIndex);
-
-    for (const shape of sorted) {
-      if (!shape.visible) continue;
-
-      ctx.save();
-      ctx.globalAlpha = shape.opacity / 100;
-      ctx.globalCompositeOperation = shape.blendMode as GlobalCompositeOperation;
-
-      let fillColor = shape.fillColor;
-      let currentOpacity = shape.opacity / 100;
-      let scale = 1;
-      let rot = shape.rotation;
-
-      if (shape.bpmSync && effectiveBpm > 0) {
-        const intensity = shape.bpmIntensity / 100;
-        const pulse = Math.max(0, 1 - beatPhase * 3);
-
-        switch (shape.bpmEffect) {
-          case 'color-pulse': {
-            const r1 = parseInt(shape.bpmColor1.slice(1, 3), 16);
-            const g1 = parseInt(shape.bpmColor1.slice(3, 5), 16);
-            const b1 = parseInt(shape.bpmColor1.slice(5, 7), 16);
-            const r2 = parseInt(shape.bpmColor2.slice(1, 3), 16);
-            const g2 = parseInt(shape.bpmColor2.slice(3, 5), 16);
-            const b2 = parseInt(shape.bpmColor2.slice(5, 7), 16);
-            const t = pulse * intensity;
-            fillColor = `rgb(${Math.round(r1 + (r2 - r1) * t)},${Math.round(g1 + (g2 - g1) * t)},${Math.round(b1 + (b2 - b1) * t)})`;
-            break;
-          }
-          case 'opacity-pulse':
-            currentOpacity = Math.max(0.05, (shape.opacity / 100) * (1 - pulse * intensity * 0.8));
-            break;
-          case 'scale-pulse':
-            scale = 1 + pulse * intensity * 0.3;
-            break;
-          case 'strobe':
-            currentOpacity = pulse > 0.5 ? shape.opacity / 100 : 0;
-            break;
-          case 'rotate':
-            rot += beatPhase * 360 * intensity;
-            break;
-        }
-      }
-
-      ctx.globalAlpha = currentOpacity;
-
-      // Apply scale factor for output window mapping
-      const sx = shape.x * scaleX;
-      const sy = shape.y * scaleY;
-      const sw = shape.width * scaleX;
-      const sh = shape.height * scaleY;
-
-      const cx = sx + sw / 2;
-      const cy = sy + sh / 2;
-      ctx.translate(cx, cy);
-      ctx.rotate((rot * Math.PI) / 180);
-      ctx.scale(shape.scaleX * scale, shape.scaleY * scale);
-      ctx.translate(-sw / 2, -sh / 2);
-
-      // Corner points in local (shape-local after transform) space
-      const pts = shape.corners.map(c => ({
-        x: c.x * sw,
-        y: c.y * sh,
-      }));
-
-      // Build clip path
-      if (shape.type === 'circle') {
-        const centerX = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
-        const centerY = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
-        const rx = Math.max(10, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) / 2);
-        const ry = Math.max(10, Math.hypot(pts[3].y - pts[0].y, pts[3].x - pts[0].x) / 2);
-        const angle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
-        ctx.beginPath();
-        ctx.ellipse(centerX, centerY, rx, ry, angle, 0, Math.PI * 2);
-      } else if (shape.type === 'triangle') {
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        ctx.lineTo(pts[1].x, pts[1].y);
-        ctx.lineTo(pts[3].x, pts[3].y);
-        ctx.closePath();
-      } else {
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        ctx.lineTo(pts[1].x, pts[1].y);
-        ctx.lineTo(pts[2].x, pts[2].y);
-        ctx.lineTo(pts[3].x, pts[3].y);
-        ctx.closePath();
-      }
-
-      // Video fill — use textured quad warping
-      const vid = videoRefs.current[shape.id];
-      if (shape.videoSrc && vid && vid.readyState >= 2) {
-        ctx.save();
-
-        // Apply video filter
-        if (shape.videoFilter !== 'none') {
-          const fi = shape.videoFilterIntensity;
-          switch (shape.videoFilter) {
-            case 'invert': ctx.filter = `invert(${fi}%)`; break;
-            case 'hue-rotate': ctx.filter = `hue-rotate(${fi * 3.6}deg)`; break;
-            case 'saturate': ctx.filter = `saturate(${fi * 3}%)`; break;
-            case 'contrast': ctx.filter = `contrast(${50 + fi * 2}%)`; break;
-            case 'grayscale': ctx.filter = `grayscale(${fi}%)`; break;
-            case 'sepia': ctx.filter = `sepia(${fi}%)`; break;
-          }
-        }
-        ctx.globalAlpha = (shape.videoOpacity / 100) * currentOpacity;
-
-        // Use triangle-subdivision texture mapping for proper quad warp
-        drawTexturedQuad(ctx, vid, pts, 6);
-
-        ctx.filter = 'none';
-        ctx.restore();
-      } else {
-        ctx.fillStyle = fillColor;
-        ctx.fill();
-      }
-
-      if (shape.strokeWidth > 0) {
-        // Re-draw path for stroke (since texturedQuad resets transform)
-        if (shape.type === 'circle') {
-          const centerX = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
-          const centerY = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
-          const rx = Math.max(10, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) / 2);
-          const ry = Math.max(10, Math.hypot(pts[3].y - pts[0].y, pts[3].x - pts[0].x) / 2);
-          const angle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
-          ctx.beginPath();
-          ctx.ellipse(centerX, centerY, rx, ry, angle, 0, Math.PI * 2);
-        } else if (shape.type === 'triangle') {
-          ctx.beginPath();
-          ctx.moveTo(pts[0].x, pts[0].y);
-          ctx.lineTo(pts[1].x, pts[1].y);
-          ctx.lineTo(pts[3].x, pts[3].y);
-          ctx.closePath();
-        } else {
-          ctx.beginPath();
-          ctx.moveTo(pts[0].x, pts[0].y);
-          ctx.lineTo(pts[1].x, pts[1].y);
-          ctx.lineTo(pts[2].x, pts[2].y);
-          ctx.lineTo(pts[3].x, pts[3].y);
-          ctx.closePath();
-        }
-        ctx.strokeStyle = shape.strokeColor;
-        ctx.lineWidth = shape.strokeWidth;
-        ctx.stroke();
-      }
-
-      // Selection UI (only on preview)
-      if (drawUI && shape.id === selectedId) {
-        ctx.strokeStyle = '#00ff88';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 3]);
-        ctx.strokeRect(-4, -4, sw + 8, sh + 8);
-        ctx.setLineDash([]);
-
-        shape.corners.forEach((c, i) => {
-          if (shape.type === 'triangle' && i === 2) return;
-          const px = c.x * sw;
-          const py = c.y * sh;
-          ctx.fillStyle = i === 0 ? '#ff0' : '#0ff';
-          ctx.beginPath();
-          ctx.arc(px, py, 6, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = '#000';
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        });
-
-        ctx.fillStyle = '#00ff88';
-        ctx.fillRect(sw - 6, sh - 6, 12, 12);
-      }
-
-      ctx.restore();
-    }
-  }, [shapes, selectedId, effectiveBpm]);
-
-  // ── Canvas render loop ──
+  // ── Canvas render loop (stable — never tears down) ──
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const renderScene = (
+      targetCtx: CanvasRenderingContext2D,
+      w: number, h: number,
+      scaleX: number, scaleY: number,
+      drawUI: boolean
+    ) => {
+      const currentShapes = shapesRef.current;
+      const currentSelectedId = selectedIdRef.current;
+      const currentBpm = effectiveBpmRef.current;
+
+      targetCtx.clearRect(0, 0, w, h);
+      targetCtx.fillStyle = '#0a0a0a';
+      targetCtx.fillRect(0, 0, w, h);
+
+      if (drawUI) {
+        targetCtx.strokeStyle = 'rgba(255,255,255,0.04)';
+        targetCtx.lineWidth = 1;
+        for (let gx = 0; gx < w; gx += 40) { targetCtx.beginPath(); targetCtx.moveTo(gx, 0); targetCtx.lineTo(gx, h); targetCtx.stroke(); }
+        for (let gy = 0; gy < h; gy += 40) { targetCtx.beginPath(); targetCtx.moveTo(0, gy); targetCtx.lineTo(w, gy); targetCtx.stroke(); }
+      }
+
+      const now = performance.now();
+      const beatInterval = currentBpm > 0 ? 60000 / currentBpm : 1000;
+      const beatPhase = ((now - lastBeatRef.current) % beatInterval) / beatInterval;
+
+      const sorted = [...currentShapes].sort((a, b) => a.zIndex - b.zIndex);
+
+      for (const shape of sorted) {
+        if (!shape.visible) continue;
+
+        targetCtx.save();
+        targetCtx.globalAlpha = shape.opacity / 100;
+        targetCtx.globalCompositeOperation = shape.blendMode as GlobalCompositeOperation;
+
+        let fillColor = shape.fillColor;
+        let currentOpacity = shape.opacity / 100;
+        let scale = 1;
+        let rot = shape.rotation;
+
+        if (shape.bpmSync && currentBpm > 0) {
+          const intensity = shape.bpmIntensity / 100;
+          const pulse = Math.max(0, 1 - beatPhase * 3);
+
+          switch (shape.bpmEffect) {
+            case 'color-pulse': {
+              const r1 = parseInt(shape.bpmColor1.slice(1, 3), 16);
+              const g1 = parseInt(shape.bpmColor1.slice(3, 5), 16);
+              const b1 = parseInt(shape.bpmColor1.slice(5, 7), 16);
+              const r2 = parseInt(shape.bpmColor2.slice(1, 3), 16);
+              const g2 = parseInt(shape.bpmColor2.slice(3, 5), 16);
+              const b2 = parseInt(shape.bpmColor2.slice(5, 7), 16);
+              const t = pulse * intensity;
+              fillColor = `rgb(${Math.round(r1 + (r2 - r1) * t)},${Math.round(g1 + (g2 - g1) * t)},${Math.round(b1 + (b2 - b1) * t)})`;
+              break;
+            }
+            case 'opacity-pulse':
+              currentOpacity = Math.max(0.05, (shape.opacity / 100) * (1 - pulse * intensity * 0.8));
+              break;
+            case 'scale-pulse':
+              scale = 1 + pulse * intensity * 0.3;
+              break;
+            case 'strobe':
+              currentOpacity = pulse > 0.5 ? shape.opacity / 100 : 0;
+              break;
+            case 'rotate':
+              rot += beatPhase * 360 * intensity;
+              break;
+          }
+        }
+
+        targetCtx.globalAlpha = currentOpacity;
+
+        const sx = shape.x * scaleX;
+        const sy = shape.y * scaleY;
+        const sw = shape.width * scaleX;
+        const sh = shape.height * scaleY;
+
+        const cx = sx + sw / 2;
+        const cy = sy + sh / 2;
+        targetCtx.translate(cx, cy);
+        targetCtx.rotate((rot * Math.PI) / 180);
+        targetCtx.scale(shape.scaleX * scale, shape.scaleY * scale);
+        targetCtx.translate(-sw / 2, -sh / 2);
+
+        const pts = shape.corners.map(c => ({
+          x: c.x * sw,
+          y: c.y * sh,
+        }));
+
+        if (shape.type === 'circle') {
+          const centerX = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
+          const centerY = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
+          const rx = Math.max(10, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) / 2);
+          const ry = Math.max(10, Math.hypot(pts[3].y - pts[0].y, pts[3].x - pts[0].x) / 2);
+          const angle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
+          targetCtx.beginPath();
+          targetCtx.ellipse(centerX, centerY, rx, ry, angle, 0, Math.PI * 2);
+        } else if (shape.type === 'triangle') {
+          targetCtx.beginPath();
+          targetCtx.moveTo(pts[0].x, pts[0].y);
+          targetCtx.lineTo(pts[1].x, pts[1].y);
+          targetCtx.lineTo(pts[3].x, pts[3].y);
+          targetCtx.closePath();
+        } else {
+          targetCtx.beginPath();
+          targetCtx.moveTo(pts[0].x, pts[0].y);
+          targetCtx.lineTo(pts[1].x, pts[1].y);
+          targetCtx.lineTo(pts[2].x, pts[2].y);
+          targetCtx.lineTo(pts[3].x, pts[3].y);
+          targetCtx.closePath();
+        }
+
+        const vid = videoRefs.current[shape.id];
+        if (shape.videoSrc && vid && vid.readyState >= 2) {
+          targetCtx.save();
+
+          if (shape.videoFilter !== 'none') {
+            const fi = shape.videoFilterIntensity;
+            switch (shape.videoFilter) {
+              case 'invert': targetCtx.filter = `invert(${fi}%)`; break;
+              case 'hue-rotate': targetCtx.filter = `hue-rotate(${fi * 3.6}deg)`; break;
+              case 'saturate': targetCtx.filter = `saturate(${fi * 3}%)`; break;
+              case 'contrast': targetCtx.filter = `contrast(${50 + fi * 2}%)`; break;
+              case 'grayscale': targetCtx.filter = `grayscale(${fi}%)`; break;
+              case 'sepia': targetCtx.filter = `sepia(${fi}%)`; break;
+            }
+          }
+          targetCtx.globalAlpha = (shape.videoOpacity / 100) * currentOpacity;
+
+          // Reduced subdivisions: 4 instead of 6 (32 triangles vs 72 = ~2.3x faster)
+          drawTexturedQuad(targetCtx, vid, pts, 4);
+
+          targetCtx.filter = 'none';
+          targetCtx.restore();
+        } else {
+          targetCtx.fillStyle = fillColor;
+          targetCtx.fill();
+        }
+
+        if (shape.strokeWidth > 0) {
+          if (shape.type === 'circle') {
+            const centerX = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
+            const centerY = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
+            const rx = Math.max(10, Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) / 2);
+            const ry = Math.max(10, Math.hypot(pts[3].y - pts[0].y, pts[3].x - pts[0].x) / 2);
+            const angle = Math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
+            targetCtx.beginPath();
+            targetCtx.ellipse(centerX, centerY, rx, ry, angle, 0, Math.PI * 2);
+          } else if (shape.type === 'triangle') {
+            targetCtx.beginPath();
+            targetCtx.moveTo(pts[0].x, pts[0].y);
+            targetCtx.lineTo(pts[1].x, pts[1].y);
+            targetCtx.lineTo(pts[3].x, pts[3].y);
+            targetCtx.closePath();
+          } else {
+            targetCtx.beginPath();
+            targetCtx.moveTo(pts[0].x, pts[0].y);
+            targetCtx.lineTo(pts[1].x, pts[1].y);
+            targetCtx.lineTo(pts[2].x, pts[2].y);
+            targetCtx.lineTo(pts[3].x, pts[3].y);
+            targetCtx.closePath();
+          }
+          targetCtx.strokeStyle = shape.strokeColor;
+          targetCtx.lineWidth = shape.strokeWidth;
+          targetCtx.stroke();
+        }
+
+        if (drawUI && shape.id === currentSelectedId) {
+          targetCtx.strokeStyle = '#00ff88';
+          targetCtx.lineWidth = 2;
+          targetCtx.setLineDash([5, 3]);
+          targetCtx.strokeRect(-4, -4, sw + 8, sh + 8);
+          targetCtx.setLineDash([]);
+
+          shape.corners.forEach((c, i) => {
+            if (shape.type === 'triangle' && i === 2) return;
+            const px = c.x * sw;
+            const py = c.y * sh;
+            targetCtx.fillStyle = i === 0 ? '#ff0' : '#0ff';
+            targetCtx.beginPath();
+            targetCtx.arc(px, py, 6, 0, Math.PI * 2);
+            targetCtx.fill();
+            targetCtx.strokeStyle = '#000';
+            targetCtx.lineWidth = 1;
+            targetCtx.stroke();
+          });
+
+          targetCtx.fillStyle = '#00ff88';
+          targetCtx.fillRect(sw - 6, sh - 6, 12, 12);
+        }
+
+        targetCtx.restore();
+      }
+    };
+
+    let outputFrameSkip = 0;
+
     const render = () => {
-      // Render preview canvas
       renderScene(ctx, canvas.width, canvas.height, 1, 1, true);
 
-      // Mirror to output window if open
-      const outCanvas = getProjectionOutputCanvas();
-      if (outCanvas) {
-        const outCtx = outCanvas.getContext('2d');
-        if (outCtx) {
-          const sx = outCanvas.width / canvas.width;
-          const sy = outCanvas.height / canvas.height;
-          renderScene(outCtx, outCanvas.width, outCanvas.height, sx, sy, false);
+      // Mirror to output window at half rate (every other frame)
+      outputFrameSkip++;
+      if (outputFrameSkip >= 2) {
+        outputFrameSkip = 0;
+        const outCanvas = getProjectionOutputCanvas();
+        if (outCanvas) {
+          const outCtx = outCanvas.getContext('2d');
+          if (outCtx) {
+            const sx = outCanvas.width / canvas.width;
+            const sy = outCanvas.height / canvas.height;
+            renderScene(outCtx, outCanvas.width, outCanvas.height, sx, sy, false);
+          }
         }
       }
 
@@ -645,7 +651,7 @@ export function ProjectionMapping({ bpm, beatFlash }: ProjectionMappingProps) {
 
     animFrameRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animFrameRef.current);
-  }, [renderScene]);
+  }, []); // stable — reads from refs
 
   // ── Resize canvas ──
   useEffect(() => {
