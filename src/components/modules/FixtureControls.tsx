@@ -11,7 +11,7 @@ import {
 import { useWledStore, type WledFixture } from '@/store/wledStore';
 import { useHueStore } from '@/store/hueStore';
 import { xyToRgb } from '@/lib/hueApi';
-import { setWledBrightness, setWledPower, setWledState } from '@/lib/wledApi';
+import { sendWledOutput } from '@/lib/wsSync';
 import { fetchWledPresets, isWledDeviceTarget, wledDeviceToFixture } from '@/lib/wledUtils';
 import { useMagicHomeStore } from '@/store/magicHomeStore';
 
@@ -366,36 +366,32 @@ function WledFixtureLivePanel({ fixture, state, updateState }: {
   const [brightness, setBrightness] = useState(state.dimmer * 2.55 | 0);
   const deviceTarget = isWledDeviceTarget(fixture);
 
-  const handleColorChange = async (c: { r: number; g: number; b: number }) => {
+  const handleColorChange = (c: { r: number; g: number; b: number }) => {
     updateState({ color: { ...state.color, ...c } });
-    if (dev?.online) {
-      try {
-        await setWledState(dev.ip, deviceTarget
-          ? {
-              on: true,
-              seg: (dev.state?.seg?.length
-                ? dev.state.seg.map(seg => ({ id: seg.id, on: true, col: [[c.r, c.g, c.b]] }))
-                : [{ id: 0, on: true, col: [[c.r, c.g, c.b]] }]),
-            }
-          : {
-              on: true,
-              seg: [{ id: fixture.segmentId, on: true, col: [[c.r, c.g, c.b]] }],
-            });
-      } catch { /* offline */ }
+    if (dev) {
+      sendWledOutput(dev.ip, deviceTarget
+        ? {
+            on: true,
+            seg: (dev.state?.seg?.length
+              ? dev.state.seg.map(seg => ({ id: seg.id, on: true, col: [[c.r, c.g, c.b]] }))
+              : [{ id: 0, on: true, col: [[c.r, c.g, c.b]] }]),
+          }
+        : {
+            on: true,
+            seg: [{ id: fixture.segmentId, on: true, col: [[c.r, c.g, c.b]] }],
+          });
     }
   };
 
-  const handleBrightness = async (bri: number) => {
+  const handleBrightness = (bri: number) => {
     setBrightness(bri);
     updateState({ dimmer: Math.round(bri / 2.55) });
-    if (dev?.online) {
-      try {
-        if (deviceTarget) {
-          await setWledBrightness(dev.ip, bri);
-        } else {
-          await setWledState(dev.ip, { on: bri > 0, seg: [{ id: fixture.segmentId, on: bri > 0, bri }] });
-        }
-      } catch { /* offline */ }
+    if (dev) {
+      if (deviceTarget) {
+        sendWledOutput(dev.ip, { bri });
+      } else {
+        sendWledOutput(dev.ip, { on: bri > 0, seg: [{ id: fixture.segmentId, on: bri > 0, bri }] });
+      }
     }
   };
 
