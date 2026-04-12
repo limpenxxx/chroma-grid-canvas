@@ -1,12 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { type HueBridge, type HueLight, type HueGroup, type HueScene } from '@/lib/hueApi';
 import {
-  type HueBridge, type HueLight, type HueGroup, type HueScene,
-  discoverBridges, pairBridge, getLights, getGroups, getScenes,
-  setLightState, setLightColor, setLightBrightness, setLightPower,
-  setGroupState, activateScene, getBridgeConfig,
-} from '@/lib/hueApi';
-import { sendHueBridge, sendHueLight } from '@/lib/wsSync';
+  sendHueBridge, sendHueLight, sendHueGroupAction, sendHueScene,
+  engineHueDiscover, engineHuePair, engineHueRefresh,
+} from '@/lib/wsSync';
+import { rgbToXy } from '@/lib/hueApi';
 
 interface HueStore {
   bridges: HueBridge[];
@@ -23,15 +22,64 @@ interface HueStore {
   refreshBridge: (bridgeId: string) => Promise<void>;
   refreshAll: () => Promise<void>;
 
-  // Light control (proxied to API)
-  setColor: (bridgeId: string, lightId: string, r: number, g: number, b: number) => Promise<void>;
-  setBrightness: (bridgeId: string, lightId: string, bri: number) => Promise<void>;
-  setPower: (bridgeId: string, lightId: string, on: boolean) => Promise<void>;
-  setLight: (bridgeId: string, lightId: string, state: Record<string, unknown>) => Promise<void>;
+  // Light control (all via engine)
+  setColor: (bridgeId: string, lightId: string, r: number, g: number, b: number) => void;
+  setBrightness: (bridgeId: string, lightId: string, bri: number) => void;
+  setPower: (bridgeId: string, lightId: string, on: boolean) => void;
+  setLight: (bridgeId: string, lightId: string, state: Record<string, unknown>) => void;
 
-  // Group control
-  setGroupAction: (bridgeId: string, groupId: string, state: Record<string, unknown>) => Promise<void>;
-  triggerScene: (bridgeId: string, groupId: string, sceneId: string) => Promise<void>;
+  // Group control (via engine)
+  setGroupAction: (bridgeId: string, groupId: string, state: Record<string, unknown>) => void;
+  triggerScene: (bridgeId: string, groupId: string, sceneId: string) => void;
+}
+
+function parseLights(data: Record<string, any> | null): HueLight[] {
+  if (!data || typeof data !== 'object') return [];
+  return Object.entries(data).map(([id, light]) => ({
+    id,
+    name: light.name,
+    type: light.type,
+    modelId: light.modelid || '',
+    manufacturerName: light.manufacturername || 'Philips',
+    uniqueId: light.uniqueid || '',
+    state: {
+      on: light.state?.on ?? false,
+      bri: light.state?.bri ?? 0,
+      hue: light.state?.hue,
+      sat: light.state?.sat,
+      ct: light.state?.ct,
+      xy: light.state?.xy,
+      colormode: light.state?.colormode,
+      reachable: light.state?.reachable ?? false,
+    },
+    capabilities: {
+      hasColor: light.type?.toLowerCase().includes('color') ?? false,
+      hasColorTemp: light.type?.toLowerCase().includes('temperature') || light.type?.toLowerCase().includes('color') || false,
+    },
+  }));
+}
+
+function parseGroups(data: Record<string, any> | null): HueGroup[] {
+  if (!data || typeof data !== 'object') return [];
+  return Object.entries(data).map(([id, g]) => ({
+    id,
+    name: g.name,
+    type: g.type || 'LightGroup',
+    lights: g.lights || [],
+    state: g.state || { all_on: false, any_on: false },
+    action: g.action || {},
+  }));
+}
+
+function parseScenes(data: Record<string, any> | null): HueScene[] {
+  if (!data || typeof data !== 'object') return [];
+  return Object.entries(data).map(([id, s]) => ({
+    id,
+    name: s.name,
+    type: s.type || 'LightScene',
+    group: s.group,
+    lights: s.lights || [],
+  }));
 }
 
 export const useHueStore = create<HueStore>()(
@@ -46,11 +94,12 @@ export const useHueStore = create<HueStore>()(
       discover: async () => {
         set({ discovering: true });
         try {
-          const found = await discoverBridges();
+          const result = await engineHueDiscover();
+          const found = result.bridges || [];
           const existing = get().bridges;
           const newBridges = found
-            .filter(b => !existing.some(e => e.ip === b.internalipaddress))
-            .map(b => ({
+            .filter((b: any) => !existing.some(e => e.ip === b.internalipaddress))
+            .map((b: any) => ({
               id: b.id || crypto.randomUUID(),
               ip: b.internalipaddress,
               name: `Hue Bridge`,
@@ -59,6 +108,8 @@ export const useHueStore = create<HueStore>()(
           if (newBridges.length > 0) {
             set({ bridges: [...existing, ...newBridges] });
           }
+        } catch (err) {
+          console.error('[HUE] Discovery failed:', err);
         } finally {
           set({ discovering: false });
         }
@@ -86,41 +137,48 @@ export const useHueStore = create<HueStore>()(
       pair: async (bridgeId) => {
         const bridge = get().bridges.find(b => b.id === bridgeId);
         if (!bridge) return { success: false, error: 'Bridge not found' };
-        const result = await pairBridge(bridge.ip);
-        if (result.success && result.apiKey) {
-          set((s) => ({
-            bridges: s.bridges.map(b => b.id === bridgeId ? { ...b, apiKey: result.apiKey! } : b),
-          }));
-          // Register bridge with engine
-          sendHueBridge(bridgeId, bridge.ip, result.apiKey);
-          // Auto-refresh after pairing
-          setTimeout(() => get().refreshBridge(bridgeId), 500);
+        try {
+          const result = await engineHuePair(bridge.ip);
+          if (result.success && result.apiKey) {
+            set((s) => ({
+              bridges: s.bridges.map(b => b.id === bridgeId ? { ...b, apiKey: result.apiKey! } : b),
+            }));
+            // Register bridge with engine for persistent output
+            sendHueBridge(bridgeId, bridge.ip, result.apiKey);
+            // Auto-refresh after pairing
+            setTimeout(() => get().refreshBridge(bridgeId), 500);
+          }
+          return result;
+        } catch (err) {
+          return { success: false, error: String(err) };
         }
-        return result;
       },
 
       refreshBridge: async (bridgeId) => {
         const bridge = get().bridges.find(b => b.id === bridgeId);
         if (!bridge?.apiKey) return;
 
-        const [lightsData, groupsData, scenesData, config] = await Promise.all([
-          getLights(bridge.ip, bridge.apiKey),
-          getGroups(bridge.ip, bridge.apiKey),
-          getScenes(bridge.ip, bridge.apiKey),
-          getBridgeConfig(bridge.ip, bridge.apiKey),
-        ]);
+        try {
+          const result = await engineHueRefresh(bridgeId, bridge.ip, bridge.apiKey);
+          if (result.error) {
+            console.error('[HUE] Refresh failed:', result.error);
+            return;
+          }
 
-        set((s) => ({
-          lights: { ...s.lights, [bridgeId]: lightsData },
-          groups: { ...s.groups, [bridgeId]: groupsData },
-          scenes: { ...s.scenes, [bridgeId]: scenesData },
-          bridges: s.bridges.map(b => b.id === bridgeId ? {
-            ...b,
-            name: (config as any)?.name || b.name,
-            modelId: (config as any)?.modelid,
-            swVersion: (config as any)?.swversion,
-          } : b),
-        }));
+          set((s) => ({
+            lights: { ...s.lights, [bridgeId]: parseLights(result.lights) },
+            groups: { ...s.groups, [bridgeId]: parseGroups(result.groups) },
+            scenes: { ...s.scenes, [bridgeId]: parseScenes(result.scenes) },
+            bridges: s.bridges.map(b => b.id === bridgeId ? {
+              ...b,
+              name: result.config?.name || b.name,
+              modelId: result.config?.modelid,
+              swVersion: result.config?.swversion,
+            } : b),
+          }));
+        } catch (err) {
+          console.error('[HUE] Refresh timeout:', err);
+        }
       },
 
       refreshAll: async () => {
@@ -128,48 +186,30 @@ export const useHueStore = create<HueStore>()(
         await Promise.all(bridges.map(b => get().refreshBridge(b.id)));
       },
 
-      setColor: async (bridgeId, lightId, r, g, b) => {
-        const bridge = get().bridges.find(br => br.id === bridgeId);
-        if (!bridge?.apiKey) return;
-        await setLightColor(bridge.ip, bridge.apiKey, lightId, r, g, b);
-        // Also send to engine for persistent output
-        const { rgbToXy } = await import('@/lib/hueApi');
+      setColor: (bridgeId, lightId, r, g, b) => {
         const xy = rgbToXy(r, g, b);
         sendHueLight(bridgeId, lightId, { xy, on: true });
       },
 
-      setBrightness: async (bridgeId, lightId, bri) => {
-        const bridge = get().bridges.find(b => b.id === bridgeId);
-        if (!bridge?.apiKey) return;
+      setBrightness: (bridgeId, lightId, bri) => {
         const briVal = Math.max(1, Math.min(254, Math.round(bri * 2.54)));
-        await setLightBrightness(bridge.ip, bridge.apiKey, lightId, bri);
         sendHueLight(bridgeId, lightId, { bri: briVal });
       },
 
-      setPower: async (bridgeId, lightId, on) => {
-        const bridge = get().bridges.find(b => b.id === bridgeId);
-        if (!bridge?.apiKey) return;
-        await setLightPower(bridge.ip, bridge.apiKey, lightId, on);
+      setPower: (bridgeId, lightId, on) => {
         sendHueLight(bridgeId, lightId, { on });
       },
 
-      setLight: async (bridgeId, lightId, state) => {
-        const bridge = get().bridges.find(b => b.id === bridgeId);
-        if (!bridge?.apiKey) return;
-        await setLightState(bridge.ip, bridge.apiKey, lightId, state);
+      setLight: (bridgeId, lightId, state) => {
         sendHueLight(bridgeId, lightId, state);
       },
 
-      setGroupAction: async (bridgeId, groupId, state) => {
-        const bridge = get().bridges.find(b => b.id === bridgeId);
-        if (!bridge?.apiKey) return;
-        await setGroupState(bridge.ip, bridge.apiKey, groupId, state);
+      setGroupAction: (bridgeId, groupId, state) => {
+        sendHueGroupAction(bridgeId, groupId, state);
       },
 
-      triggerScene: async (bridgeId, groupId, sceneId) => {
-        const bridge = get().bridges.find(b => b.id === bridgeId);
-        if (!bridge?.apiKey) return;
-        await activateScene(bridge.ip, bridge.apiKey, groupId, sceneId);
+      triggerScene: (bridgeId, groupId, sceneId) => {
+        sendHueScene(bridgeId, groupId, sceneId);
       },
     }),
     {
