@@ -220,3 +220,16 @@ export const useHueStore = create<HueStore>()(
     }
   )
 );
+
+// ── Auto-register bridges & refresh when engine connects ──
+onEngineConnect(() => {
+  const { bridges, refreshAll } = useHueStore.getState();
+  const paired = bridges.filter(b => b.apiKey);
+  if (paired.length > 0) {
+    console.log('[HUE] Engine connected — registering', paired.length, 'bridges');
+    for (const b of paired) {
+      sendHueBridge(b.id, b.ip, b.apiKey!);
+    }
+    setTimeout(() => refreshAll(), 800);
+  }
+});
