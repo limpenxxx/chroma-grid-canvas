@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { broadcastState, isSyncingFromRemote, onSyncState, engineWledRefresh, onEngineConnect } from '@/lib/wsSync';
+import { broadcastState, isEngineConnected, isSyncingFromRemote, onSyncState, engineWledRefresh, onEngineConnect, removeWledDeviceFromEngine } from '@/lib/wsSync';
 import { type WledInfo, type WledState, type WledSegment } from '@/lib/wledApi';
 
 // ── Types ──
@@ -127,11 +127,16 @@ export const useWledStore = create<WledStore>()(
         }));
       },
 
-      removeDevice: (id) =>
+      removeDevice: (id) => {
+        const device = get().devices.find((d) => d.id === id);
+        if (device) {
+          removeWledDeviceFromEngine(id, device.ip);
+        }
         set((s) => ({
           devices: s.devices.filter((d) => d.id !== id),
           fixtures: s.fixtures.filter((f) => f.deviceId !== id),
-        })),
+        }));
+      },
 
       updateDevice: (id, updates) =>
         set((s) => ({
@@ -199,6 +204,16 @@ export const useWledStore = create<WledStore>()(
     }),
     {
       name: 'stokio-wled-v1',
+      onRehydrateStorage: () => (state) => {
+        if (!state || !isEngineConnected()) return;
+        broadcastState('wled', {
+          devices: state.devices,
+          fixtures: state.fixtures,
+        });
+        if (state.devices.length > 0) {
+          void state.refreshAll();
+        }
+      },
       partialize: (state) => ({
         devices: state.devices.map((d) => ({
           id: d.id,

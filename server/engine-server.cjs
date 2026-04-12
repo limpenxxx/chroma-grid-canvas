@@ -758,6 +758,26 @@ function handleMessage(ws, msg) {
       break;
     }
 
+    case 'wled-remove-device': {
+      const { deviceId, ip } = msg;
+      if (ip) {
+        delete state.wled[ip];
+        delete lastSent.wled[ip];
+        if (state.wledRealtime) delete state.wledRealtime[ip];
+        if (state.ddp) delete state.ddp[ip];
+      }
+      if (deviceId && state.wledDevices) {
+        if (Array.isArray(state.wledDevices.devices)) {
+          state.wledDevices.devices = state.wledDevices.devices.filter((d) => d.id !== deviceId);
+        }
+        if (Array.isArray(state.wledDevices.fixtures)) {
+          state.wledDevices.fixtures = state.wledDevices.fixtures.filter((f) => f.deviceId !== deviceId);
+        }
+      }
+      dirty = true;
+      break;
+    }
+
     // ── WLED realtime (DNRGB — temporary override) ──
     case 'wled-realtime': {
       // { ip, pixels: [r,g,b,...], timeout?: number }
@@ -778,6 +798,19 @@ function handleMessage(ws, msg) {
         } else {
           state.hue[msg.bridgeId].ip = msg.ip;
           state.hue[msg.bridgeId].apiKey = msg.apiKey;
+        }
+        dirty = true;
+      }
+      break;
+    }
+
+    case 'hue-remove-bridge': {
+      if (msg.bridgeId && state.hue[msg.bridgeId]) {
+        delete state.hue[msg.bridgeId];
+        for (const key of Object.keys(lastSent.hue)) {
+          if (key.startsWith(`${msg.bridgeId}:`)) {
+            delete lastSent.hue[key];
+          }
         }
         dirty = true;
       }
