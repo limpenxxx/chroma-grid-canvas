@@ -1088,11 +1088,14 @@ function handleMessage(ws, msg) {
       // Fetch full state from a WLED device
       const { ip, deviceId, reqId } = msg;
       if (!ip) break;
+      console.log(`[WLED] Refreshing device ${deviceId} at ${ip}...`);
       (async () => {
         try {
           const data = await httpRequest(`http://${ip}/json`, 'GET', null, 3000);
+          console.log(`[WLED] ✓ ${ip} online — ${data?.info?.leds?.count || '?'} LEDs`);
           ws.send(JSON.stringify({ type: 'wled-refresh-result', reqId, deviceId, data, online: true }));
-        } catch {
+        } catch (err) {
+          console.error(`[WLED] ✗ ${ip} offline — ${err.message}`);
           ws.send(JSON.stringify({ type: 'wled-refresh-result', reqId, deviceId, data: null, online: false }));
         }
       })();
