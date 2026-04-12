@@ -38,6 +38,7 @@ import { useMidiController, type MidiMapping, type MidiEvent } from '@/hooks/use
 import { StageMap } from './StageMap';
 import { AILightShow } from './AILightShow';
 import { useIOStore } from './IOSetup';
+import { useHueStore } from '@/store/hueStore';
 import { type ArpConfig, createDefaultArpConfig, computeArpFrame, ArpeggiatorPreview, ARP_PATTERNS, BPM_DIVISIONS, ARP_PRESETS, type ArpColorStep, type ArpEngineState } from './ArpeggiatorWidget';
 
 // ── Types ──
