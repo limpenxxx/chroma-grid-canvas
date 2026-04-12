@@ -873,6 +873,28 @@ function handleMessage(ws, msg) {
       break;
     }
 
+    // ── Service restart (systemd) ──
+    case 'restart-service': {
+      const { service, reqId } = msg;
+      const allowed = ['chroma-engine', 'chroma-frontend', 'avahi-daemon'];
+      if (!service || !allowed.includes(service)) {
+        ws.send(JSON.stringify({ type: 'restart-service-result', reqId, success: false, error: `Service not allowed: ${service}` }));
+        break;
+      }
+      console.log(`[ENGINE] Restart requested: ${service}`);
+      const { exec } = require('child_process');
+      exec(`sudo systemctl restart ${service}`, { timeout: 15000 }, (err, stdout, stderr) => {
+        if (err) {
+          console.error(`[ENGINE] Restart ${service} failed:`, err.message);
+          ws.send(JSON.stringify({ type: 'restart-service-result', reqId, success: false, error: err.message }));
+        } else {
+          console.log(`[ENGINE] ✓ Restarted ${service}`);
+          ws.send(JSON.stringify({ type: 'restart-service-result', reqId, success: true, service }));
+        }
+      });
+      break;
+    }
+
     // ── Query engine state ──
     case 'get-state': {
       ws.send(JSON.stringify({
