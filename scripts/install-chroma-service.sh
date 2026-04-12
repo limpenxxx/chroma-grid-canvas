@@ -23,12 +23,14 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=main
 User=$CHROMA_USER
 WorkingDirectory=$CHROMA_DIR
 ExecStart=$NODE_BIN server/engine-server.cjs
 Restart=always
 RestartSec=5
+WatchdogSec=30
 StandardOutput=journal
 StandardError=journal
 Environment=NODE_ENV=production
