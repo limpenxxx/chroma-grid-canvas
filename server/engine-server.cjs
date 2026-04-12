@@ -134,6 +134,7 @@ function saveState() {
 
 function httpRequest(url, method = 'GET', body = null, timeout = 3000) {
   return new Promise((resolve, reject) => {
+    const dns = require('dns');
     const lib = url.startsWith('https') ? https : http;
     const parsed = new URL(url);
     const opts = {
@@ -143,6 +144,8 @@ function httpRequest(url, method = 'GET', body = null, timeout = 3000) {
       method,
       timeout,
       headers: {},
+      // Use OS resolver (supports mDNS .local via avahi/nss-mdns)
+      lookup: dns.lookup,
     };
     if (body) {
       const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
@@ -156,8 +159,15 @@ function httpRequest(url, method = 'GET', body = null, timeout = 3000) {
         try { resolve(JSON.parse(data)); } catch { resolve(data); }
       });
     });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('timeout')); });
+    req.on('error', (err) => {
+      console.error(`[HTTP] ${method} ${url} → error: ${err.message}`);
+      reject(err);
+    });
+    req.on('timeout', () => {
+      console.error(`[HTTP] ${method} ${url} → timeout after ${timeout}ms`);
+      req.destroy();
+      reject(new Error(`timeout: ${url}`));
+    });
     if (body) {
       req.write(typeof body === 'string' ? body : JSON.stringify(body));
     }
@@ -1030,6 +1040,7 @@ function handleMessage(ws, msg) {
       // Fetch lights, groups, scenes, config from a paired bridge
       const { bridgeId, ip, apiKey, reqId } = msg;
       if (!ip || !apiKey) break;
+      console.log(`[HUE] Refreshing bridge ${bridgeId} at ${ip}...`);
       (async () => {
         try {
           const [lights, groups, scenes, config] = await Promise.all([
@@ -1038,8 +1049,12 @@ function handleMessage(ws, msg) {
             httpRequest(`http://${ip}/api/${apiKey}/scenes`, 'GET', null, 5000),
             httpRequest(`http://${ip}/api/${apiKey}/config`, 'GET', null, 5000),
           ]);
+          const lightCount = lights ? Object.keys(lights).length : 0;
+          const groupCount = groups ? Object.keys(groups).length : 0;
+          console.log(`[HUE] ✓ Bridge ${ip} — ${lightCount} lights, ${groupCount} groups`);
           ws.send(JSON.stringify({ type: 'hue-refresh-result', reqId, bridgeId, lights, groups, scenes, config }));
         } catch (err) {
+          console.error(`[HUE] ✗ Bridge ${ip} refresh failed — ${err.message}`);
           ws.send(JSON.stringify({ type: 'hue-refresh-result', reqId, bridgeId, error: String(err) }));
         }
       })();
@@ -1078,11 +1093,14 @@ function handleMessage(ws, msg) {
       // Fetch full state from a WLED device
       const { ip, deviceId, reqId } = msg;
       if (!ip) break;
+      console.log(`[WLED] Refreshing device ${deviceId} at ${ip}...`);
       (async () => {
         try {
           const data = await httpRequest(`http://${ip}/json`, 'GET', null, 3000);
+          console.log(`[WLED] ✓ ${ip} online — ${data?.info?.leds?.count || '?'} LEDs`);
           ws.send(JSON.stringify({ type: 'wled-refresh-result', reqId, deviceId, data, online: true }));
-        } catch {
+        } catch (err) {
+          console.error(`[WLED] ✗ ${ip} offline — ${err.message}`);
           ws.send(JSON.stringify({ type: 'wled-refresh-result', reqId, deviceId, data: null, online: false }));
         }
       })();
