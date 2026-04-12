@@ -1877,135 +1877,273 @@ async function outputLoop() {
 
 // ══════════════════════════════════════════════════════════════
 // ProDJ Link — Pioneer DJ equipment discovery & beat sync
+// Uses prolink-connect (ESM) for full TCP+UDP protocol support
+// including track metadata, waveforms, and CDJ status.
+// Falls back to raw UDP parsing if prolink-connect is not installed.
 // ══════════════════════════════════════════════════════════════
 
-const PRODJLINK_HEADER = Buffer.from([0x51, 0x73, 0x70, 0x74, 0x31, 0x57, 0x6d, 0x4a, 0x4f, 0x4c]);
+let prolinkNetwork = null;
+let prolinkFallback = false;
 
-function isProDJLinkPacket(buf) {
-  if (buf.length < 11) return false;
-  for (let i = 0; i < 10; i++) {
-    if (buf[i] !== PRODJLINK_HEADER[i]) return false;
-  }
-  return true;
-}
+async function initProlink() {
+  try {
+    // prolink-connect is ESM-only, use dynamic import
+    const { bringOnline } = await import('prolink-connect');
+    console.log('[PIONEER] prolink-connect loaded — full TCP+UDP protocol');
 
-// Port 50000: device keepalive / announcements
-const pdjKeepAlive = dgram.createSocket({ type: 'udp4', reuseAddr: true });
-pdjKeepAlive.on('error', (e) => console.error('[PIONEER] Keepalive socket error:', e.message));
+    const network = await bringOnline();
 
-pdjKeepAlive.on('message', (buf, rinfo) => {
-  if (!isProDJLinkPacket(buf)) return;
-  const packetType = buf[10];
+    // Listen for devices appearing
+    network.deviceManager.on('connected', (device) => {
+      console.log(`[PIONEER] Device connected: ${device.name} (#${device.id}) @ ${device.ip?.address || '?'}`);
+      const deviceNumber = device.id;
+      if (deviceNumber > 0) {
+        state.pioneerDecks[deviceNumber] = {
+          ...(state.pioneerDecks[deviceNumber] || {}),
+          name: device.name || `Deck ${deviceNumber}`,
+          deviceNumber,
+          ip: device.ip?.address || '',
+          lastSeen: Date.now(),
+          bpm: state.pioneerDecks[deviceNumber]?.bpm || 0,
+          beat: state.pioneerDecks[deviceNumber]?.beat || 0,
+          playing: state.pioneerDecks[deviceNumber]?.playing || false,
+          master: false,
+        };
+      }
+    });
 
-  // Type 0x06 = CDJ/Mixer keepalive, Type 0x0a = device keepalive
-  if (packetType !== 0x06 && packetType !== 0x0a) return;
+    network.deviceManager.on('disconnected', (device) => {
+      console.log(`[PIONEER] Device disconnected: ${device.name} (#${device.id})`);
+      if (device.id > 0 && state.pioneerDecks[device.id]) {
+        state.pioneerDecks[device.id].playing = false;
+      }
+    });
 
-  // Device name: bytes 12-31 (null-terminated)
-  let deviceName = '';
-  for (let i = 12; i < Math.min(32, buf.length); i++) {
-    if (buf[i] === 0) break;
-    deviceName += String.fromCharCode(buf[i]);
-  }
+    // Auto-configure from peers on the network
+    console.log('[PIONEER] Waiting for peers to auto-configure...');
+    await network.autoconfigFromPeers();
+    console.log('[PIONEER] Network configured, connecting...');
+    await network.connect();
+    console.log('[PIONEER] Connected to ProDJ Link network ✓');
 
-  // Device number
-  const deviceNumber = buf.length > 36 ? buf[36] : buf.length > 33 ? buf[33] : 0;
+    prolinkNetwork = network;
 
-  if (deviceNumber > 0) {
-    const existing = state.pioneerDecks[deviceNumber] || {};
-    state.pioneerDecks[deviceNumber] = {
-      ...existing,
-      name: deviceName.trim() || existing.name || `Deck ${deviceNumber}`,
-      deviceNumber,
-      ip: rinfo.address,
-      lastSeen: Date.now(),
-      bpm: existing.bpm || 0,
-      beat: existing.beat || 0,
-      playing: existing.playing || false,
-      master: existing.master || false,
-    };
-  }
-});
+    // Listen for CDJ status updates (TCP — much richer than UDP)
+    const statusEmitter = network.statusEmitter;
+    if (statusEmitter) {
+      statusEmitter.on('status', (status) => {
+        const deviceNumber = status.deviceID;
+        if (!deviceNumber || deviceNumber <= 0) return;
 
-try {
-  pdjKeepAlive.bind(50000, () => {
-    try { pdjKeepAlive.setBroadcast(true); } catch {}
-    console.log('[PIONEER] Listening for keepalive on port 50000');
-  });
-} catch (e) {
-  console.error('[PIONEER] Could not bind port 50000:', e.message);
-}
+        const existing = state.pioneerDecks[deviceNumber] || {};
+        state.pioneerDecks[deviceNumber] = {
+          ...existing,
+          deviceNumber,
+          lastSeen: Date.now(),
+          bpm: status.trackBPM || existing.bpm || 0,
+          beat: status.beatInMeasure || existing.beat || 0,
+          playing: status.isPlaying ?? existing.playing ?? false,
+          master: status.isMaster ?? existing.master ?? false,
+          name: existing.name || `Deck ${deviceNumber}`,
+          ip: existing.ip || '',
+        };
 
-// Port 50001: beat packets
-const pdjBeat = dgram.createSocket({ type: 'udp4', reuseAddr: true });
-pdjBeat.on('error', (e) => console.error('[PIONEER] Beat socket error:', e.message));
-
-pdjBeat.on('message', (buf, rinfo) => {
-  if (!isProDJLinkPacket(buf)) return;
-  const packetType = buf[10];
-
-  // Type 0x28 = Beat packet (0x60 = 96 bytes long)
-  if (packetType === 0x28 && buf.length >= 0x60) {
-    // Device number at byte 0x21 (33)
-    const deviceNumber = buf[0x21];
-    // BPM at bytes 0x5a-0x5b: 2-byte big-endian value * 0.01
-    const bpmRaw = buf.readUInt16BE(0x5a);
-    const bpm = Math.round(bpmRaw / 100 * 10) / 10; // one decimal
-    // Beat within bar at byte 0x5c
-    const beat = buf[0x5c];
-
-    if (deviceNumber > 0 && bpm > 0 && bpm < 500) {
-      const existing = state.pioneerDecks[deviceNumber] || {};
-      state.pioneerDecks[deviceNumber] = {
-        ...existing,
-        name: existing.name || `Deck ${deviceNumber}`,
-        deviceNumber,
-        ip: existing.ip || rinfo.address,
-        lastSeen: Date.now(),
-        bpm,
-        beat: beat || existing.beat || 0,
-        playing: true,
-        master: existing.master || false,
-      };
-
-      // Broadcast beat to all connected browser clients
-      broadcastToAll({
-        type: 'pioneer-beat',
-        deviceNumber,
-        bpm,
-        beat,
-        name: state.pioneerDecks[deviceNumber].name,
+        // Broadcast beat events for live sync
+        if (status.isPlaying && status.trackBPM > 0) {
+          broadcastToAll({
+            type: 'pioneer-beat',
+            deviceNumber,
+            bpm: status.trackBPM,
+            beat: status.beatInMeasure || 0,
+            name: state.pioneerDecks[deviceNumber].name,
+          });
+        }
       });
     }
+
+    // Track metadata via remote database (TCP port 50002)
+    const db = network.db;
+    if (db) {
+      // Listen for track changes via mixstatus processor
+      const mixstatus = network.mixstatus;
+      if (mixstatus) {
+        mixstatus.on('nowPlaying', async (status) => {
+          const deviceNumber = status.deviceID;
+          if (!deviceNumber) return;
+          try {
+            const track = await db.getMetadata({
+              deviceID: status.deviceID,
+              trackSlot: status.trackSlot,
+              trackType: status.trackType,
+              trackID: status.trackID,
+            });
+            if (track && state.pioneerDecks[deviceNumber]) {
+              state.pioneerDecks[deviceNumber] = {
+                ...state.pioneerDecks[deviceNumber],
+                trackTitle: track.title || '',
+                trackArtist: track.artist?.name || '',
+                trackAlbum: track.album?.name || '',
+                trackGenre: track.genre?.name || '',
+                trackKey: track.key?.name || '',
+                trackLabel: track.label?.name || '',
+                trackDuration: track.duration || 0,
+              };
+              console.log(`[PIONEER] Now playing on Deck ${deviceNumber}: ${track.artist?.name || '?'} — ${track.title || '?'}`);
+
+              // Fetch artwork if available
+              try {
+                const artwork = await db.getArtwork({
+                  deviceID: status.deviceID,
+                  trackSlot: status.trackSlot,
+                  trackType: status.trackType,
+                  trackID: status.trackID,
+                });
+                if (artwork && artwork.length > 0) {
+                  // Convert to base64 data URL for sending to browser
+                  const b64 = Buffer.from(artwork).toString('base64');
+                  state.pioneerDecks[deviceNumber].artworkUrl = `data:image/jpeg;base64,${b64}`;
+                }
+              } catch {}
+            }
+          } catch (err) {
+            console.warn(`[PIONEER] Could not fetch metadata for deck ${deviceNumber}:`, err.message);
+          }
+        });
+      }
+    }
+
+    return true;
+  } catch (err) {
+    console.log(`[PIONEER] prolink-connect not available (${err.message}) — falling back to raw UDP`);
+    return false;
+  }
+}
+
+// ── Fallback: raw UDP parsing (original implementation) ──
+function initProlinkFallback() {
+  prolinkFallback = true;
+  const PRODJLINK_HEADER = Buffer.from([0x51, 0x73, 0x70, 0x74, 0x31, 0x57, 0x6d, 0x4a, 0x4f, 0x4c]);
+
+  function isProDJLinkPacket(buf) {
+    if (buf.length < 11) return false;
+    for (let i = 0; i < 10; i++) {
+      if (buf[i] !== PRODJLINK_HEADER[i]) return false;
+    }
+    return true;
   }
 
-  // Type 0x0b = Channels On Air / status (also on port 50001 for some models)
-  if (packetType === 0x0b && buf.length >= 0x28) {
-    const deviceNumber = buf[0x21];
-    const bpmRaw = buf.readUInt16BE(0x24);
-    const bpm = Math.round(bpmRaw / 100 * 10) / 10;
+  // Port 50000: device keepalive / announcements
+  const pdjKeepAlive = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+  pdjKeepAlive.on('error', (e) => console.error('[PIONEER] Keepalive socket error:', e.message));
 
-    if (deviceNumber > 0 && bpm > 0 && bpm < 500) {
+  pdjKeepAlive.on('message', (buf, rinfo) => {
+    if (!isProDJLinkPacket(buf)) return;
+    const packetType = buf[10];
+    if (packetType !== 0x06 && packetType !== 0x0a) return;
+
+    let deviceName = '';
+    for (let i = 12; i < Math.min(32, buf.length); i++) {
+      if (buf[i] === 0) break;
+      deviceName += String.fromCharCode(buf[i]);
+    }
+    const deviceNumber = buf.length > 36 ? buf[36] : buf.length > 33 ? buf[33] : 0;
+
+    if (deviceNumber > 0) {
       const existing = state.pioneerDecks[deviceNumber] || {};
       state.pioneerDecks[deviceNumber] = {
         ...existing,
-        name: existing.name || `Deck ${deviceNumber}`,
+        name: deviceName.trim() || existing.name || `Deck ${deviceNumber}`,
         deviceNumber,
-        ip: existing.ip || rinfo.address,
+        ip: rinfo.address,
         lastSeen: Date.now(),
-        bpm,
+        bpm: existing.bpm || 0,
+        beat: existing.beat || 0,
+        playing: existing.playing || false,
+        master: existing.master || false,
       };
     }
-  }
-});
-
-try {
-  pdjBeat.bind(50001, () => {
-    try { pdjBeat.setBroadcast(true); } catch {}
-    console.log('[PIONEER] Listening for beats on port 50001');
   });
-} catch (e) {
-  console.error('[PIONEER] Could not bind port 50001:', e.message);
+
+  try {
+    pdjKeepAlive.bind(50000, () => {
+      try { pdjKeepAlive.setBroadcast(true); } catch {}
+      console.log('[PIONEER] Listening for keepalive on port 50000 (UDP fallback)');
+    });
+  } catch (e) {
+    console.error('[PIONEER] Could not bind port 50000:', e.message);
+  }
+
+  // Port 50001: beat packets
+  const pdjBeat = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+  pdjBeat.on('error', (e) => console.error('[PIONEER] Beat socket error:', e.message));
+
+  pdjBeat.on('message', (buf, rinfo) => {
+    if (!isProDJLinkPacket(buf)) return;
+    const packetType = buf[10];
+
+    if (packetType === 0x28 && buf.length >= 0x60) {
+      const deviceNumber = buf[0x21];
+      const bpmRaw = buf.readUInt16BE(0x5a);
+      const bpm = Math.round(bpmRaw / 100 * 10) / 10;
+      const beat = buf[0x5c];
+
+      if (deviceNumber > 0 && bpm > 0 && bpm < 500) {
+        const existing = state.pioneerDecks[deviceNumber] || {};
+        state.pioneerDecks[deviceNumber] = {
+          ...existing,
+          name: existing.name || `Deck ${deviceNumber}`,
+          deviceNumber,
+          ip: existing.ip || rinfo.address,
+          lastSeen: Date.now(),
+          bpm,
+          beat: beat || existing.beat || 0,
+          playing: true,
+          master: existing.master || false,
+        };
+
+        broadcastToAll({
+          type: 'pioneer-beat',
+          deviceNumber,
+          bpm,
+          beat,
+          name: state.pioneerDecks[deviceNumber].name,
+        });
+      }
+    }
+
+    if (packetType === 0x0b && buf.length >= 0x28) {
+      const deviceNumber = buf[0x21];
+      const bpmRaw = buf.readUInt16BE(0x24);
+      const bpm = Math.round(bpmRaw / 100 * 10) / 10;
+
+      if (deviceNumber > 0 && bpm > 0 && bpm < 500) {
+        const existing = state.pioneerDecks[deviceNumber] || {};
+        state.pioneerDecks[deviceNumber] = {
+          ...existing,
+          name: existing.name || `Deck ${deviceNumber}`,
+          deviceNumber,
+          ip: existing.ip || rinfo.address,
+          lastSeen: Date.now(),
+          bpm,
+        };
+      }
+    }
+  });
+
+  try {
+    pdjBeat.bind(50001, () => {
+      try { pdjBeat.setBroadcast(true); } catch {}
+      console.log('[PIONEER] Listening for beats on port 50001 (UDP fallback)');
+    });
+  } catch (e) {
+    console.error('[PIONEER] Could not bind port 50001:', e.message);
+  }
 }
+
+// Try prolink-connect first, fall back to raw UDP
+initProlink().then((ok) => {
+  if (!ok) initProlinkFallback();
+});
 
 // Periodically broadcast full Pioneer deck state to clients & prune stale decks
 setInterval(() => {
@@ -2013,14 +2151,12 @@ setInterval(() => {
   let changed = false;
   for (const [num, deck] of Object.entries(state.pioneerDecks)) {
     if (now - deck.lastSeen > 10000) {
-      // Mark offline after 10s silence
       if (deck.playing) {
         state.pioneerDecks[num] = { ...deck, playing: false };
         changed = true;
       }
     }
     if (now - deck.lastSeen > 60000) {
-      // Remove after 60s
       delete state.pioneerDecks[num];
       changed = true;
     }
