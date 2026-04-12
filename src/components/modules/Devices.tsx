@@ -591,7 +591,7 @@ export function Devices() {
                           </div>
                         </div>
                         <Button variant={light.state.on ? 'secondary' : 'outline'} size="sm" className="h-6 text-[8px] px-2"
-                          onClick={() => hueStore.setPower(bridge.id, light.id, !light.state.on).then(() => hueStore.refreshBridge(bridge.id))}>
+                          onClick={() => hueStore.setPower(bridge.id, light.id, !light.state.on); setTimeout(() => hueStore.refreshBridge(bridge.id), 300)}>
                           {light.state.on ? 'ON' : 'OFF'}
                         </Button>
                         {light.state.on && light.capabilities.hasColor && (

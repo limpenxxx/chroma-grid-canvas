@@ -216,7 +216,7 @@ export function HuePanel() {
                           </div>
                           {/* Quick controls */}
                           <Button variant={light.state.on ? 'secondary' : 'outline'} size="sm" className="h-6 text-[8px] px-2"
-                            onClick={() => hueStore.setPower(bridge.id, light.id, !light.state.on).then(() => hueStore.refreshBridge(bridge.id))}>
+                            onClick={() => hueStore.setPower(bridge.id, light.id, !light.state.on); setTimeout(() => hueStore.refreshBridge(bridge.id), 300)}>
                             {light.state.on ? 'ON' : 'OFF'}
                           </Button>
                           {light.state.on && (
@@ -257,7 +257,7 @@ export function HuePanel() {
                               </div>
                             </div>
                             <Button variant={group.state.any_on ? 'secondary' : 'outline'} size="sm" className="h-6 text-[8px] px-2"
-                              onClick={() => hueStore.setGroupAction(bridge.id, group.id, { on: !group.state.any_on }).then(() => hueStore.refreshBridge(bridge.id))}>
+                              onClick={() => hueStore.setGroupAction(bridge.id, group.id, { on: !group.state.any_on }); setTimeout(() => hueStore.refreshBridge(bridge.id), 300)}>
                               {group.state.any_on ? 'ON' : 'OFF'}
                             </Button>
                           </div>
@@ -274,7 +274,7 @@ export function HuePanel() {
                             <Button key={scene.id} variant="outline" size="sm" className="h-6 text-[8px] px-2"
                               onClick={() => {
                                 const groupId = scene.group || '0';
-                                hueStore.triggerScene(bridge.id, groupId, scene.id).then(() => hueStore.refreshBridge(bridge.id));
+                                hueStore.triggerScene(bridge.id, groupId, scene.id); setTimeout(() => hueStore.refreshBridge(bridge.id), 300);
                               }}>
                               🎨 {scene.name}
                             </Button>
