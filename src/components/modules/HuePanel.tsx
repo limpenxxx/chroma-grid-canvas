@@ -9,6 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { useHueStore } from '@/store/hueStore';
 import { xyToRgb } from '@/lib/hueApi';
 import { toast } from 'sonner';
+import { isEngineConnected } from '@/lib/wsSync';
 import {
   engineHueEntertainmentStart, engineHueEntertainmentStop,
   engineHueEntertainmentCreate, sendHueEntertainmentColor, onEngineMessage,
