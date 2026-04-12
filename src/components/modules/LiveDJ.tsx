@@ -2717,11 +2717,10 @@ export function LiveDJ() {
 
     const poll = async () => {
       try {
-        const res = await fetch(`http://${ip}/json/si`, { signal: AbortSignal.timeout(1500) });
-        if (!res.ok) return;
-        const data = await res.json();
-        // WLED sound-reactive info: data.leds.lx = volume/loudness estimate
-        // or data.um?.AudioReactive?.volumeSmth or similar
+        const result = await engineWledAudioPoll(ip);
+        const data = result?.data;
+        if (!data) return;
+        // WLED sound-reactive info
         const um = data?.um;
         const ar = um?.['AudioReactive'] || um?.['audioreactive'] || {};
         const vol = Math.min(255, Math.max(0, ar?.volumeSmth ?? ar?.volume ?? ar?.inputLevel ?? data?.leds?.lx ?? 0));
@@ -2749,7 +2748,7 @@ export function LiveDJ() {
           }
         }
         beatData.lastVol = vol;
-      } catch { /* device unreachable */ }
+      } catch { /* engine unreachable */ }
     };
 
     // Poll at ~50ms for responsive beat detection
