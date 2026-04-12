@@ -3274,7 +3274,39 @@ export function LiveDJ() {
   })).filter(f => f.def);
   const wledDeviceVirtualFixtures = wledStore.devices.map(wledDeviceToVirtual);
   const wledSegmentVirtualFixtures = wledStore.fixtures.map(wledFixtureToVirtual);
-  const allFixturesWithDefs = [...fixturesWithDefs, ...wledDeviceVirtualFixtures, ...wledSegmentVirtualFixtures];
+
+  // Build virtual fixtures from Hue lights
+  const hueStore = useHueStore.getState();
+  const hueVirtualFixtures: { inst: FixtureInstance; def: FixtureDefinition }[] = [];
+  hueStore.bridges.forEach(bridge => {
+    const lights = hueStore.lights[bridge.id] || [];
+    lights.forEach(light => {
+      hueVirtualFixtures.push({
+        inst: {
+          id: `hue-${bridge.id}-${light.id}`,
+          definitionId: `hue-light-${light.id}`,
+          name: `💡 ${light.name}`,
+          universe: 0,
+          dmxAddress: 0,
+          modeId: 'default',
+          onStage: false,
+          stageX: 0, stageY: 0, stageWidth: 40, stageHeight: 40,
+        },
+        def: {
+          id: `hue-light-${light.id}`,
+          manufacturer: 'Philips',
+          model: light.modelid || 'Hue Light',
+          type: 'par',
+          category: 'hue' as any,
+          colorSystem: 'rgb',
+          modes: [{ id: 'default', name: 'Default', channels: [] }],
+          createdAt: Date.now(),
+        },
+      });
+    });
+  });
+
+  const allFixturesWithDefs = [...fixturesWithDefs, ...wledDeviceVirtualFixtures, ...wledSegmentVirtualFixtures, ...hueVirtualFixtures];
   allFixturesWithDefsRef.current = allFixturesWithDefs;
 
   const selectedWidgetData = widgets.find(w => w.id === selectedWidget);
