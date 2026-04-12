@@ -2179,6 +2179,30 @@ const outputTimer = setInterval(outputLoop, OUTPUT_INTERVAL);
 // Save state periodically
 const saveTimer = setInterval(saveState, SAVE_INTERVAL);
 
+// ── Systemd Watchdog + sd_notify ──
+// Sends READY=1 on startup and WATCHDOG=1 heartbeat every WatchdogSec/2.
+// Uses the systemd notification socket (NOTIFY_SOCKET env var).
+// If not running under systemd, this is a no-op.
+function sdNotify(msg) {
+  const notifySocket = process.env.NOTIFY_SOCKET;
+  if (!notifySocket) return;
+  try {
+    const net = require('net');
+    const client = net.createConnection({ path: notifySocket }, () => {
+      client.end(msg);
+    });
+    client.on('error', () => {});
+  } catch {}
+}
+
+// Tell systemd we're ready
+sdNotify('READY=1');
+
+// Send watchdog heartbeat every 10s (WatchdogSec=30, so half = 15s, we use 10s for margin)
+const watchdogTimer = setInterval(() => {
+  sdNotify('WATCHDOG=1');
+}, 10000);
+
 // ── Broadcast live DMX levels to browsers (10fps) ──
 // Sends only non-zero channels so it stays lightweight for remote tablets
 let lastDmxLevelsHash = '';
