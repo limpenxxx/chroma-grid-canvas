@@ -44,6 +44,7 @@ const MIDI_POLL_INTERVAL = 5000; // re-scan MIDI devices every 5s
 
 // ── MIDI engine state ──
 let midiDeviceList = []; // [{ port, name, open }]
+let audioDevices = [];
 
 // ══════════════════════════════════════════════════════════════
 // State
@@ -165,6 +166,33 @@ if (midiLib) {
   midiScanDevices();
   setInterval(midiScanDevices, MIDI_POLL_INTERVAL);
 }
+
+// ══════════════════════════════════════════════════════════════
+// Engine Audio — optional host sound cards via arecord/pw-record list
+// ══════════════════════════════════════════════════════════════
+
+function scanAudioDevices() {
+  try {
+    const { execSync } = require('child_process');
+    const out = execSync('arecord -l 2>/dev/null || true', { encoding: 'utf8' });
+    const lines = out.split('\n').filter(line => line.includes('card '));
+    audioDevices = lines.map((line, idx) => {
+      const m = line.match(/card\s+(\d+):\s*([^,]+),\s*device\s+(\d+):\s*([^\[]+)/i);
+      if (m) {
+        return {
+          id: `hw:${m[1]},${m[3]}`,
+          name: `${m[2].trim()} / ${m[4].trim()}`,
+          label: line.trim(),
+        };
+      }
+      return { id: `audio-${idx}`, name: line.trim(), label: line.trim() };
+    });
+  } catch {
+    audioDevices = [];
+  }
+}
+
+scanAudioDevices();
 
 // ══════════════════════════════════════════════════════════════
 // State persistence
@@ -1011,7 +1039,34 @@ function handleMessage(ws, msg) {
         blackout: state.blackout,
         midiDevices: midiDeviceList,
         midiAvailable: !!midiLib,
+        audioDevices,
+        audioAvailable: audioDevices.length > 0,
       }));
+      break;
+    }
+
+    case 'audio-list-devices': {
+      scanAudioDevices();
+      ws.send(JSON.stringify({
+        type: 'audio-devices',
+        reqId: msg.reqId,
+        devices: audioDevices,
+        available: audioDevices.length > 0,
+      }));
+      break;
+    }
+
+    case 'audio-poll': {
+      const { deviceId, reqId } = msg;
+      if (!deviceId) {
+        ws.send(JSON.stringify({ type: 'audio-poll-result', reqId, level: 0 }));
+        break;
+      }
+      const { exec } = require('child_process');
+      exec(`bash -lc "arecord -D ${deviceId} -f S16_LE -r 44100 -c 1 -d 1 -q -t raw 2>/dev/null | python3 -c \"import sys,struct,math; data=sys.stdin.buffer.read(); vals=struct.iter_unpack('<h', data[:44100*2]); arr=[abs(v[0]) for v in vals]; print(min(255, int((sum(arr)/max(1,len(arr)))/128)))\""`, { timeout: 2500 }, (err, stdout) => {
+        const level = err ? 0 : Math.max(0, Math.min(255, parseInt(String(stdout || '0').trim(), 10) || 0));
+        ws.send(JSON.stringify({ type: 'audio-poll-result', reqId, level, deviceName: deviceId }));
+      });
       break;
     }
 
