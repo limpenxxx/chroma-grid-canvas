@@ -1066,8 +1066,19 @@ function handleMessage(ws, msg) {
       break;
     }
 
-    // ══════════════════════════════════════════════════════════
-    // MagicHome: discovery, refresh, control (via engine proxy)
+    case 'wled-presets': {
+      // Fetch preset list from a WLED device
+      const { ip: presetsIp, reqId: presetsReqId } = msg;
+      if (!presetsIp) break;
+      (async () => {
+        try {
+          const data = await httpRequest(`http://${presetsIp}/presets.json`, 'GET', null, 3000);
+          ws.send(JSON.stringify({ type: 'wled-presets-result', reqId: presetsReqId, data }));
+        } catch {
+          ws.send(JSON.stringify({ type: 'wled-presets-result', reqId: presetsReqId, data: null }));
+        }
+      })();
+      break;
     // ══════════════════════════════════════════════════════════
 
     case 'magic-discover': {
