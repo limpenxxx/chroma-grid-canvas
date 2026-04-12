@@ -87,8 +87,8 @@ export const useAppStore = create<AppState>()(
 // Sync: broadcast changes
 useAppStore.subscribe((state) => {
   if (!isSyncingFromRemote()) {
-    const { activeModule, masterDimmer, blackout, userRole, userName, adminName } = state;
-    broadcastState('app', { activeModule, masterDimmer, blackout, userRole, userName, adminName });
+    const { activeModule, masterDimmer, blackout, userName, adminName } = state;
+    broadcastState('app', { activeModule, masterDimmer, blackout, userName, adminName });
   }
 });
 
