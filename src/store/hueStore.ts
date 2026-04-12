@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { type HueBridge, type HueLight, type HueGroup, type HueScene } from '@/lib/hueApi';
 import {
   sendHueBridge, sendHueLight, sendHueGroupAction, sendHueScene,
-  engineHueDiscover, engineHuePair, engineHueRefresh,
+  engineHueDiscover, engineHuePair, engineHueRefresh, onEngineConnect,
 } from '@/lib/wsSync';
 import { rgbToXy } from '@/lib/hueApi';
 

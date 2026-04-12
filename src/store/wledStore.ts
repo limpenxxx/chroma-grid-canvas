@@ -234,3 +234,12 @@ onSyncState((incoming) => {
     });
   }
 });
+
+// ── Auto-refresh when engine connects ──
+onEngineConnect(() => {
+  const { devices, refreshAll } = useWledStore.getState();
+  if (devices.length > 0) {
+    console.log('[WLED] Engine connected — refreshing', devices.length, 'devices');
+    setTimeout(() => refreshAll(), 500);
+  }
+});
