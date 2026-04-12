@@ -1093,6 +1093,107 @@ function handleMessage(ws, msg) {
       break;
     }
 
+    // ── Full hardware scan ──
+    case 'hw-scan': {
+      const os = require('os');
+      const { execSync } = require('child_process');
+
+      // NICs
+      const ifaces = os.networkInterfaces();
+      const nics = [];
+      const seenNics = new Set();
+      for (const [name, addrs] of Object.entries(ifaces)) {
+        for (const addr of addrs) {
+          if (addr.family === 'IPv4') {
+            nics.push({ name, address: addr.address, mac: addr.mac || '', internal: addr.internal, operstate: 'up' });
+            seenNics.add(name);
+          }
+        }
+      }
+      try {
+        const netDir = '/sys/class/net';
+        if (fs.existsSync(netDir)) {
+          for (const nic of fs.readdirSync(netDir)) {
+            if (seenNics.has(nic) || nic === 'lo') continue;
+            let mac = '', operstate = 'down';
+            try { mac = fs.readFileSync(`${netDir}/${nic}/address`, 'utf8').trim(); } catch {}
+            try { operstate = fs.readFileSync(`${netDir}/${nic}/operstate`, 'utf8').trim(); } catch {}
+            if (mac === '00:00:00:00:00:00' || nic.startsWith('veth') || nic.startsWith('docker') || nic.startsWith('br-')) continue;
+            nics.push({ name: nic, address: '', mac, internal: false, operstate });
+          }
+        }
+      } catch {}
+
+      // USB serial ports
+      let usbPorts = [];
+      try {
+        const devFiles = fs.readdirSync('/dev');
+        usbPorts = devFiles.filter(f => /^tty(USB|ACM)\d+$/.test(f)).map(f => {
+          const devPath = '/dev/' + f;
+          let vendor = '', product = '';
+          try {
+            const sysBase = '/sys/class/tty/' + f + '/device/..';
+            if (fs.existsSync(sysBase + '/idVendor')) vendor = fs.readFileSync(sysBase + '/idVendor', 'utf8').trim();
+            if (fs.existsSync(sysBase + '/idProduct')) product = fs.readFileSync(sysBase + '/idProduct', 'utf8').trim();
+          } catch {}
+          let adapterType = 'unknown';
+          if (vendor === '0403' && product === '6001') adapterType = 'eurolite-dmx';
+          else if (vendor === '0403' && product === '6010') adapterType = 'enttec-pro';
+          else if (vendor === '0403') adapterType = 'ftdi-generic';
+          else if (vendor === '10cf') adapterType = 'udmx';
+          else if (vendor === '16c0') adapterType = 'dmxking';
+          else if (vendor === '1a86') adapterType = 'ch340-generic';
+          return { path: devPath, name: f, vendor, product, adapterType };
+        });
+      } catch {}
+
+      // USB devices (lsusb)
+      let usbDevices = [];
+      try {
+        const lsusb = execSync('lsusb 2>/dev/null || true', { encoding: 'utf8', timeout: 3000 });
+        usbDevices = lsusb.split('\n').filter(l => l.trim()).map(line => {
+          const m = line.match(/Bus (\d+) Device (\d+): ID ([0-9a-f:]+)\s+(.*)/i);
+          if (m) return { bus: m[1], device: m[2], id: m[3], name: m[4].trim() };
+          return { bus: '', device: '', id: '', name: line.trim() };
+        });
+      } catch {}
+
+      // MIDI
+      midiScanDevices();
+
+      // Audio
+      scanAudioDevices();
+
+      // System info
+      let cpuModel = '', totalMemMb = 0, hostname = '';
+      try { hostname = os.hostname(); } catch {}
+      try { totalMemMb = Math.round(os.totalmem() / 1024 / 1024); } catch {}
+      try {
+        const cpus = os.cpus();
+        cpuModel = cpus.length > 0 ? `${cpus[0].model} (${cpus.length} cores)` : '';
+      } catch {}
+      let uptimeSec = 0;
+      try { uptimeSec = Math.floor(os.uptime()); } catch {}
+
+      ws.send(JSON.stringify({
+        type: 'hw-scan-result',
+        reqId: msg.reqId,
+        system: { hostname, cpuModel, totalMemMb, uptimeSec, platform: os.platform(), arch: os.arch() },
+        nics,
+        usbSerialPorts: usbPorts,
+        usbDevices,
+        midiDevices: midiDeviceList,
+        midiAvailable: !!midiLib,
+        audioDevices,
+        audioAvailable: audioDevices.length > 0,
+        wledCount: Object.keys(state.wled).length + Object.keys(state.wledDevices || {}).length,
+        hueBridgeCount: Object.keys(state.hue).length,
+        magicDeviceCount: Object.keys(state.magic).length,
+        dmxUniverses: Object.keys(state.dmx).map(Number),
+      }));
+      break;
+    }
+
     // ── I/O configuration from browser ──
     case 'io-config': {
       if (msg.outputs) {
